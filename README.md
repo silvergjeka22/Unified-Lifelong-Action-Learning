@@ -1,1 +1,1 @@
-# Unified-Lifelong-Action-Learning-ULAL-
+# Unified-Lifelong-Action-Learning (ULAL)
