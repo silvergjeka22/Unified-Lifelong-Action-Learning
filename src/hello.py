@@ -5,5 +5,5 @@ class HelloUCF:
         self.name = name
 
     def print_hello(self):
-        print(f"👋 Hello from {self.name}!")
-        print("✓ src/ folder loaded successfully into Colab.")
+        print(f"Hello from {self.name}!")
+        print("src/ folder loaded successfully into Colab.")
