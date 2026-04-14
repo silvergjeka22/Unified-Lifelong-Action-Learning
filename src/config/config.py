@@ -2,8 +2,8 @@ import random
 import os
 
 # DATASET PATHS
-# Auto-updated by setup_colab.sh — do not edit manually
-DATASET_ROOT = "/root/.cache/kagglehub/datasets/matthewjansen/ucf101-action-recognition/versions/4/"
+# Auto-updated by setup_colab.sh do not edit manually
+DATASET_ROOT = "/root/.cache/kagglehub/datasets/versions/4/"
 OUTPUT_ROOT  = "/content/ucf101-processed/"
 
 # VIDEO PROCESSING
