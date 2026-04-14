@@ -10,7 +10,7 @@ KAGGLE_VERSION="4"
 # DO NOT EDIT BELOW THIS LINE
 CACHE_PATH="/root/.cache/kagglehub/datasets/matthewjansen/ucf101-action-recognition/versions/${KAGGLE_VERSION}"
 KAGGLE_INPUT_PATH="/kaggle/input/ucf101-action-recognition"
-CONFIG_FILE="${DRIVE_PROJECT_PATH}/src/config/config.py"
+CONFIG_FILE="/content/src/config/config.py"
 
 echo ""
 echo "UCF101 Project — Colab Setup Script"
