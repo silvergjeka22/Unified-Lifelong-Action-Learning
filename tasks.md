@@ -1,5 +1,9 @@
 # Continual Learning on UCF101 — Task Tracker
 
+[x] -> done
+[/] -> in progress
+[ ] -> not done
+
 ## Project Overview
 
 A continual learning pipeline for video-based action recognition on UCF101.
