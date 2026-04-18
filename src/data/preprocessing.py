@@ -52,15 +52,26 @@ def save_clip_tensor(frames, output_path):
     torch.save(torch.stack(processed, dim=0), output_path)
 
 
-def preprocess_dataset():
-    print(f"Preprocessing UCF101\n  from : {DATASET_ROOT}\n  to   : {OUTPUT_ROOT}\n")
+def preprocess_dataset(splits=None):
+    """
+    Preprocess UCF101 dataset.
 
-    if os.path.exists(OUTPUT_ROOT):
-        shutil.rmtree(OUTPUT_ROOT)
+    Args:
+        splits: list of splits to process. Default: ["train", "val", "test"]
+                Examples:
+                  preprocess_dataset()                        # all splits
+                  preprocess_dataset(splits=["train"])        # train only
+                  preprocess_dataset(splits=["train", "val"]) # train + val
+    """
+    if splits is None:
+        splits = ["train", "val", "test"]
+
+    print(f"Preprocessing UCF101\n  from   : {DATASET_ROOT}\n  to     : {OUTPUT_ROOT}\n  splits : {splits}\n")
+
     os.makedirs(OUTPUT_ROOT, exist_ok=True)
 
-    for split_name in ["train", "val", "test"]:
-        print(f"── Split: {split_name}")
+    for split_name in splits:
+        print(f"-> Split: {split_name}")
         split_in  = os.path.join(DATASET_ROOT, split_name)
         split_out = os.path.join(OUTPUT_ROOT,  split_name)
         os.makedirs(split_out, exist_ok=True)
