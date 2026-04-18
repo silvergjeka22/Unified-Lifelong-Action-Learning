@@ -74,6 +74,7 @@ print("Using device:", device)
 
 # project modules
 get_ipython().run_line_magic('run', '/content/src/data/study_dataset.py')
+get_ipython().run_line_magic('run', '/content/src/data/preprocessing.py')
 get_ipython().run_line_magic('run', '/content/src/data/dataset.py')
 get_ipython().run_line_magic('run', '/content/src/fine_tune/trainer.py')
 get_ipython().run_line_magic('run', '/content/src/fine_tune/visualizer.py')
