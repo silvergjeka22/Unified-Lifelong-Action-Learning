@@ -84,7 +84,7 @@ for item in files:
 print(f"\n All files saved under {dest}/{folder}/")
 PYEOF
 
-# STEP 2 — Verify contents
+# Verify contents
 echo "Contents of ${DEST}/${FOLDER}/:"
 find "${DEST}/${FOLDER}" -type f | sort
 
