@@ -1,4 +1,4 @@
-#  SHARED IMPORTS -> run with: %run src/imports.py
+#  SHARED IMPORTS -> run with: %run /content/src/imports.py
 import os
 import cv2
 import torch
@@ -43,20 +43,22 @@ from sklearn.metrics import (
     recall_score,
 )
 
-# vision
-subprocess.run(["pip", "install", "torchviz", "-q"], capture_output=True)
-from torchviz import make_dot
+# torchinfo
+subprocess.run(["pip", "install", "torchinfo", "-q"], capture_output=True)
+from torchinfo import summary
 
-# project modules
+# project src path
 import sys, os as _os
 _SRC = _os.path.dirname(_os.path.abspath(__file__))
 if _SRC not in sys.path:
     sys.path.insert(0, _SRC)
 
+# config
 from config.config import (
     DATASET_ROOT,
     OUTPUT_ROOT,
     SELECTED_CLASSES,
+    BATCH_SIZE,
     FRAME_RATE,
     CLIP_LEN,
     RESIZE_HEIGHT,
@@ -66,6 +68,13 @@ from config.config import (
     spatial_transform,
 )
 
-# Device
+# device
 device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 print("Using device:", device)
+
+# project modules
+get_ipython().run_line_magic('run', '/content/src/data/study_dataset.py')
+get_ipython().run_line_magic('run', '/content/src/data/dataset.py')
+get_ipython().run_line_magic('run', '/content/src/fine_tune/trainer.py')
+get_ipython().run_line_magic('run', '/content/src/fine_tune/visualizer.py')
+get_ipython().run_line_magic('run', '/content/src/models/pretrained.py')
