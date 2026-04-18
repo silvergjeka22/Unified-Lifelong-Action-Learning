@@ -57,13 +57,10 @@ The best-performing model is used as a teacher in a final Knowledge Distillation
 - [x] Implement generic training loop with validation (`trainer.py`)
 - [x] Implement checkpoint saving and loading
 - [x] Implement training visualizer (`visualizer.py`)
-- [ ] Add early stopping support
 - [ ] Build incremental training pipeline (sequential tasks, dynamic head expansion)
 - [ ] Evaluate on all seen tasks after each new task
 - [ ] Track per-task accuracy, average accuracy, and forgetting
 - [ ] Save all metrics to structured files (CSV / JSON)
-- [ ] Fix and log all random seeds, hyperparameters, and dataset versions
-
 ---
 
 ## Phase 5 — Continual Learning Methods
