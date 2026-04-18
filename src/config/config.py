@@ -28,6 +28,8 @@ CLIP_LEN       = 16     # Number of frames per clip
 RESIZE_HEIGHT  = 256    # Resize video height before cropping
 CROP_SIZE      = 224    # Final spatial crop size (224x224)
 
+BATCH_SIZE  = 4
+
 # DATASET SPLIT
 TRAIN_SPLIT = 0.8       # 80% train, 20% test
 SEED        = 42        # Global random seed
