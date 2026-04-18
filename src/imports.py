@@ -65,3 +65,7 @@ from config.config import (
     SEED,
     spatial_transform,
 )
+
+# Device
+device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
+print("Using device:", device)
