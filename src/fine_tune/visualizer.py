@@ -45,6 +45,7 @@ def plot_confusion_matrix(all_labels, all_preds,
                           num_classes=None, classes_list=None):
     """
     Plot raw count and normalized confusion matrices.
+    Figure size scales automatically with num_classes (1.5 inch per cell).
 
     Args:
         all_labels   : list of ground-truth labels
@@ -63,30 +64,35 @@ def plot_confusion_matrix(all_labels, all_preds,
 
     tick_labels = classes_list[:num_classes]
 
-    # Counts
-    plt.figure(figsize=(20, 18))
-    ax1 = sns.heatmap(cm, annot=True, fmt='d', cmap='Blues', square=True,
-                      annot_kws={'size': 6},
-                      xticklabels=tick_labels,
-                      yticklabels=tick_labels)
-    ax1.set_xlabel("Predicted")
-    ax1.set_ylabel("True")
-    ax1.set_title(f"Confusion Matrix — Counts ({num_classes} Classes)")
-    ax1.tick_params(axis='x', rotation=90, labelsize=9)
-    ax1.tick_params(axis='y', labelsize=9)
-    plt.tight_layout()
-    plt.show()
+    # figsize scales with num_classes so cells are always big enough
+    cell_inch = 1.5
+    fig_w = num_classes * cell_inch + 8   # +8 for y-labels + colorbar
+    fig_h = num_classes * cell_inch + 6   # +6 for x-labels + title
 
-    # Normalized
-    plt.figure(figsize=(20, 18))
-    ax2 = sns.heatmap(cm_norm, annot=True, fmt='.2f', cmap='YlOrRd', square=True,
-                      annot_kws={'size': 6},
-                      xticklabels=tick_labels,
-                      yticklabels=tick_labels)
-    ax2.set_xlabel("Predicted")
-    ax2.set_ylabel("True")
-    ax2.set_title(f"Confusion Matrix — Normalized ({num_classes} Classes)")
-    ax2.tick_params(axis='x', rotation=90, labelsize=9)
-    ax2.tick_params(axis='y', labelsize=9)
-    plt.tight_layout()
-    plt.show()
+    def _draw(data, fmt, cmap, title):
+        fig, ax = plt.subplots(figsize=(fig_w, fig_h))
+        sns.heatmap(
+            data,
+            annot=True,
+            fmt=fmt,
+            cmap=cmap,
+            square=True,
+            linewidths=0.5,
+            linecolor='#dddddd',
+            annot_kws={'size': 25, 'weight': 'bold', 'color': 'black'},
+            xticklabels=tick_labels,
+            yticklabels=tick_labels,
+            cbar_kws={'shrink': 0.5, 'pad': 0.01},
+            ax=ax,
+        )
+        ax.set_xlabel("Predicted", fontsize=30, fontweight='bold', labelpad=16)
+        ax.set_ylabel("True",      fontsize=30, fontweight='bold', labelpad=16)
+        ax.set_title(title,        fontsize=30, fontweight='bold', pad=20)
+        ax.tick_params(axis='x', rotation=45, labelsize=25)
+        ax.tick_params(axis='y', rotation=0,  labelsize=25)
+        plt.setp(ax.get_xticklabels(), ha='right', rotation_mode='anchor')
+        plt.tight_layout()
+        plt.show()
+
+    _draw(cm,      'd',   'Blues',  f"Confusion Matrix — Counts ({num_classes} Classes)")
+    _draw(cm_norm, '.2f', 'YlOrRd', f"Confusion Matrix — Normalized ({num_classes} Classes)")
