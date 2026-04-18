@@ -28,6 +28,7 @@ CLIP_LEN       = 16     # Number of frames per clip
 RESIZE_HEIGHT  = 256    # Resize video height before cropping
 CROP_SIZE      = 224    # Final spatial crop size (224x224)
 
+# TRAINING
 BATCH_SIZE  = 4
 
 # DATASET SPLIT
