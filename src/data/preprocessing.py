@@ -1,7 +1,17 @@
 #  PREPROCESSING
-#  Assumes %run src/imports.py was already called in the notebook.
-#  All imports (os, cv2, torch, tqdm, PIL, config constants, etc.)
-#  are already in the global namespace.
+#  Run from notebook: %run /content/src/data/preprocessing.py
+
+import sys, os
+sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+
+import cv2, torch, shutil, random
+from PIL import Image
+from tqdm import tqdm
+from config.config import (
+    DATASET_ROOT, OUTPUT_ROOT, SELECTED_CLASSES,
+    FRAME_RATE, CLIP_LEN, spatial_transform
+)
+
 
 def extract_frames(video_path, target_fps=FRAME_RATE):
     """Extract frames from a video at target fps. Returns list of RGB arrays."""
