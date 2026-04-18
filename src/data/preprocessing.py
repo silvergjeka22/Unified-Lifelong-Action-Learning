@@ -1,0 +1,83 @@
+#  PREPROCESSING
+#  Assumes %run src/imports.py was already called in the notebook.
+#  All imports (os, cv2, torch, tqdm, PIL, config constants, etc.)
+#  are already in the global namespace.
+
+def extract_frames(video_path, target_fps=FRAME_RATE):
+    """Extract frames from a video at target fps. Returns list of RGB arrays."""
+    cap = cv2.VideoCapture(video_path)
+    original_fps = cap.get(cv2.CAP_PROP_FPS)
+    if original_fps <= 0:
+        original_fps = target_fps
+
+    frame_interval = max(int(original_fps // target_fps), 1)
+    frames, count = [], 0
+    success, frame = cap.read()
+
+    while success:
+        if count % frame_interval == 0:
+            frames.append(cv2.cvtColor(frame, cv2.COLOR_BGR2RGB))
+        success, frame = cap.read()
+        count += 1
+
+    cap.release()
+    return frames
+
+
+def temporal_sample(frames, clip_len=CLIP_LEN):
+    """Sample a fixed-length clip; pads with last frame if video is too short."""
+    num_frames = len(frames)
+    if num_frames >= clip_len:
+        start = random.randint(0, num_frames - clip_len)
+        return frames[start:start + clip_len]
+    last_frame = frames[-1]
+    while len(frames) < clip_len:
+        frames.append(last_frame)
+    return frames
+
+
+def save_clip_tensor(frames, output_path):
+    """Apply spatial transforms and save clip as a .pt tensor [T, C, H, W]."""
+    processed = [spatial_transform(Image.fromarray(f)) for f in frames]
+    torch.save(torch.stack(processed, dim=0), output_path)
+
+
+def preprocess_dataset():
+    print(f"Preprocessing UCF101\n  from : {DATASET_ROOT}\n  to   : {OUTPUT_ROOT}\n")
+
+    if os.path.exists(OUTPUT_ROOT):
+        shutil.rmtree(OUTPUT_ROOT)
+    os.makedirs(OUTPUT_ROOT, exist_ok=True)
+
+    for split_name in ["train", "val", "test"]:
+        print(f"── Split: {split_name}")
+        split_in  = os.path.join(DATASET_ROOT, split_name)
+        split_out = os.path.join(OUTPUT_ROOT,  split_name)
+        os.makedirs(split_out, exist_ok=True)
+
+        for cls in SELECTED_CLASSES:
+            cls_in  = os.path.join(split_in,  cls)
+            cls_out = os.path.join(split_out, cls)
+
+            if not os.path.isdir(cls_in):
+                print(f"   Warning: '{cls}' not found in '{split_name}', skipping.")
+                continue
+
+            os.makedirs(cls_out, exist_ok=True)
+            videos = sorted(
+                os.path.join(cls_in, v)
+                for v in os.listdir(cls_in)
+                if v.endswith(".avi")
+            )
+
+            for vid_path in tqdm(videos, desc=f"  {cls} [{split_name}]"):
+                frames = extract_frames(vid_path)
+                if not frames:
+                    print(f"   Skipping empty video: {vid_path}")
+                    continue
+
+                sampled  = temporal_sample(frames)
+                vid_name = os.path.splitext(os.path.basename(vid_path))[0]
+                save_clip_tensor(sampled, os.path.join(cls_out, f"{vid_name}.pt"))
+
+    print("\nDone! Processed data saved at:", OUTPUT_ROOT)
