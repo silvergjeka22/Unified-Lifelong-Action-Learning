@@ -26,7 +26,7 @@ VAL_COLOR   = "#DC2626"   # red
 
 
 # TRAINING CURVES
-def plot_training_curves(results, task_name="", save_path=None):
+def plot_training_results(results, task_name="", save_path=None):
     """
     Plot train/val Loss and Accuracy from fine_tune_model() output.
 
@@ -74,9 +74,9 @@ def plot_training_curves(results, task_name="", save_path=None):
 
 
 # Backward-compatible alias (accepts flat lists instead of the history dict)
-def plot_train_val_curves(train_acc, val_acc, train_loss, val_loss,
+def plot_train_val_results(train_acc, val_acc, train_loss, val_loss,
                           task_index=1, save_path=None):
-    plot_training_curves(
+    plot_training_results(
         {"train_accs": train_acc, "val_accs": val_acc,
          "train_losses": train_loss, "val_losses": val_loss},
         task_name=f"Task {task_index}",
