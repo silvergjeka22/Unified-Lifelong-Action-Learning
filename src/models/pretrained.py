@@ -13,6 +13,7 @@ from torchvision.models import (
     VGG19_BN_Weights,
 )
 from config.config import SELECTED_CLASSES
+from config.config import DROPOUT_P
 
 num_classes = len(SELECTED_CLASSES)
 
@@ -48,48 +49,80 @@ class ResNet18LSTM(nn.Module):
 
 #  ResNet50 + LSTM
 class ResNet50LSTM(nn.Module):
-    """ResNet50 (frozen except layer4) + LSTM classifier."""
-    def __init__(self, hidden_size=256, num_classes=num_classes):
+    """
+    ResNet50 (frozen except layer4) + LSTM + Dropout classifier.
+
+    Args:
+        hidden_size : LSTM hidden state size         (default: 256)
+        num_classes : output classes                 (default: _DEFAULT_NUM_CLASSES)
+        dropout_p   : dropout probability before fc  (default: cfg.DROPOUT_P)
+                      0.4 for base/task1, lower to 0.3 for task2+
+
+    Input : [B, T, C, H, W]
+    Output: [B, num_classes]
+    """
+    def __init__(self, hidden_size=256, num_classes=_DEFAULT_NUM_CLASSES, dropout_p=None):
         super().__init__()
+
+        if dropout_p is None:
+            dropout_p = cfg.DROPOUT_P
+
         resnet = models.resnet50(weights=ResNet50_Weights.DEFAULT)
-        # freeze all layers
+
+        # freeze all, then unfreeze layer4 only
         for param in resnet.parameters():
             param.requires_grad = False
-        # unfreeze layer4
         for param in resnet.layer4.parameters():
             param.requires_grad = True
-        
-        # remove fc
-        self.resnet = nn.Sequential(*list(resnet.children())[:-1])
-        # add lstm
-        self.lstm   = nn.LSTM(input_size=2048, hidden_size=hidden_size, batch_first=True)
-        # add fc
-        self.fc     = nn.Linear(hidden_size, num_classes)
+
+        self.resnet  = nn.Sequential(*list(resnet.children())[:-1])  # remove fc
+        self.lstm    = nn.LSTM(input_size=2048, hidden_size=hidden_size, batch_first=True)
+        self.dropout = nn.Dropout(p=dropout_p)
+        self.fc      = nn.Linear(hidden_size, num_classes)
 
     def forward(self, x):
         B, T, C, H, W = x.shape
-        x        = x.view(B * T, C, H, W)
-        # remove torch.no_grad() gradients go through unfrozen layers
-        features = self.resnet(x)
-        features = features.view(B, T, -1)
-        out, _   = self.lstm(features)
-        return self.fc(out[:, -1, :]) # return only last frame
+        features = self.resnet(x.view(B * T, C, H, W))  # [B*T, 2048, 1, 1]
+        features = features.view(B, T, -1)               # [B, T, 2048]
+        out, _   = self.lstm(features)                   # [B, T, hidden]
+        return self.fc(self.dropout(out[:, -1, :]))       # last hidden state only
 
 
 def expand_classifier(model, new_num_classes):
+    """
+    Grow model.fc to new_num_classes, preserving weights from old classes.
+    Dropout layer is carried over unchanged — update cfg.DROPOUT_P before
+    calling this if you want a lower rate for the new task.
+    """
     old_fc = model.fc
-    # new, bigger classifier
     new_fc = nn.Linear(old_fc.in_features, new_num_classes)
-    # copy weights and biases from old classifier
+
+    # copy existing weights and biases; new rows keep random init
     with torch.no_grad():
         new_fc.weight[:old_fc.out_features] = old_fc.weight
         new_fc.bias[:old_fc.out_features]   = old_fc.bias
-    # replace old classifier with new one
+
     model.fc = new_fc
     return model
 
+
+def update_dropout(model, new_p):
+    """
+    Update the dropout probability in-place without rebuilding the model.
+    Call this before fine-tuning each new task.
+
+    Usage:
+        update_dropout(model, new_p=0.3)   # before Task 2 / 3 / 4
+    """
+    for module in model.modules():
+        if isinstance(module, nn.Dropout):
+            module.p = new_p
+    print(f"Dropout updated to p={new_p}")
+    return model
+
+
 def unfreeze_all(model):
-    # make all labels trainable
+    """Make every parameter trainable (naive upper-bound baseline)."""
     for param in model.parameters():
         param.requires_grad = True
     return model
