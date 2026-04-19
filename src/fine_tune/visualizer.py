@@ -18,7 +18,7 @@ plt.rcParams.update({
     "grid.alpha":        0.25,
     "axes.spines.top":   False,
     "axes.spines.right": False,
-    "font.size":         16,
+    "font.size":         18,
 })
 
 TRAIN_COLOR = "#2563EB"   # blue
@@ -132,15 +132,15 @@ def _draw_cm(data, fmt, cmap, title, tick_labels, save_path=None, suffix=""):
     """
     n = len(tick_labels)
 
-    # Font sizes — large for small matrices, degrade gracefully for big ones
-    fs_annot = max(9,  min(24, int(230 / n)))   # numbers inside cells
-    fs_tick  = max(7,  min(14, int(200 / n)))   # axis tick labels
-    fs_label = max(11, min(20, int(240 / n)))   # axis + title labels
+    # Numbers inside cells — hard floor at 14, goes up to 32 for small matrices
+    fs_annot = max(14, min(32, int(320 / n)))
+    fs_tick  = max(8,  min(15, int(200 / n)))
+    fs_label = max(12, min(20, int(240 / n)))
 
-    # Figure size — generous cell size so numbers have room to breathe
-    cell  = max(1.0, min(2.4, 42 / n))
-    fig_w = n * cell + 5
-    fig_h = n * cell + 4
+    # Cell size — very generous so large numbers fit without clipping
+    cell  = max(1.4, min(3.0, 52 / n))
+    fig_w = n * cell + 6
+    fig_h = n * cell + 5
 
     fig, ax = plt.subplots(figsize=(fig_w, fig_h))
 
@@ -150,24 +150,25 @@ def _draw_cm(data, fmt, cmap, title, tick_labels, save_path=None, suffix=""):
         fmt=fmt,
         cmap=cmap,
         square=True,
-        linewidths=0.4,
+        linewidths=0.5,
         linecolor="#e5e7eb",
         annot_kws={
-            "size":   fs_annot,
-            "weight": "bold",
-            "color":  "black",
-            "va":     "center",
-            "ha":     "center",
+            "size":             fs_annot,
+            "weight":           "bold",
+            "color":            "black",
+            "va":               "center",
+            "ha":               "center",
+            "fontfamily":       "monospace",
         },
         xticklabels=tick_labels,
         yticklabels=tick_labels,
-        cbar_kws={"shrink": 0.6, "pad": 0.02},
+        cbar_kws={"shrink": 0.55, "pad": 0.02},
         ax=ax,
     )
 
-    ax.set_title(title,        fontsize=fs_label, fontweight="bold", pad=16)
-    ax.set_xlabel("Predicted", fontsize=fs_label, fontweight="bold", labelpad=12)
-    ax.set_ylabel("True",      fontsize=fs_label, fontweight="bold", labelpad=12)
+    ax.set_title(title,        fontsize=fs_label, fontweight="bold", pad=18)
+    ax.set_xlabel("Predicted", fontsize=fs_label, fontweight="bold", labelpad=14)
+    ax.set_ylabel("True",      fontsize=fs_label, fontweight="bold", labelpad=14)
     ax.tick_params(axis="x", rotation=45, labelsize=fs_tick)
     ax.tick_params(axis="y", rotation=0,  labelsize=fs_tick)
     plt.setp(ax.get_xticklabels(), ha="right", rotation_mode="anchor")
