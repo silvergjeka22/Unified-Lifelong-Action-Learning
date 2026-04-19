@@ -18,7 +18,7 @@ plt.rcParams.update({
     "grid.alpha":        0.25,
     "axes.spines.top":   False,
     "axes.spines.right": False,
-    "font.size":         12,
+    "font.size":         20,
 })
 
 _COLORS = {
