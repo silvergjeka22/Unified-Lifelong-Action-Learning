@@ -54,14 +54,14 @@ class ResNet50LSTM(nn.Module):
 
     Args:
         hidden_size : LSTM hidden state size         (default: 256)
-        num_classes : output classes                 (default: _DEFAULT_NUM_CLASSES)
+        num_classes : output classes                 (default: num_classes)
         dropout_p   : dropout probability before fc  (default: cfg.DROPOUT_P)
                       0.4 for base/task1, lower to 0.3 for task2+
 
     Input : [B, T, C, H, W]
     Output: [B, num_classes]
     """
-    def __init__(self, hidden_size=256, num_classes=_DEFAULT_NUM_CLASSES, dropout_p=None):
+    def __init__(self, hidden_size=256, num_classes=num_classes, dropout_p=None):
         super().__init__()
 
         if dropout_p is None:
