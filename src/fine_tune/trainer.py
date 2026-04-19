@@ -156,7 +156,7 @@ def fine_tune_model(
             best_val_acc  = val_acc
             best_val_loss = val_loss
             torch.save(model.state_dict(), save_path)
-            print(f"    -> Saved best model → {save_path}  (Val Acc={best_val_acc:.4f})")
+            print(f"Saved best model -> {save_path}  (Val Acc={best_val_acc:.4f})")
 
     return {
         'train_losses': train_losses,
@@ -345,19 +345,19 @@ def evaluate_all_tasks(
 
     acc, loss = evaluate_model(model, base_loader, device, task_offset=task_offsets[0])
     results["base"] = {"accuracy": acc, "loss": loss}
-    print(f"  base            → Acc={acc:.4f}  Loss={loss:.4f}")
+    print(f"  base           -> Acc={acc:.4f}  Loss={loss:.4f}")
 
     for i, loader in enumerate(task_loaders):
         offset     = task_offsets[i + 1]
         split_name = f"task{i + 1}_only"
         acc, loss  = evaluate_model(model, loader, device, task_offset=offset)
         results[split_name] = {"accuracy": acc, "loss": loss}
-        print(f"  {split_name:<16} → Acc={acc:.4f}  Loss={loss:.4f}  (offset={offset})")
+        print(f"  {split_name:<16} -> Acc={acc:.4f}  Loss={loss:.4f}  (offset={offset})")
 
     for i, loader in enumerate(combined_loaders):
         split_name = f"combined_t{i + 1}"
         acc, loss  = evaluate_model(model, loader, device, task_offset=0)
         results[split_name] = {"accuracy": acc, "loss": loss}
-        print(f"  {split_name:<16} → Acc={acc:.4f}  Loss={loss:.4f}")
+        print(f"  {split_name:<16} -> Acc={acc:.4f}  Loss={loss:.4f}")
 
     return results
