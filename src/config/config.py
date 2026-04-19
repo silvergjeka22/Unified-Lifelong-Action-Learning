@@ -77,8 +77,6 @@ TASK_4 = [
 
 CLASSES_50 = CLASSES_40 + TASK_4
 
-
-
 # VIDEO PROCESSING
 FRAME_RATE     = 25     # Target frame rate (fps)
 CLIP_LEN       = 16     # Number of frames per clip

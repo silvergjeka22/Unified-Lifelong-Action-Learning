@@ -48,31 +48,51 @@ class ResNet18LSTM(nn.Module):
 
 #  ResNet50 + LSTM
 class ResNet50LSTM(nn.Module):
-    """
-    ResNet50 (frozen except layer4) + LSTM classifier.
-    Input : [B, T, C, H, W]
-    Output: [B, num_classes]
-    """
+    """ResNet50 (frozen except layer4) + LSTM classifier."""
     def __init__(self, hidden_size=256, num_classes=num_classes):
         super().__init__()
         resnet = models.resnet50(weights=ResNet50_Weights.DEFAULT)
-
+        # freeze all layers
         for param in resnet.parameters():
             param.requires_grad = False
+        # unfreeze layer4
         for param in resnet.layer4.parameters():
             param.requires_grad = True
-
-        self.resnet = nn.Sequential(*list(resnet.children())[:-1])  # remove fc
+        
+        # remove fc
+        self.resnet = nn.Sequential(*list(resnet.children())[:-1])
+        # add lstm
         self.lstm   = nn.LSTM(input_size=2048, hidden_size=hidden_size, batch_first=True)
+        # add fc
         self.fc     = nn.Linear(hidden_size, num_classes)
 
     def forward(self, x):
         B, T, C, H, W = x.shape
         x        = x.view(B * T, C, H, W)
-        features = self.resnet(x)               # [B*T, 2048, 1, 1]
-        features = features.view(B, T, -1)      # [B, T, 2048]
+        # remove torch.no_grad() gradients go through unfrozen layers
+        features = self.resnet(x)
+        features = features.view(B, T, -1)
         out, _   = self.lstm(features)
-        return self.fc(out[:, -1, :])
+        return self.fc(out[:, -1, :]) # return only last frame
+
+
+def expand_classifier(model, new_num_classes):
+    old_fc = model.fc
+    # new, bigger classifier
+    new_fc = nn.Linear(old_fc.in_features, new_num_classes)
+    # copy weights and biases from old classifier
+    with torch.no_grad():
+        new_fc.weight[:old_fc.out_features] = old_fc.weight
+        new_fc.bias[:old_fc.out_features]   = old_fc.bias
+    # replace old classifier with new one
+    model.fc = new_fc
+    return model
+
+def unfreeze_all(model):
+    # make all labels trainable
+    for param in model.parameters():
+        param.requires_grad = True
+    return model
 
 
 #  DenseNet121 + LSTM
