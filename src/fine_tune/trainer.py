@@ -70,8 +70,8 @@ def fine_tune_model(
     Unified training loop — works for both standard training and continual
     learning (CL) scenarios.
 
-    Standard training  → leave task_offset=0, pass criterion & optimizer.
-    Continual learning → set task_offset to the global label offset for this
+    Standard training  -> leave task_offset=0, pass criterion & optimizer.
+    Continual learning -> set task_offset to the global label offset for this
                          task; criterion & optimizer default to CE + Adam if
                          not provided.
 

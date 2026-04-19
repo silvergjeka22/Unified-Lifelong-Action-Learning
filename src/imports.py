@@ -54,6 +54,7 @@ if _SRC not in sys.path:
     sys.path.insert(0, _SRC)
 
 # config
+import config.config as cfg
 from config.config import (
     DATASET_ROOT,
     OUTPUT_ROOT,
@@ -79,3 +80,4 @@ get_ipython().run_line_magic('run', '/content/src/data/dataset.py')
 get_ipython().run_line_magic('run', '/content/src/fine_tune/trainer.py')
 get_ipython().run_line_magic('run', '/content/src/fine_tune/visualizer.py')
 get_ipython().run_line_magic('run', '/content/src/models/pretrained.py')
+get_ipython().run_line_magic('run', '/content/src/utils/loaders.py')

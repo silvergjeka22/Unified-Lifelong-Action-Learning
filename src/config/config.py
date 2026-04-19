@@ -7,6 +7,16 @@ from torchvision import transforms
 DATASET_ROOT = "/root/.cache/kagglehub/datasets/matthewjansen/ucf101-action-recognition/versions/4/"
 OUTPUT_ROOT  = "/content/ucf101-processed/"
 
+# processed data paths
+BASE_ROOT  = "./UCF101/processed_data_base"
+TASK1_ROOT = "./UCF101/processed_data_task1"
+TASK2_ROOT = "./UCF101/processed_data_task2"
+TASK3_ROOT = "./UCF101/processed_data_task3"
+TASK4_ROOT = "./UCF101/processed_data_task4"
+
+# resnet50 path
+RESNET50_PATH = "/content/drive/MyDrive/apai/resnet50/models/ResNet50_10C.pth"
+
 # CLASSES
 SELECTED_CLASSES = [
     "PlayingTabla", "PommelHorse", "JumpingJack", "PushUps", "PoleVault",
@@ -89,6 +99,9 @@ BATCH_SIZE  = 4
 # DATASET SPLIT
 TRAIN_SPLIT = 0.8       # 80% train, 20% test
 SEED        = 42        # Global random seed
+
+# DROPOUT
+DROPOUT_P = 0.4
 
 random.seed(SEED)
 
