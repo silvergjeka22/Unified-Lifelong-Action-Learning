@@ -42,47 +42,74 @@ def save_clip_tensor(frames, output_path):
     torch.save(torch.stack(processed, dim=0), output_path)
 
 
-def preprocess_dataset(splits=None):
+def preprocess_dataset(
+    target_classes=None,
+    splits=None,
+    input_root=None,
+    output_root=None,
+    max_samples=None
+):
     """
-    Preprocess UCF101 using the current cfg.SELECTED_CLASSES and cfg.OUTPUT_ROOT.
-
-    Args:
-        splits: list of splits to process. Defaults to ["train", "val", "test"].
-
-    Examples:
-        preprocess_dataset(splits=["test"])
-        preprocess_dataset()                # all three splits
+    Unified preprocessing for UCF101. 
+    Defaults to global cfg values but allows flexible overrides.
     """
-    if splits is None:
-        splits = ["train", "val", "test"]
+    # 1. Setup Defaults from cfg
+    target_classes = target_classes or cfg.SELECTED_CLASSES
+    splits         = splits or ["train", "val", "test"]
+    input_root     = input_root or cfg.DATASET_ROOT
+    output_root    = output_root or cfg.OUTPUT_ROOT
 
-    print(f"Preprocessing UCF101\n  from : {cfg.DATASET_ROOT}\n  to   : {cfg.OUTPUT_ROOT}\n  splits: {splits}\n")
-    os.makedirs(cfg.OUTPUT_ROOT, exist_ok=True)
+    print(f"\n--- Preprocessing UCF101 ---")
+    print(f"From: {input_root}")
+    print(f"To  : {output_root}")
+    print(f"Classes: {len(target_classes)} | Limit: {max_samples if max_samples else 'Full'}")
+
+    os.makedirs(output_root, exist_ok=True)
 
     for split in splits:
-        split_in  = os.path.join(cfg.DATASET_ROOT, split)
-        split_out = os.path.join(cfg.OUTPUT_ROOT, split)
-        os.makedirs(split_out, exist_ok=True)
-        print(f"-> {split}")
+        split_input_path  = os.path.join(input_root, split)
+        split_output_path = os.path.join(output_root, split)
+        os.makedirs(split_output_path, exist_ok=True)
 
-        for cls in cfg.SELECTED_CLASSES:
-            cls_in  = os.path.join(split_in, cls)
-            cls_out = os.path.join(split_out, cls)
-            if not os.path.isdir(cls_in):
-                print(f"   Warning: '{cls}' not found in '{split}', skipping.")
+        print(f"\nProcessing split: {split}")
+
+        for cls in target_classes:
+            class_input_path  = os.path.join(split_input_path, cls)
+            class_output_path = os.path.join(split_output_path, cls)
+
+            if not os.path.isdir(class_input_path):
+                print(f"  Warning: Class '{cls}' not found in {split}, skipping.")
                 continue
-            os.makedirs(cls_out, exist_ok=True)
 
-            videos = sorted(
-                os.path.join(cls_in, v)
-                for v in os.listdir(cls_in) if v.endswith(".avi")
-            )
-            for vid_path in tqdm(videos, desc=f"  {cls} [{split}]"):
-                frames = extract_frames(vid_path)
-                if not frames:
-                    print(f"   Skipping empty video: {vid_path}")
+            os.makedirs(class_output_path, exist_ok=True)
+
+            # Get and sort video files
+            videos = [v for v in os.listdir(class_input_path) if v.endswith(".avi")]
+            videos.sort()
+
+            # Apply memory saver limit (typically for training sets)
+            if max_samples is not None and split == "train":
+                videos = videos[:max_samples]
+
+            for vid_name in tqdm(videos, desc=f"  {cls} [{split}]", leave=False):
+                vid_path = os.path.join(class_input_path, vid_name)
+                output_filename = os.path.splitext(vid_name)[0] + ".pt"
+                output_path = os.path.join(class_output_path, output_filename)
+
+                # Skip if already exists (Resume capability)
+                if os.path.exists(output_path):
                     continue
-                vid_name = os.path.splitext(os.path.basename(vid_path))[0]
-                save_clip_tensor(temporal_sample(frames), os.path.join(cls_out, f"{vid_name}.pt"))
 
-    print("\nDone! Saved to:", cfg.OUTPUT_ROOT)
+                try:
+                    # Processing Pipeline
+                    frames = extract_frames(vid_path)
+                    if not frames:
+                        continue
+
+                    sampled_frames = temporal_sample(frames)
+                    save_clip_tensor(sampled_frames, output_path)
+
+                except Exception as e:
+                    print(f"\n  Error processing {vid_name}: {e}")
+
+    print(f"\nDone! Dataset ready at: {output_root}")
