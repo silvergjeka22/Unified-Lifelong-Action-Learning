@@ -9,44 +9,29 @@ from torch.utils.data import Dataset
 from glob import glob
 
 
-class ClipDataset(Dataset):
-    """
-    PyTorch Dataset for preprocessed UCF101 clips (.pt tensors).
-
-    Args:
-        root         : path to a split folder, e.g. processed_data_base/test
-        classes      : explicit list of class names to load (preserves global label order)
-        label_offset : add this integer to every label (used for continual-learning tasks)
-
-    Usage:
-        ds     = ClipDataset(root="./UCF101/processed_data_base/test", classes=SELECTED_CLASSES)
-        loader = DataLoader(ds, batch_size=4, shuffle=False)
-        for clips, labels in loader:
-            ClipDataset.show_frame(clips, labels)
-            break
-    """
-
-    def __init__(self, root: str, classes: list, label_offset: int = 0):
-        self.root         = root
-        self.label_offset = label_offset
-        self.classes      = sorted(classes)          # deterministic order
-        self.class_to_idx = {c: i for i, c in enumerate(self.classes)}
-        self.samples      = []
+class UCF101Clips(Dataset):
+    def __init__(self, root_dir, class_to_idx):
+        self.root = root_dir
+        self.class_to_idx = class_to_idx # The Global Phonebook
+        self.classes = sorted(os.listdir(self.root))
+        self.samples = []
 
         for cls_name in self.classes:
-            cls_dir = os.path.join(root, cls_name)
-            if not os.path.isdir(cls_dir):
-                continue
-            for clip_path in glob(os.path.join(cls_dir, "*.pt")):
-                self.samples.append((clip_path, self.class_to_idx[cls_name]))
+            # Look up the GLOBAL ID instead of using a local loop index
+            if cls_name in self.class_to_idx:
+                cls_idx = self.class_to_idx[cls_name]
+
+                clips = glob(os.path.join(self.root, cls_name, "*.pt"))
+                for clip in clips:
+                    self.samples.append((clip, cls_idx))
 
     def __len__(self):
         return len(self.samples)
 
     def __getitem__(self, idx):
         path, label = self.samples[idx]
-        clip = torch.load(path)          # [T, C, H, W]
-        return clip, label + self.label_offset
+        clip = torch.load(path)
+        return clip, label
 
     @staticmethod
     def show_frame(clips, labels, clip_idx=0, frame_idx=0):

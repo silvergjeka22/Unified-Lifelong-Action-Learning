@@ -13,8 +13,7 @@ from sklearn.metrics import (
 )
 from config.config import SELECTED_CLASSES
 
-# EVALUATION
-def evaluate_model(model, dataloader, device, task_offset=0):
+def evaluate_model(model, dataloader, device):
     """
     Evaluate model on a dataloader.
 
@@ -22,7 +21,6 @@ def evaluate_model(model, dataloader, device, task_offset=0):
         model        : PyTorch model
         dataloader   : DataLoader
         device       : 'cuda' or 'cpu'
-        task_offset  : label offset for continual learning (default 0 = no offset)
 
     Returns:
         (accuracy, avg_loss)
@@ -36,12 +34,11 @@ def evaluate_model(model, dataloader, device, task_offset=0):
     with torch.no_grad():
         for data, target in dataloader:
             data, target = data.to(device), target.to(device)
-            adjusted_target = target + task_offset
             output = model(data)
-            loss   = criterion(output, adjusted_target)
+            loss   = criterion(output, target)
             pred   = output.argmax(dim=1)
             all_preds.extend(pred.cpu().numpy())
-            all_labels.extend(adjusted_target.cpu().numpy())
+            all_labels.extend(target.cpu().numpy())
             total_loss    += loss.item() * data.size(0)
             total_samples += data.size(0)
 
@@ -49,135 +46,91 @@ def evaluate_model(model, dataloader, device, task_offset=0):
     avg_loss = total_loss / total_samples
     return accuracy, avg_loss
 
+# Function to train a model for one single epoch
+def train_one_epoch(model, train_loader, criterion, optimizer, device):
+    """
+    Handles the training loop for a single epoch.
+    """
+    model.train()
+    running_loss, correct, total = 0.0, 0, 0
 
-# FINE-TUNING
-def fine_tune_model(
-    model,
-    train_loader,
-    val_loader,
-    criterion=None,
-    optimizer=None,
-    num_epochs=10,
-    lr=1e-4,
+    for clips, labels in tqdm(train_loader, desc="  Training", leave=False):
+
+        clips, labels = clips.to(device), labels.to(device)
+
+        optimizer.zero_grad()
+        outputs = model(clips)
+        loss = criterion(outputs, labels)
+        loss.backward()
+        optimizer.step()
+
+        running_loss += loss.item() * labels.size(0)
+        preds = outputs.argmax(dim=1)
+        correct += (preds == labels).sum().item()
+        total += labels.size(0)
+
+    return correct / total, running_loss / total
+
+def train_model(
+    model, 
+    train_loader, 
+    val_loader, 
+    num_epochs=1, 
+    lr=1e-4, 
     device='cuda',
-    task_offset=0,
-    task_name="Task",
-    save_flag=False,
-    save_path=None,
-    save_dir=None,
+    criterion=None, 
+    optimizer=None,
+    save_path=None
 ):
-    """
-    Unified training loop — works for both standard training and continual
-    learning (CL) scenarios.
-
-    Standard training  -> leave task_offset=0, pass criterion & optimizer.
-    Continual learning -> set task_offset to the global label offset for this
-                         task; criterion & optimizer default to CE + Adam if
-                         not provided.
-
-    Best model is tracked by validation accuracy. If save_dir is provided,
-    the checkpoint is written to  <save_dir>/best_<task_name>.pt.
-    Alternatively, pass save_path directly.
-
-    Args:
-        model        : PyTorch model
-        train_loader : DataLoader for training
-        val_loader   : DataLoader for validation
-        criterion    : loss function            (default: CrossEntropyLoss)
-        optimizer    : optimizer                (default: Adam, lr=lr)
-        num_epochs   : training epochs          (default: 10)
-        lr           : learning rate used when optimizer is None (default: 1e-4)
-        device       : 'cuda' or 'cpu'          (default: 'cuda')
-        task_offset  : global label offset for CL; 0 = standard training
-        task_name    : name string for logging / checkpoint filename
-        save_flag    : if True, save the best model checkpoint
-        save_path    : explicit path for checkpoint (overrides save_dir)
-        save_dir     : directory; checkpoint saved as best_<task_name>.pt
-
-    Returns:
-        dict with keys: train_losses, val_losses, train_accs, val_accs,
-                        best_val_acc, best_val_loss
-    """
+    # Setup
     if criterion is None:
         criterion = nn.CrossEntropyLoss()
     if optimizer is None:
         optimizer = optim.Adam(model.parameters(), lr=lr)
 
-    if save_flag:
-        if save_path is None and save_dir is not None:
-            os.makedirs(save_dir, exist_ok=True)
-            save_path = os.path.join(save_dir, f"best_{task_name}.pt")
+    history = {
+        'train_losses': [], 'val_losses': [],
+        'train_accs': [], 'val_accs': [],
+        'best_val_acc': 0.0
+    }
 
-    train_losses, val_losses = [], []
-    train_accs,   val_accs   = [], []
-    best_val_acc  = 0.0
-    best_val_loss = float('inf')
-
-    print(f"\nFine-tuning '{task_name}'  |  offset={task_offset}  |  epochs={num_epochs}")
+    model.to(device)
 
     for epoch in range(num_epochs):
+        # 1. Train using our helper
+        train_acc, train_loss = train_one_epoch(model, train_loader, criterion, optimizer, device)
+        
+        # 2. Validate using your existing evaluate_model
+        val_acc, val_loss = evaluate_model(model, val_loader, device)
 
-        # Train
-        model.train()
-        running_loss, correct, total = 0.0, 0, 0
+        # 3. Update History
+        history['train_losses'].append(train_loss)
+        history['train_accs'].append(train_acc)
+        history['val_losses'].append(val_loss)
+        history['val_accs'].append(val_acc)
 
-        for clips, labels in tqdm(train_loader, desc=f"  [{task_name}] E{epoch+1}/{num_epochs}"):
-            clips, labels = clips.to(device), labels.to(device)
-            labels        = labels + task_offset
+        print(f"Epoch [{epoch+1}/{num_epochs}] | "
+              f"Train Acc: {train_acc:.4f} Loss: {train_loss:.4f} | "
+              f"Val Acc: {val_acc:.4f} Loss: {val_loss:.4f}")
 
-            optimizer.zero_grad()
-            outputs = model(clips)
-            loss    = criterion(outputs, labels)
-            loss.backward()
-            optimizer.step()
-
-            running_loss += loss.item() * labels.size(0)
-            preds    = outputs.argmax(dim=1)
-            correct += (preds == labels).sum().item()
-            total   += labels.size(0)
-
-        train_loss = running_loss / total
-        train_acc  = correct / total
-        train_losses.append(train_loss)
-        train_accs.append(train_acc)
-
-        # Validate
-        val_acc, val_loss = evaluate_model(
-            model, val_loader, device=device, task_offset=task_offset
-        )
-        val_losses.append(val_loss)
-        val_accs.append(val_acc)
-
-        print(f"  Epoch {epoch+1:>3}: "
-              f"Train Loss={train_loss:.4f} Acc={train_acc:.4f} | "
-              f"Val Loss={val_loss:.4f} Acc={val_acc:.4f}")
-
-        if save_flag and save_path and val_acc > best_val_acc:
-            best_val_acc  = val_acc
-            best_val_loss = val_loss
+        # 4. Save best model
+        if save_path and val_acc > history['best_val_acc']:
+            history['best_val_acc'] = val_acc
             torch.save(model.state_dict(), save_path)
-            print(f"Saved best model -> {save_path}  (Val Acc={best_val_acc:.4f})")
+            print(f"  --> Model saved to {save_path}")
 
-    return {
-        'train_losses': train_losses,
-        'val_losses':   val_losses,
-        'train_accs':   train_accs,
-        'val_accs':     val_accs,
-        'best_val_acc':  best_val_acc,
-        'best_val_loss': best_val_loss,
-    }
+    return history
 
 
 # INFERENCE
-def test_model_with_predictions(model, test_loader, device='cuda', task_offset=0):
+def test_model(model, test_loader, device='cuda'):
     """
-    Run inference on the test set.
+    Run inference on the test set without task offsets.
 
     Args:
         model        : PyTorch model
         test_loader  : DataLoader for the test set
         device       : 'cuda' or 'cpu'
-        task_offset  : label offset for CL evaluation (default 0)
 
     Returns:
         (test_accuracy, all_preds, all_labels)
@@ -185,16 +138,20 @@ def test_model_with_predictions(model, test_loader, device='cuda', task_offset=0
     model.eval()
     all_preds, all_labels = [], []
 
+    print(f"Running Inference on Test Set...")
     with torch.no_grad():
-        for clips, labels in test_loader:
+        for clips, labels in tqdm(test_loader, desc="  Testing", leave=False):
             clips, labels = clips.to(device), labels.to(device)
-            outputs       = model(clips)
-            preds         = outputs.argmax(dim=1)
+            
+            outputs = model(clips)
+            preds   = outputs.argmax(dim=1)
+            
             all_preds.extend(preds.cpu().numpy())
-            all_labels.extend((labels + task_offset).cpu().numpy())
+            all_labels.extend(labels.cpu().numpy())
 
     test_acc = accuracy_score(all_labels, all_preds)
     print(f"Test Accuracy: {test_acc:.4f}")
+    
     return test_acc, all_preds, all_labels
 
 
