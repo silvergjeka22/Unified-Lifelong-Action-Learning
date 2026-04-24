@@ -1,8 +1,6 @@
 # Run from notebook: %run /content/src/data/preprocessing.py
 
-import sys, os
-sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
-
+import os
 import cv2, torch, random
 from PIL import Image
 from tqdm import tqdm
