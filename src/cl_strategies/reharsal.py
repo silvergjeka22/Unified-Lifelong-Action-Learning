@@ -1,5 +1,6 @@
 import torch.nn.functional as F
 import random
+import torch
 
 def distillation_loss(student_logits, teacher_logits, T=5.0):
     student = F.log_softmax(student_logits / T, dim=1)
