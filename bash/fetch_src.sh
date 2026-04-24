@@ -3,7 +3,7 @@ set -e
 # CONFIG edit these lines only
 GITHUB_USER="silvergjeka22"
 GITHUB_REPO="Unified-Lifelong-Action-Learning"
-BRANCH="naive"
+BRANCH="main"
 FOLDER="src"           # folder inside the repo to download
 DEST="/content"        # root destination files go to /content/src/
 
