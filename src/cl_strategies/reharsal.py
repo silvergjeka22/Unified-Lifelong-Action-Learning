@@ -37,7 +37,8 @@ def train_continual(
     device,
     num_old_classes=10,
     lambda_distill=1.0,
-    epochs=5
+    epochs=5,
+    kd = True
 ):
     ce_loss = torch.nn.CrossEntropyLoss()
 
@@ -72,18 +73,21 @@ def train_continual(
             loss_ce = ce_loss(logits, y)
 
             # DISTILLATION LOSS
-            with torch.no_grad():
-                teacher_logits = teacher(x)
+            if kd:
+                with torch.no_grad():
+                    teacher_logits = teacher(x)
 
-            student_old = logits[:, :num_old_classes]
-            teacher_old = teacher_logits[:, :num_old_classes]
+                student_old = logits[:, :num_old_classes]
+                teacher_old = teacher_logits[:, :num_old_classes]
 
-            loss_kd = distillation_loss(student_old, teacher_old)
+                loss_kd = distillation_loss(student_old, teacher_old)
 
-            # -----------------------------
-            # TOTAL LOSS
-            # -----------------------------
-            loss = loss_ce + lambda_distill * loss_kd
+                # -----------------------------
+                # TOTAL LOSS
+                # -----------------------------
+                loss = loss_ce + lambda_distill * loss_kd
+            else:
+                loss = loss_ce  # No knowledge distillation: only Cross Entropy
 
             optimizer.zero_grad()
             loss.backward()
