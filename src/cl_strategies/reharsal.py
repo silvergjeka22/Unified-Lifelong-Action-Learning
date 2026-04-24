@@ -32,17 +32,21 @@ def train_continual(
     model,
     teacher,
     train_loader,
+    val_loader,   
     replay_buffer,
     optimizer,
     device,
     num_old_classes=10,
     lambda_distill=1.0,
     epochs=5,
-    kd = True
+    kd=True
 ):
     ce_loss = torch.nn.CrossEntropyLoss()
 
     for epoch in range(epochs):
+        # -----------------------------
+        # TRAINING
+        # -----------------------------
         model.train()
         total_loss = 0
 
@@ -60,19 +64,15 @@ def train_continual(
                 x = torch.cat([x_new, x_old], dim=0)
                 y = torch.cat([y_new, y_old], dim=0)
             else:
-                x, y = x_new.to(device), y_new.to(device)
+                x, y = x_new, y_new
 
-            # -----------------------------
             # Forward
-            # -----------------------------
             logits = model(x)
 
-            # -----------------------------
-            # CE LOSS (all classes)
-            # -----------------------------
+            # CE LOSS
             loss_ce = ce_loss(logits, y)
 
-            # DISTILLATION LOSS
+            # DISTILLATION
             if kd:
                 with torch.no_grad():
                     teacher_logits = teacher(x)
@@ -81,13 +81,9 @@ def train_continual(
                 teacher_old = teacher_logits[:, :num_old_classes]
 
                 loss_kd = distillation_loss(student_old, teacher_old)
-
-                # -----------------------------
-                # TOTAL LOSS
-                # -----------------------------
                 loss = loss_ce + lambda_distill * loss_kd
             else:
-                loss = loss_ce  # No knowledge distillation: only Cross Entropy
+                loss = loss_ce
 
             optimizer.zero_grad()
             loss.backward()
@@ -95,6 +91,33 @@ def train_continual(
 
             total_loss += loss.item()
 
-            # replay_buffer.add_batch(x_new.detach(), y_new.detach())
+        # -----------------------------
+        # VALIDATION
+        # -----------------------------
+        model.eval()
+        val_loss = 0
+        correct = 0
+        total = 0
 
-        print(f"Epoch {epoch+1}/{epochs}, Loss: {total_loss:.4f}")
+        with torch.no_grad():
+            for x_val, y_val in val_loader:
+                x_val = x_val.to(device)
+                y_val = y_val.to(device)
+
+                logits = model(x_val)
+                loss = ce_loss(logits, y_val)
+
+                val_loss += loss.item()
+
+                preds = torch.argmax(logits, dim=1)
+                correct += (preds == y_val).sum().item()
+                total += y_val.size(0)
+
+        val_accuracy = correct / total if total > 0 else 0
+
+        print(
+            f"Epoch {epoch+1}/{epochs} | "
+            f"Train Loss: {total_loss:.4f} | "
+            f"Val Loss: {val_loss:.4f} | "
+            f"Val Acc: {val_accuracy:.4f}"
+        )
