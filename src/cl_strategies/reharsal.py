@@ -59,7 +59,7 @@ def train_continual(
                 x = torch.cat([x_new, x_old], dim=0)
                 y = torch.cat([y_new, y_old], dim=0)
             else:
-                x, y = x_new, y_new
+                x, y = x_new.to(device), y_new.to(device)
 
             # -----------------------------
             # Forward
