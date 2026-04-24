@@ -19,8 +19,8 @@ RESNET50_PATH = "/content/drive/MyDrive/apai/resnet50/models/ResNet50_10C.pth"
 
 # CLASSES
 SELECTED_CLASSES = [
-    "PlayingTabla", "PommelHorse", "JumpingJack", "PushUps", "PoleVault",
-    "HorseRace", "HighJump", "Drumming", "HorseRiding", "Diving"]
+    "PlayingTabla", "PommelHorse", "JumpingJack", "PushUps", "PoleVault"]
+   #  "HorseRace", "HighJump", "Drumming", "HorseRiding", "Diving"]
 '''
         # if we will use 20
         ["BreastStroke", "TrampolineJumping", "YoYo", "SalsaSpin", "WalkingWithDog",
@@ -31,13 +31,13 @@ TASK_1 = [
     "ApplyEyeMakeup",
     "ApplyLipstick",
     "Archery",
-    "BabyCrawling",
-    "BalanceBeam",
-    "BandMarching",
-    "BlowDryHair",
-    "BlowingCandles",
-    "BodyWeightSquats",
-    "Bowling",
+    #"BabyCrawling",
+    #"BalanceBeam",
+    #"BandMarching",
+    #"BlowDryHair",
+    #"BlowingCandles",
+    #"BodyWeightSquats",
+    #"Bowling",
 ]
 
 CLASSES_20 = SELECTED_CLASSES + TASK_1
