@@ -3,6 +3,7 @@ sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
 import torch
 import torch.nn as nn
+import torch.nn.functional as F
 
 class ScratchCNNLSTM(nn.Module):
     def __init__(self, num_classes=10, hidden_dim=256):

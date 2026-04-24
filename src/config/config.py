@@ -19,8 +19,7 @@ RESNET50_PATH = "/content/drive/MyDrive/apai/resnet50/models/ResNet50_10C.pth"
 
 # CLASSES
 SELECTED_CLASSES = [
-    "PlayingTabla", "PommelHorse", "JumpingJack", "PushUps", "PoleVault"]
-   #  "HorseRace", "HighJump", "Drumming", "HorseRiding", "Diving"]
+    "PlayingTabla", "PommelHorse", "JumpingJack", "PushUps", "PoleVault", "HorseRace", "HighJump", "Drumming", "HorseRiding", "Diving"]
 '''
         # if we will use 20
         ["BreastStroke", "TrampolineJumping", "YoYo", "SalsaSpin", "WalkingWithDog",
@@ -46,13 +45,13 @@ TASK_2 = [
     "BoxingPunchingBag",
     "BoxingSpeedBag",
     "BrushingTeeth",
-    "CliffDiving",
-    "CricketBowling",
-    "CricketShot",
-    "CuttingInKitchen",
-    "FieldHockeyPenalty",
-    "Haircut",
-    "SoccerPenalty",
+    #"CliffDiving",
+    #"CricketBowling",
+    #"CricketShot",
+    #"CuttingInKitchen",
+    #"FieldHockeyPenalty",
+    #"Haircut",
+    #"SoccerPenalty",
 ]
 
 CLASSES_30 = CLASSES_20 + TASK_2
@@ -94,7 +93,7 @@ RESIZE_HEIGHT  = 256    # Resize video height before cropping
 CROP_SIZE      = 224    # Final spatial crop size (224x224)
 
 # TRAINING
-BATCH_SIZE  = 4
+BATCH_SIZE  = 8
 
 # DATASET SPLIT
 TRAIN_SPLIT = 0.8       # 80% train, 20% test
