@@ -75,7 +75,7 @@ def train_model(
     model, 
     train_loader, 
     val_loader, 
-    num_epochs=1, 
+    num_epochs=5, 
     lr=1e-4, 
     device='cuda',
     criterion=None, 
