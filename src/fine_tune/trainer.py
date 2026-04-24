@@ -256,64 +256,37 @@ def print_detailed_metrics(
         print(f"  {rank}. {classes_list[idx]:25s}: {f1_per[idx]:.4f}")
 
 
-# CONTINUAL LEARNING — MULTI-TASK EVALUATION  (supports up to N tasks)
+# CONTINUAL LEARNING — MULTI-TASK EVALUATION
 def evaluate_all_tasks(
     model,
     device,
     base_loader,
     task_loaders=None,
     combined_loaders=None,
-    task_offsets=None,
 ):
-    """
-    Evaluate a model across the base task and an arbitrary number of
-    incremental tasks (default: base=10 classes, +10 per task).
-
-    Default 4-task CL setup (10 classes each):
-        base        -> labels  0– 9   offset=0
-        task1_only  -> labels 10–19   offset=10
-        task2_only  -> labels 20–29   offset=20
-        task3_only  -> labels 30–39   offset=30
-        task4_only  -> labels 40–49   offset=40
-        combined_t1 -> labels  0–19   offset=0
-        combined_t2 -> labels  0–29   offset=0
-        combined_t3 -> labels  0–39   offset=0
-        combined_t4 -> labels  0–49   offset=0
-
-    Args:
-        model            : PyTorch model
-        device           : 'cuda' or 'cpu'
-        base_loader      : DataLoader for base classes
-        task_loaders     : list[DataLoader], one per incremental task
-        combined_loaders : list[DataLoader] for cumulative sets (no offset)
-        task_offsets     : list of global offsets, len = 1 + len(task_loaders)
-                           default: [0, 10, 20, 30, 40]
-
-    Returns:
-        dict { split_name: {"accuracy": float, "loss": float} }
-    """
-    task_loaders     = task_loaders     or []
+    task_loaders     = task_loaders or []
     combined_loaders = combined_loaders or []
-
-    if task_offsets is None:
-        task_offsets = [i * 10 for i in range(1 + len(task_loaders))]
 
     results = {}
 
-    acc, loss = evaluate_model(model, base_loader, device, task_offset=task_offsets[0])
+    # Base
+    acc, loss = evaluate_model(model, base_loader, device)
     results["base"] = {"accuracy": acc, "loss": loss}
-    print(f"  base           -> Acc={acc:.4f}  Loss={loss:.4f}")
+    print(f"  base             -> Acc={acc:.4f}  Loss={loss:.4f}")
 
+    # Individual tasks
     for i, loader in enumerate(task_loaders):
-        offset     = task_offsets[i + 1]
         split_name = f"task{i + 1}_only"
-        acc, loss  = evaluate_model(model, loader, device, task_offset=offset)
-        results[split_name] = {"accuracy": acc, "loss": loss}
-        print(f"  {split_name:<16} -> Acc={acc:.4f}  Loss={loss:.4f}  (offset={offset})")
+        acc, loss  = evaluate_model(model, loader, device)
 
+        results[split_name] = {"accuracy": acc, "loss": loss}
+        print(f"  {split_name:<16} -> Acc={acc:.4f}  Loss={loss:.4f}")
+
+    # Combined datasets
     for i, loader in enumerate(combined_loaders):
         split_name = f"combined_t{i + 1}"
-        acc, loss  = evaluate_model(model, loader, device, task_offset=0)
+        acc, loss  = evaluate_model(model, loader, device)
+
         results[split_name] = {"accuracy": acc, "loss": loss}
         print(f"  {split_name:<16} -> Acc={acc:.4f}  Loss={loss:.4f}")
 
