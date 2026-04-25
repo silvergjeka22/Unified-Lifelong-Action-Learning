@@ -58,12 +58,12 @@ def pad_fisher_after_expand(fisher_dict, optpar_dict, model):
             new_optpar[:stored_shape[0]] = optpar_dict[tid][n]
             fisher_dict[tid][n] = new_fisher
             optpar_dict[tid][n] = new_optpar
-            print(f"  [pad] {n}: {stored_shape} → {current_shape}")
+            print(f"  [pad] {n}: {stored_shape} -> {current_shape}")
     return fisher_dict, optpar_dict
 
 
 # EWC training loop
-def train_ewc_simple(model, train_loader, val_loader,
+def train_ewc(model, train_loader, val_loader,
                      optimizer, device, fisher_dict, optpar_dict,
                      ewc_lambda=EWC_LAMBDA, epochs=10, task_label="Task"):
     for epoch in range(1, epochs + 1):
