@@ -1,12 +1,16 @@
 import os
 import copy
 
+import sys
+sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), "../..")))
+
+
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
 import torch.optim as optim
 from tqdm import tqdm
-from ..fine_tune.trainer import evaluate_model
+from src.fine_tune.trainer import evaluate_model
 
 def compute_inner_loss(
     strategy,
