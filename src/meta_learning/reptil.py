@@ -16,12 +16,17 @@ from src.data.dataset import UCF101Clips
 def check_backbone(model_path, data_root, class_list, num_classes, device,
                    batch_size=8, num_workers=2, task_label="Task 0"):
 
-    model = ResNet50LSTM(num_classes=num_classes).to(device)
-    model.load_state_dict(torch.load(model_path, map_location=device))
+    # Detect the correct num_classes from the checkpoint fc layer
+    ckpt = torch.load(model_path, map_location="cpu")
+    ckpt_num_classes = ckpt["fc.weight"].shape[0]   # always use what's in checkpoint
+
+    model = ResNet50LSTM(num_classes=ckpt_num_classes).to(device)
+    model.load_state_dict(ckpt)
     model.eval()
 
     loader = DataLoader(
-        UCF101Clips(f"{data_root}/test", class_to_idx={c: i for i, c in enumerate(class_list)}),
+        UCF101Clips(f"{data_root}/test",
+                    class_to_idx={c: i for i, c in enumerate(class_list)}),
         batch_size=batch_size, shuffle=False, num_workers=num_workers
     )
 
@@ -29,15 +34,17 @@ def check_backbone(model_path, data_root, class_list, num_classes, device,
     with torch.no_grad():
         for xb, yb in loader:
             xb, yb   = xb.to(device), yb.to(device)
-            correct += (model(xb).argmax(1) == yb).sum().item()
-            total   += yb.size(0)
+            preds    = model(xb).argmax(1)
+            # Only count predictions that fall within the valid class range
+            valid    = yb < ckpt_num_classes
+            correct += (preds[valid] == yb[valid]).sum().item()
+            total   += valid.sum().item()
 
     acc         = correct / total if total else 0.0
-    lstm_hidden = torch.load(model_path, map_location="cpu")["lstm.weight_hh_l0"].shape[1]
+    lstm_hidden = ckpt["lstm.weight_hh_l0"].shape[1]
 
     print(f"  [{task_label}] Accuracy: {acc:.4f} ({correct}/{total}) | LSTM hidden: {lstm_hidden}")
     return model, acc, lstm_hidden
-
 
 class _ResNet50Trunk(nn.Module):
     def __init__(self, full_model):
