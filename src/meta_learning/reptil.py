@@ -2,12 +2,14 @@ import os
 import copy
 import random
 import shutil
-
+from config import config as cfg
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
 from torch.utils.data import DataLoader
 from tqdm import tqdm
+from ..models.pretrained import ResNet50LSTM
+from ..data.datasets import UCF101Clips
 
 
 def check_backbone(model_path, data_root, class_list, num_classes, device,
