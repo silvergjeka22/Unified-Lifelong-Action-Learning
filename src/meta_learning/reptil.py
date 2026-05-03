@@ -13,7 +13,6 @@ from tqdm import tqdm
 from src.models.pretrained import ResNet50LSTM
 from src.data.dataset import UCF101Clips
 
-
 def check_backbone(model_path, data_root, class_list, num_classes, device,
                    batch_size=8, num_workers=2, task_label="Task 0"):
 
