@@ -91,8 +91,8 @@ def expand_classifier(model, new_num_classes):
     calling this if you want a lower rate for the new task.
     """
     old_fc = model.fc
-    new_fc = nn.Linear(old_fc.in_features, new_num_classes).to(old_fc.weight.device)
-    
+    new_fc = nn.Linear(old_fc.in_features, new_num_classes)
+
     # copy existing weights and biases; new rows keep random init
     with torch.no_grad():
         new_fc.weight[:old_fc.out_features] = old_fc.weight
