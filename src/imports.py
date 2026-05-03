@@ -53,6 +53,10 @@ _SRC = _os.path.dirname(_os.path.abspath(__file__))
 if _SRC not in sys.path:
     sys.path.insert(0, _SRC)
 
+# optuna
+subprocess.run(["pip", "install", "optuna", "-q"], capture_output=True)
+import optuna
+
 # config
 import config.config as cfg
 from config.config import (
