@@ -16,12 +16,18 @@ from src.data.dataset import UCF101Clips
 def check_backbone(model_path, data_root, class_list, num_classes, device,
                    batch_size=8, num_workers=2, task_label="Task 0"):
 
-    # Detect the correct num_classes from the checkpoint fc layer
     ckpt = torch.load(model_path, map_location="cpu")
-    ckpt_num_classes = ckpt["fc.weight"].shape[0]   # always use what's in checkpoint
 
+    # Always build with the checkpoint's original num_classes first
+    ckpt_num_classes = ckpt["fc.weight"].shape[0]
     model = ResNet50LSTM(num_classes=ckpt_num_classes).to(device)
-    model.load_state_dict(ckpt)
+    model.load_state_dict(ckpt, strict=True)
+
+    # If this task needs more classes, expand the classifier
+    if num_classes > ckpt_num_classes:
+        model = expand_classifier(model, num_classes)
+        print(f"  [{task_label}] fc expanded: {ckpt_num_classes} → {num_classes} classes")
+
     model.eval()
 
     loader = DataLoader(
@@ -33,12 +39,9 @@ def check_backbone(model_path, data_root, class_list, num_classes, device,
     correct, total = 0, 0
     with torch.no_grad():
         for xb, yb in loader:
-            xb, yb   = xb.to(device), yb.to(device)
-            preds    = model(xb).argmax(1)
-            # Only count predictions that fall within the valid class range
-            valid    = yb < ckpt_num_classes
-            correct += (preds[valid] == yb[valid]).sum().item()
-            total   += valid.sum().item()
+            xb, yb    = xb.to(device), yb.to(device)
+            correct  += (model(xb).argmax(1) == yb).sum().item()
+            total    += yb.size(0)
 
     acc         = correct / total if total else 0.0
     lstm_hidden = ckpt["lstm.weight_hh_l0"].shape[1]
