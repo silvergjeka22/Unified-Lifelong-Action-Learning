@@ -1,3 +1,6 @@
+import sys
+sys.path.insert(0, "/content")
+
 import os
 import copy
 import random
@@ -7,10 +10,8 @@ import torch.nn as nn
 import torch.nn.functional as F
 from torch.utils.data import DataLoader
 from tqdm import tqdm
-import sys
-sys.path.insert(0, "/content")
-from ..models.pretrained import ResNet50LSTM
-from ..data.datasets import UCF101Clips
+from src.models.pretrained import ResNet50LSTM
+from src.data.datasets import UCF101Clips
 
 
 def check_backbone(model_path, data_root, class_list, num_classes, device,
