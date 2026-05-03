@@ -1,12 +1,6 @@
 import copy
 import torch
 import optuna
-import sys
-
-# Make /content/src the first place Python looks for modules
-PROJECT_ROOT = "/content/src"
-if PROJECT_ROOT not in sys.path:
-    sys.path.insert(0, PROJECT_ROOT)
 
 from meta_learning.models   import fresh_model, evaluate
 from meta_learning.buffers  import ReplayBuffer, EpisodeBuffer
@@ -16,7 +10,6 @@ from meta_learning.training import (
     train_rehearsal,
     EWC,
 )
-
 def _make_study():
     return optuna.create_study(
         direction="maximize",
