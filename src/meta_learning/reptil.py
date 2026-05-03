@@ -11,7 +11,7 @@ import torch.nn.functional as F
 from torch.utils.data import DataLoader
 from tqdm import tqdm
 from src.models.pretrained import ResNet50LSTM
-from src.data.datasets import UCF101Clips
+from src.data.dataset import UCF101Clips
 
 
 def check_backbone(model_path, data_root, class_list, num_classes, device,
