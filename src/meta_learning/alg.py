@@ -55,9 +55,6 @@ def weighted_ce(logits, labels, new_class_ids, new_weight=1.0, device="cpu"):
             weights[i] = new_weight
     return (weights * F.cross_entropy(logits, labels, reduction='none')).mean()
 
-
-
-
 # ══════════════════════════════════════════════════════════════════════════════
 # TRAINING — Naive
 # ══════════════════════════════════════════════════════════════════════════════
