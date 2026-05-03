@@ -2,6 +2,9 @@ import copy
 import torch
 import optuna
 
+import sys
+sys.path.insert(0, "/content/")
+
 from src.meta_learning.models   import fresh_model, evaluate
 from src.meta_learning.buffers  import ReplayBuffer, EpisodeBuffer
 from src.meta_learning.training import (train_reptile_full, train_ewc,
