@@ -6,9 +6,7 @@ from meta_learning.models   import fresh_model, evaluate
 from meta_learning.buffers  import ReplayBuffer, EpisodeBuffer
 from meta_learning.training import (
     train_reptile_full,
-    train_ewc,
     train_rehearsal,
-    EWC,
 )
 def _make_study():
     return optuna.create_study(
@@ -71,41 +69,6 @@ def optuna_search_reptile(task_tag, val_loader, new_loaders_for_buffer,
             raise
         finally:
             del m, buf; torch.cuda.empty_cache()
-        return val_acc
-
-    study = _make_study()
-    study.optimize(objective, n_trials=n_trials, show_progress_bar=True)
-    _print_search_summary(study, task_tag)
-    return study.best_params
-
-
-def optuna_search_ewc(task_tag, train_loader, val_loader,
-                      ewc_loader, cfg, device, lstm_hidden, num_classes,
-                      n_trials=20, search_epochs=3, new_repeat=10):
-    print(f"\n{'='*60}\nOPTUNA EWC — {task_tag} | {n_trials} trials × {search_epochs} epochs")
-    print(f"  Pruner: MedianPruner | Sampler: TPE (Bayesian)\n{'='*60}")
-
-    def objective(trial):
-        lambda_ewc = trial.suggest_float("lambda_ewc", 100.0, 10000.0, log=True)
-        lstm_lr    = trial.suggest_float("lstm_lr",    1e-5,  1e-3,    log=True)
-        fc_lr      = trial.suggest_float("fc_lr",      1e-4,  1e-2,    log=True)
-        m   = fresh_model(num_classes=num_classes, cfg=cfg,
-                          device=device, lstm_hidden=lstm_hidden)
-        opt = torch.optim.Adam([{"params": m.lstm.parameters(), "lr": lstm_lr},
-                                 {"params": m.fc.parameters(),   "lr": fc_lr}],
-                               weight_decay=1e-4)
-        ewc_obj = EWC(m, ewc_loader, device)
-        try:
-            train_ewc(m, train_loader, val_loader, opt, device,
-                      ewc_obj=ewc_obj, lambda_ewc=lambda_ewc,
-                      epochs=search_epochs, new_repeat=new_repeat)
-            _, val_acc = evaluate(m, val_loader, device)
-        finally:
-            del m, opt, ewc_obj; torch.cuda.empty_cache()
-        for ep in range(search_epochs):
-            trial.report(val_acc, ep)
-            if trial.should_prune():
-                raise optuna.TrialPruned()
         return val_acc
 
     study = _make_study()
