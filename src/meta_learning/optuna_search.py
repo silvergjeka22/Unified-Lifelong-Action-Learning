@@ -5,7 +5,7 @@ import optuna
 
 from meta_learning.models   import fresh_model, evaluate
 from meta_learning.buffers  import ReplayBuffer, EpisodeBuffer
-from meta_learning.training import train_reptile_full, train_rehearsal
+from meta_learning.training import train_reptile, train_rehearsal
 
 
 
