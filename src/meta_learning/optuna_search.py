@@ -2,9 +2,11 @@ import copy
 import torch
 import optuna
 
+
 from meta_learning.models   import fresh_model, evaluate
 from meta_learning.buffers  import ReplayBuffer, EpisodeBuffer
 from meta_learning.training import train_reptile_full, train_rehearsal
+
 
 
 # utilities 
@@ -17,30 +19,31 @@ def _make_study():
         ),
     )
 
+
 def _print_search_summary(study, tag):
     print(f"\n  [{tag}] Best params  : {study.best_params}")
     print(f"  [{tag}] Best val acc : {study.best_value:.4f}")
 
 
-# Reptile hyper-parameter search
+
 def optuna_search_reptile(
     task_tag,
     val_loader,
-    new_loaders_for_buffer,     # loaders
-    new_class_ids,              # set of new class
-    search_new_weight,          # search the new-class bias in the loss
+    new_loaders_for_buffer,     # loaders whose samples are added as new classes
+    new_class_ids,              # set of new class indices for this task
+    search_new_weight,          # whether to also search the new-class loss weight
     cfg, device, lstm_hidden,
-    exemplar_train_loader,      # old-task
+    exemplar_train_loader,      # old-task exemplars (marked as not-new)
     num_old_classes,
-    kd_flag=False,              # knowledge-distillation loss
-    teacher=None,               # frozen teacher model
-    new_class_bias=3,           # bias toward new classes
+    kd_flag=False,              # enable knowledge-distillation loss
+    teacher=None,               # frozen teacher model (used only when kd_flag=True)
+    new_class_bias=3,           # episode sampling bias toward new classes
     n_trials=20,
-    search_episodes=100,        # meta-episodes
+    search_episodes=100,        # meta-episodes per search epoch
     search_epochs=2,
     rep_n_way=5,
     rep_k_support=3,
-    rep_k_query=5,
+    rep_k_query=2,
     rep_lambda_kd=0.3,
 ):
     print(
@@ -49,19 +52,21 @@ def optuna_search_reptile(
         f"{n_trials} trials | episodes={search_episodes} × epochs={search_epochs}"
     )
 
-    # build episode buffer
+    # build episode buffer once — each trial gets a deep copy
     shared_buf = EpisodeBuffer()
     shared_buf.add_from_loader(exemplar_train_loader, mark_new=False)
     for ldr in new_loaders_for_buffer:
         shared_buf.add_from_loader(ldr, mark_new=True)
 
-    # the number of available classes in the buffer
+    # cap n_way to the number of available classes in the buffer
     n_way_eff = min(rep_n_way, len(shared_buf.available_classes()))
 
     def objective(trial):
-        # hyper-parameters
+        # hyper-parameters being searched
         inner_lr   = trial.suggest_float("inner_lr",   0.001, 0.02, log=True)
         epsilon    = trial.suggest_float("epsilon",    0.1,   0.5,  step=0.05)
+        lstm_lr    = trial.suggest_float("lstm_lr",    1e-5,  1e-3, log=True)
+        fc_lr      = trial.suggest_float("fc_lr",      1e-4,  1e-2, log=True)
         new_weight = (
             trial.suggest_float("new_weight", 1.0, 6.0, step=0.5)
             if search_new_weight else 1.0
@@ -72,7 +77,7 @@ def optuna_search_reptile(
                           device=device, lstm_hidden=lstm_hidden)
         buf = copy.deepcopy(shared_buf)   # isolate each trial's buffer
 
-        _, val_acc = train_reptile_full(
+        _, val_acc = train_reptile(
             model=m,
             episode_buffer=buf,
             val_loader=val_loader,
@@ -83,6 +88,8 @@ def optuna_search_reptile(
             k_support=rep_k_support,
             k_query=rep_k_query,
             inner_lr=inner_lr,
+            lstm_lr=lstm_lr,
+            fc_lr=fc_lr,
             inner_steps=5,
             epsilon=epsilon,
             episodes=search_episodes,
@@ -96,7 +103,7 @@ def optuna_search_reptile(
             trial=trial,
         )
 
-        # free GPU memory
+        # free GPU memory before next trial
         del m, buf
         torch.cuda.empty_cache()
         return val_acc
@@ -107,22 +114,23 @@ def optuna_search_reptile(
     return study.best_params
 
 
+
 # Rehearsal hyper-parameter search
 def optuna_search_rehearsal(
     task_tag,
     train_loader,               # new-task training data
-    val_loader,                 # combined validation
-    exemplar_train_loader,      # T0 exemplars
-    extra_replay_loader,        # replay data 
-    teacher,                    # frozen teacher for KD
+    val_loader,                 # combined validation (old + new tasks)
+    exemplar_train_loader,      # T0 exemplars always included in replay buffer
+    extra_replay_loader,        # additional replay data (e.g. T1 train for T2); None for T1
+    teacher,                    # frozen teacher for KD; None if kd=False
     cfg, device, lstm_hidden,
-    num_classes,                # total output classes
-    num_old_classes,            # number of old classes
-    limit=3,                    # max exemplars
-    kd=True,                    # knowledge-distillation loss
+    num_classes,                # total output classes across all tasks seen so far
+    num_old_classes,            # number of old classes (for distillation masking)
+    limit=3,                    # max exemplars per class stored in the replay buffer
+    kd=True,                    # enable knowledge-distillation loss
     n_trials=20,
     search_epochs=3,
-    new_repeat=10,              # times new task is repeated per epoch
+    new_repeat=10,              # times new-task samples are up-sampled per epoch
 ):
     print(f"\nOPTUNA REHEARSAL — {task_tag} | {n_trials} trials × {search_epochs} epochs")
 
@@ -156,19 +164,19 @@ def optuna_search_rehearsal(
             epochs=search_epochs,
             new_repeat=new_repeat,
             kd=kd,
+            trial=trial,   # pass trial so pruner fires per-epoch inside training
         )
 
         _, val_acc = evaluate(m, val_loader, device)
 
-        # free GPU
+        # free GPU memory before next trial
         del m, opt, buf
         torch.cuda.empty_cache()
 
-        # intermediate values so the pruner can cut bad trials early
-        for ep in range(search_epochs):
-            trial.report(val_acc, ep)
-            if trial.should_prune():
-                raise optuna.TrialPruned()
+        # single report after training so pruner can cut unpromising trials
+        trial.report(val_acc, search_epochs - 1)
+        if trial.should_prune():
+            raise optuna.TrialPruned()
 
         return val_acc
 
