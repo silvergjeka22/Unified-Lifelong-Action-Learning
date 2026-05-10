@@ -93,3 +93,5 @@ get_ipython().run_line_magic('run', '/content/src/meta_learning/buffers.py')
 get_ipython().run_line_magic('run', '/content/src/meta_learning/optuna_search.py')
 get_ipython().run_line_magic('run', '/content/src/meta_learning/training.py')
 get_ipython().run_line_magic('run', '/content/src/meta_learning/embeddings.py')
+get_ipython().run_line_magic('run', '/content/src/meta_learning/data.py')
+
