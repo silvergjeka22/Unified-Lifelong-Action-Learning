@@ -21,12 +21,13 @@ def train_rehearsal(
     epochs=5,
     new_repeat=10,      # times new task data is iterated per epoch
     kd=True,            # kd loss
+    trial=None,         # optuna trial object
 ):
     ce = nn.CrossEntropyLoss()
 
     for epoch in range(epochs):
         model.train()
-        total_loss   = 0.0
+        total_loss    = 0.0
         buffer_seeded = False  # seed the replay buffer only on the first pass
 
         for _ in range(new_repeat):
@@ -65,6 +66,13 @@ def train_rehearsal(
             buffer_seeded = True  # avoid adding new samples multiple times per epoch
 
         _, val_acc = evaluate(model, val_loader, device)
+
+        # optuna for pruning during hyper-parameter search
+        if trial is not None:
+            trial.report(val_acc, epoch)
+            if trial.should_prune():
+                raise optuna.TrialPruned()
+
         print(
             f"[Rehearsal {'KD' if kd else 'no-KD'}] "
             f"Epoch {epoch+1}/{epochs} | Loss: {total_loss:.4f} | ValAcc: {val_acc:.4f}"
@@ -86,7 +94,7 @@ def _reptile_update(model, W_start, epsilon):
     model.load_state_dict(sd)
 
 
-def train_reptile_full(
+def train_reptile(
     model,
     episode_buffer,         # EpisodeBuffer with old + new class samples
     val_loader,             # combined val loader
@@ -95,23 +103,35 @@ def train_reptile_full(
     num_old_classes=None,   # number of old class logits used for distillation
     n_way=5,                # classes sampled per episode
     k_support=3,            # support samples per class
-    k_query=3,              # query samples per class
+    k_query=2,              # query samples per class
     inner_lr=0.01,          # SGD learning rate for inner loop adaptation
+    lstm_lr=1e-4,           # outer Adam LR for LSTM layers
+    fc_lr=1e-3,             # outer Adam LR for FC head
     inner_steps=5,          # gradient steps inside each episode
     epsilon=0.1,            # outer loop step size (Reptile update)
     episodes=200,           # meta episodes per epoch
     epochs=5,
     lambda_kd=0.3,          # weight of the KD loss term
+    lambda_qry=0.5,         # weight of the query loss term
     new_class_bias=3,       # episode sampling bias toward new classes
     new_class_ids=None,     # set of new class indices
     new_weight=1.0,         # loss weight for new classes
     kd=False,               # knowledge distillation loss
-    tag="Reptile",          
+    tag="Reptile",
     trial=None,             # optuna trial object
 ):
     best_val     = 0.0
     # weighted cross entropy only when new classes carry extra weight
     use_weighted = (new_class_ids is not None and new_weight != 1.0)
+
+    # outer optimizer — applied once per epoch after all episodes
+    outer_opt = torch.optim.Adam(
+        [
+            {"params": model.lstm.parameters(), "lr": lstm_lr},
+            {"params": model.fc.parameters(),   "lr": fc_lr},
+        ],
+        weight_decay=1e-4,
+    )
 
     for epoch in range(epochs):
         model.train()
@@ -146,8 +166,23 @@ def train_reptile_full(
                 loss.backward()
                 inner_opt.step()
 
+            # query loss — evaluate generalisation on held-out query set
+            qry_logits = model(qry_x)
+            qry_loss   = (
+                weighted_ce(qry_logits, qry_y, new_class_ids, new_weight, device)
+                if use_weighted
+                else F.cross_entropy(qry_logits, qry_y)
+            )
+            outer_opt.zero_grad()
+            (lambda_qry * qry_loss).backward()
+            outer_opt.step()
+
             # outer-update
             _reptile_update(model, W_start, epsilon)
+
+        # apply outer Adam step after all episodes for this epoch
+        outer_opt.step()
+        outer_opt.zero_grad()
 
         # validation
         _, val_acc = evaluate(model, val_loader, device)
@@ -160,7 +195,7 @@ def train_reptile_full(
             if trial.should_prune():
                 raise optuna.TrialPruned()
 
-        print(f"[{tag}] Epoch {epoch+1}/{epochs} | ValAcc: {val_acc:.4f} | Loss: {loss.item():.4f}")
-    
+        print(f"[{tag}] Epoch {epoch+1}/{epochs} | ValAcc: {val_acc:.4f} | QryLoss: {qry_loss.item():.4f}")
+
     print(f"  [{tag}] Best val acc : {best_val:.4f}")
     return model, best_val
