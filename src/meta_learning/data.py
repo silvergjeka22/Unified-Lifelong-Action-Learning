@@ -1,7 +1,7 @@
 import os
 import torch
 from torch.utils.data import Dataset, DataLoader
-from src.config import BATCH_SIZE
+from src.config import config as cfg
 
 class UCF101Embeddings(Dataset):
     def __init__(self, root, class_to_idx):
@@ -24,4 +24,4 @@ class UCF101Embeddings(Dataset):
 
 
 def _dl(ds, shuffle=False):
-    return DataLoader(ds, batch_size=BATCH_SIZE, shuffle=shuffle, num_workers=2)
+    return DataLoader(ds, batch_size=cfg.BATCH_SIZE, shuffle=shuffle, num_workers=2)
