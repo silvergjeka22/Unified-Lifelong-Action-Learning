@@ -4,74 +4,7 @@ import torch.nn.functional as F
 
 from src.meta_learning.models import evaluate, distillation_loss, weighted_ce
 
-
-# ── Naive ─────────────────────────────────────────────────────────────────────
-def train_naive(model, train_loader, val_loader, optimizer, device,
-                epochs=5, new_repeat=10):
-    ce = nn.CrossEntropyLoss()
-    for epoch in range(epochs):
-        model.train()
-        total_loss = 0.0
-        for _ in range(new_repeat):
-            for x, y in train_loader:
-                x, y  = x.to(device), y.to(device)
-                loss  = ce(model(x), y)
-                optimizer.zero_grad(); loss.backward(); optimizer.step()
-                total_loss += loss.item()
-        _, val_acc = evaluate(model, val_loader, device)
-        print(f"[Naive]    Epoch {epoch+1}/{epochs} | Loss:{total_loss:.4f} | ValAcc:{val_acc:.4f}")
-
-
-# ── EWC ───────────────────────────────────────────────────────────────────────
-class EWC:
-    def __init__(self, model, loader, device, num_samples=200):
-        self.params = {n: p.clone().detach()
-                       for n, p in model.named_parameters() if p.requires_grad}
-        self.fisher = self._compute_fisher(model, loader, device, num_samples)
-
-    def _compute_fisher(self, model, loader, device, num_samples):
-        fisher = {n: torch.zeros_like(p)
-                  for n, p in model.named_parameters() if p.requires_grad}
-        model.train()
-        ce, count = nn.CrossEntropyLoss(), 0
-        for x, y in loader:
-            if count >= num_samples:
-                break
-            x, y = x.to(device), y.to(device)
-            model.zero_grad()
-            ce(model(x), y).backward()
-            for n, p in model.named_parameters():
-                if p.requires_grad and p.grad is not None:
-                    fisher[n] += p.grad.detach() ** 2
-            count += x.size(0)
-        for n in fisher:
-            fisher[n] /= max(count, 1)
-        return fisher
-
-    def penalty(self, model):
-        return sum(
-            (self.fisher[n] * (p - self.params[n]) ** 2).sum()
-            for n, p in model.named_parameters() if n in self.fisher
-        )
-
-
-def train_ewc(model, train_loader, val_loader, optimizer, device,
-              ewc_obj, lambda_ewc=400, epochs=5, new_repeat=10):
-    ce = nn.CrossEntropyLoss()
-    for epoch in range(epochs):
-        model.train()
-        total_loss = 0.0
-        for _ in range(new_repeat):
-            for x, y in train_loader:
-                x, y  = x.to(device), y.to(device)
-                loss  = ce(model(x), y) + lambda_ewc * ewc_obj.penalty(model)
-                optimizer.zero_grad(); loss.backward(); optimizer.step()
-                total_loss += loss.item()
-        _, val_acc = evaluate(model, val_loader, device)
-        print(f"[EWC]      Epoch {epoch+1}/{epochs} | Loss:{total_loss:.4f} | ValAcc:{val_acc:.4f}")
-
-
-# ── Rehearsal ─────────────────────────────────────────────────────────────────
+# Rehearsal
 def train_rehearsal(model, teacher, train_loader, val_loader,
                     replay_buffer, optimizer, device,
                     num_old_classes, lambda_distill=0.3,
@@ -107,7 +40,7 @@ def train_rehearsal(model, teacher, train_loader, val_loader,
               f"Epoch {epoch+1}/{epochs} | Loss:{total_loss:.4f} | ValAcc:{val_acc:.4f}")
 
 
-# ── Reptile ───────────────────────────────────────────────────────────────────
+# Reptile
 def _snapshot(model):
     return {k: v.clone().detach() for k, v in model.state_dict().items()}
 
