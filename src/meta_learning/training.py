@@ -19,7 +19,7 @@ def train_rehearsal(
     num_old_classes,    # number of old-class logits used for distillation
     lambda_distill=0.3, # weight of the KD loss term
     epochs=5,
-    new_repeat=10,      # times new task data is iterated per epoch
+    new_repeat=8,      # times new task data is iterated per epoch
     kd=True,            # kd loss
     trial=None,         # optuna trial object
 ):
