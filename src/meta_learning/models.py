@@ -4,6 +4,7 @@ import torch.nn as nn
 import torch.nn.functional as F
 
 
+
 class EmbeddingLSTM(nn.Module):
     def __init__(self, input_size=2048, hidden_size=256,
                  num_layers=1, num_classes=16, dropout=0.3):
@@ -14,9 +15,16 @@ class EmbeddingLSTM(nn.Module):
         self.drop = nn.Dropout(dropout)
         self.fc   = nn.Linear(hidden_size, num_classes)
 
+
     def forward(self, x):
         _, (h_n, _) = self.lstm(x)
         return self.fc(self.drop(h_n[-1]))
+
+
+    def get_embedding(self, x):
+        _, (h_n, _) = self.lstm(x)
+        return self.drop(h_n[-1])          # [B, hidden_size] — before FC
+
 
 
 def fresh_model(num_classes, cfg, device, lstm_hidden):
@@ -25,6 +33,7 @@ def fresh_model(num_classes, cfg, device, lstm_hidden):
     lstm_only = {k: v for k, v in ckpt.items() if k.startswith("lstm.")}
     m.load_state_dict(lstm_only, strict=False)
     return m
+
 
 
 def make_teacher(source_model):
@@ -42,10 +51,12 @@ def make_optimizer(model):
     ], weight_decay=1e-4)
 
 
+
 def distillation_loss(student_logits, teacher_logits, T=5.0):
     s = F.log_softmax(student_logits / T, dim=1)
     t = F.softmax(teacher_logits / T, dim=1)
     return F.kl_div(s, t, reduction='batchmean') * (T * T)
+
 
 
 def weighted_ce(logits, labels, new_class_ids, new_weight=1.0, device="cpu"):
@@ -54,6 +65,7 @@ def weighted_ce(logits, labels, new_class_ids, new_weight=1.0, device="cpu"):
         if lbl.item() in new_class_ids:
             weights[i] = new_weight
     return (weights * F.cross_entropy(logits, labels, reduction='none')).mean()
+
 
 
 @torch.no_grad()
