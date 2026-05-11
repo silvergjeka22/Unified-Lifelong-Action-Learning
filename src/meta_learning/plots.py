@@ -109,9 +109,9 @@ def plot_accuracy(results_dict, task_label, save_path=None):
     _save(fig, save_path)
     return fig
 
-def plot_umap(results_dict, task_label, save_path=None):
-    save_path = save_path or f"umap_{task_label}.png"
-    names = [n for n in results_dict if results_dict[n]["embeddings"] is not None
+def plot_umap(results_dict, task_label):
+    names = [n for n in results_dict
+             if results_dict[n]["embeddings"] is not None
              and len(results_dict[n]["embeddings"]) > 0]
     n = len(names)
     if n == 0:
@@ -135,7 +135,9 @@ def plot_umap(results_dict, task_label, save_path=None):
             fig.add_scatter(
                 x=proj[mask, 0], y=proj[mask, 1],
                 mode="markers",
-                marker=dict(size=5, color=TAB_COLORS[ci % len(TAB_COLORS)], opacity=0.8),
+                marker=dict(size=5,
+                            color=TAB_COLORS[ci % len(TAB_COLORS)],
+                            opacity=0.8),
                 name=cn[ci],
                 legendgroup=cn[ci],
                 showlegend=(col == 1),
@@ -143,16 +145,18 @@ def plot_umap(results_dict, task_label, save_path=None):
             )
 
     proj_method = "UMAP" if UMAP_AVAILABLE else "PCA"
-    fig.update_layout(
-        **_base_layout(f"{task_label} — Embedding Space ({proj_method}) per Method"),
-        legend=dict(orientation="v", x=1.01, y=0.5, font=dict(size=10),
-                    bgcolor="rgba(0,0,0,0)"),
+    base = _base_layout(f"{task_label} — Embedding Space ({proj_method}) per Method")
+    base["legend"] = dict(
+        orientation="v", x=1.01, y=0.5,
+        font=dict(size=10),
+        bgcolor="rgba(0,0,0,0)",
     )
+    fig.update_layout(**base)
     fig.update_xaxes(title_text=f"{proj_method}-1", showgrid=False, zeroline=False,
                      tickfont=dict(size=10))
     fig.update_yaxes(title_text=f"{proj_method}-2", showgrid=False, zeroline=False,
                      tickfont=dict(size=10))
-    _save(fig, save_path)
+
     return fig
 
 def plot_confusion(results_dict, task_label, save_path=None):
@@ -424,13 +428,8 @@ def plot_run_variance(runs, save_path="run_variance.png"):
     _save(fig, save_path)
     return fig
 
-# ──────────────────────────────────────────────────────────────────────────────
-# NEW PLOT 4 — Hyperparameter sensitivity (Optuna trials)
-# ──────────────────────────────────────────────────────────────────────────────
 
-def plot_hparam_sensitivity(trials, x_param, method_name, save_path=None):
-    save_path = save_path or f"hparam_{method_name.replace(' ', '_')}_{x_param}.png"
-
+def plot_hparam_sensitivity(trials, x_param, method_name):
     xs, ys, pruned_xs, pruned_ys = [], [], [], []
     for t in trials:
         if x_param not in t.params:
@@ -466,15 +465,14 @@ def plot_hparam_sensitivity(trials, x_param, method_name, save_path=None):
             marker=dict(symbol="x", color="#888", size=8),
         )
 
-    if xs:
-        best_idx = int(np.argmax(ys))
-        fig.add_scatter(
-            x=[xs[best_idx]], y=[ys[best_idx]],
-            mode="markers",
-            name="Best",
-            marker=dict(symbol="star", size=16, color="#6daa45",
-                        line=dict(width=1, color=TEXT_COLOR)),
-        )
+    best_idx = int(np.argmax(ys))
+    fig.add_scatter(
+        x=[xs[best_idx]], y=[ys[best_idx]],
+        mode="markers",
+        name="Best",
+        marker=dict(symbol="star", size=16, color="#6daa45",
+                    line=dict(width=1, color=TEXT_COLOR)),
+    )
 
     fig.update_layout(
         **_base_layout(f"{method_name} — {x_param} vs val acc"),
@@ -486,7 +484,6 @@ def plot_hparam_sensitivity(trials, x_param, method_name, save_path=None):
         gridcolor=GRID_COLOR,
         range=[0, 1.05],
     )
-    _save(fig, save_path)
     return fig
 
 # ──────────────────────────────────────────────────────────────────────────────

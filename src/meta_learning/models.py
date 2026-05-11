@@ -25,8 +25,6 @@ class EmbeddingLSTM(nn.Module):
         _, (h_n, _) = self.lstm(x)
         return self.drop(h_n[-1])          # [B, hidden_size] — before FC
 
-
-
 def fresh_model(num_classes, cfg, device, lstm_hidden):
     m    = EmbeddingLSTM(hidden_size=lstm_hidden, num_classes=num_classes).to(device)
     ckpt = torch.load(cfg.RESNET50_PATH, map_location=device)

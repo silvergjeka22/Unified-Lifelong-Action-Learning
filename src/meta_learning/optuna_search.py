@@ -111,7 +111,7 @@ def optuna_search_reptile(
     study = _make_study()
     study.optimize(objective, n_trials=n_trials, show_progress_bar=True)
     _print_search_summary(study, task_tag)
-    return study.best_params
+    return study.best_params, study
 
 
 
@@ -183,4 +183,4 @@ def optuna_search_rehearsal(
     study = _make_study()
     study.optimize(objective, n_trials=n_trials, show_progress_bar=True)
     _print_search_summary(study, task_tag)
-    return study.best_params
+    return study.best_params, study
