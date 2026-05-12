@@ -57,6 +57,9 @@ if _SRC not in sys.path:
 subprocess.run(["pip", "install", "optuna", "-q"], capture_output=True)
 import optuna
 
+from plotly.offline import init_notebook_mode
+init_notebook_mode(connected=True)
+
 # config
 import config.config as cfg
 from config.config import (

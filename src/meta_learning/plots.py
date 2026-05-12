@@ -14,10 +14,6 @@ try:
 except ImportError:
     UMAP_AVAILABLE = False
 
-# ──────────────────────────────────────────────────────────────────────────────
-# CONSTANTS
-# ──────────────────────────────────────────────────────────────────────────────
-
 DARK_BG    = "#1c1b19"
 GRID_COLOR = "#393836"
 TEXT_COLOR = "#cdccca"
@@ -31,9 +27,27 @@ METHOD_COLORS = {
 }
 METHOD_COLORS_LIST = ["#4f98a3", "#227f8b", "#e8af34", "#b07a00"]
 
-# ──────────────────────────────────────────────────────────────────────────────
-# HELPERS
-# ──────────────────────────────────────────────────────────────────────────────
+# identity model: needed because plot_umap expects model.get_embedding(x)
+class IdentityEmbed(nn.Module):
+    def __init__(self):
+        super().__init__()
+    def forward(self, x):
+        return x
+    def get_embedding(self, x):
+        return x
+
+# loader that converts [B, T, 2048] -> [B, 2048] by temporal mean
+def make_clip_embedding_loader(ds, batch_size=256, shuffle=False, num_workers=2):
+    def collate(batch):
+        xs, ys = [], []
+        for t, y in batch:
+            xs.append(t.mean(dim=0))            # [2048], average over frames
+            ys.append(y)
+        x = torch.stack(xs)                     # [B, 2048]
+        y = torch.tensor(ys, dtype=torch.long)
+        return x, y
+    return DataLoader(ds, batch_size=batch_size, shuffle=shuffle,
+                      num_workers=num_workers, collate_fn=collate)
 
 def _base_layout(title):
     return dict(
@@ -47,16 +61,6 @@ def _base_layout(title):
         ),
     )
 
-def _extract_embeddings(model, loader, device):
-    model.eval()
-    embs, labs = [], []
-    with torch.no_grad():
-        for x, y in loader:
-            h = model.get_embedding(x.to(device))
-            embs.append(h.cpu())
-            labs.append(y)
-    return torch.cat(embs).numpy(), torch.cat(labs).numpy()
-
 def _project_2d(embeddings):
     if UMAP_AVAILABLE:
         reducer = umap.UMAP(n_components=2, random_state=42, n_jobs=1)
@@ -64,139 +68,226 @@ def _project_2d(embeddings):
         reducer = PCA(n_components=2, random_state=42)
     return reducer.fit_transform(embeddings)
 
-def _save(fig, path):
-    fig.write_image(path)
-    meta_path = path + ".meta.json"
-    name = path.replace(".png", "").replace("_", " ").title()
-    with open(meta_path, "w") as f:
-        json.dump({"caption": name, "description": f"Auto-generated plot: {name}"}, f)
-    print(f"  saved → {path}")
+def plot_accuracy(results_dict, task_label):
+    clean = {
+        n: d for n, d in results_dict.items()
+        if all(d.get(k) is not None for k in ("old_acc", "new_acc", "all_acc"))
+    }
 
-# ──────────────────────────────────────────────────────────────────────────────
-# EXISTING PLOTS
-# ──────────────────────────────────────────────────────────────────────────────
+    if not clean:
+        print(f"  [plot_accuracy] nothing to plot for '{task_label}' — all entries have None metrics.")
+        return go.Figure()
 
-def plot_accuracy(results_dict, task_label, save_path=None):
-    save_path = save_path or f"accuracy_{task_label}.png"
-    names = list(results_dict.keys())
+    skipped = [n for n in results_dict if n not in clean]
+    if skipped:
+        print(f"  [plot_accuracy] skipped (None metrics): {skipped}")
+
+    names = list(clean.keys())
     x     = list(range(len(names)))
 
     splits  = ["Old-task retention", "New-task plasticity", "Combined (CL)"]
     keys    = ["old_acc",            "new_acc",             "all_acc"]
     colors  = ["#4f98a3",            "#e8af34",             "#6daa45"]
-    offsets = [-0.27,                0.0,                   0.27]
+    offsets = [-0.27,                0.0,                    0.27]
 
     fig = go.Figure()
+
     for label, key, color, off in zip(splits, keys, colors, offsets):
-        vals = [results_dict[n][key] for n in names]
+        vals = [clean[n][key] for n in names]
         fig.add_bar(
-            x=[i + off for i in x], y=vals,
-            name=label, marker_color=color, width=0.22,
-            text=[f"{v:.2f}" for v in vals],
-            textposition="outside",
-            textfont=dict(size=11, color=TEXT_COLOR),
+            x            = [i + off for i in x],
+            y            = vals,
+            name         = label,
+            marker_color = color,
+            width        = 0.22,
+            text         = [f"{v:.1%}" for v in vals],
+            textposition = "outside",
+            textfont     = dict(size=11, color=TEXT_COLOR),
         )
 
     fig.update_layout(
         **_base_layout(f"{task_label} — Accuracy: Retention vs Plasticity vs CL"),
-        barmode="group",
-        xaxis=dict(tickvals=x, ticktext=names, tickfont=dict(size=12), showgrid=False),
-        yaxis=dict(range=[0, 1.12], tickformat=".0%", tickfont=dict(size=12),
-                   gridcolor=GRID_COLOR, title_text="Accuracy"),
+        barmode = "group",
+        xaxis   = dict(
+            tickvals   = x,
+            ticktext   = names,
+            tickangle  = -25 if max(len(n) for n in names) > 18 else 0,
+            tickfont   = dict(size=12),
+            showgrid   = False,
+            title_text = "Method",
+        ),
+        yaxis   = dict(
+            range      = [0, 1.14],
+            tickformat = ".0%",
+            tickfont   = dict(size=12),
+            gridcolor  = GRID_COLOR,
+            title_text = "Accuracy",
+        ),
     )
-    fig.update_xaxes(title_text="Method")
+
+    fig.update_layout(legend=dict(
+        orientation = "h",
+        yanchor     = "bottom",
+        y           = 1.02,
+        xanchor     = "right",
+        x           = 1,
+    ))
+
     fig.update_traces(cliponaxis=False)
-    _save(fig, save_path)
     return fig
 
-def plot_umap(results_dict, task_label):
+def plot_umap(results_dict, task_label, global_class_names=None):
+    # 1. Identify which methods actually have embedding data
     names = [n for n in results_dict
-             if results_dict[n]["embeddings"] is not None
+             if results_dict[n].get("embeddings") is not None
              and len(results_dict[n]["embeddings"]) > 0]
     n = len(names)
+    
     if n == 0:
-        print("  [plot_umap] no embeddings found — pass val_loader to record()")
         return None
 
-    fig = make_subplots(rows=1, cols=n, subplot_titles=names,
-                        horizontal_spacing=0.06)
+    all_unique_classes = set()
+    for name in names:
+        d = results_dict[name]
+        labs = d["emb_labels"]
+        # Use provided global list, the dict's local list, or numeric strings
+        cn = global_class_names or d.get("class_names") or [str(i) for i in range(int(labs.max()) + 1)]
+        for idx in np.unique(labs):
+            val = int(idx)
+            class_str = cn[val] if val < len(cn) else str(val)
+            all_unique_classes.add(class_str)
+    
+    sorted_classes = sorted(list(all_unique_classes))
+    class_color_map = {cls: TAB_COLORS[i % len(TAB_COLORS)] for i, cls in enumerate(sorted_classes)}
+
+    fig = make_subplots(
+        rows=1, cols=n, 
+        subplot_titles=[f"<b>{name}</b>" for name in names],
+        horizontal_spacing=0.06
+    )
+
+    legend_tracker = set()
 
     for col, name in enumerate(names, start=1):
-        d    = results_dict[name]
+        d = results_dict[name]
         proj = _project_2d(d["embeddings"])
         labs = d["emb_labels"]
-        cn   = d["class_names"] or [str(i) for i in range(int(labs.max()) + 1)]
-        n_cls = len(cn)
+        cn = global_class_names or d.get("class_names") or [str(i) for i in range(int(labs.max()) + 1)]
+        
+        present_indices = np.unique(labs)
 
-        for ci in range(n_cls):
-            mask = labs == ci
-            if not mask.any():
-                continue
-            fig.add_scatter(
-                x=proj[mask, 0], y=proj[mask, 1],
-                mode="markers",
-                marker=dict(size=5,
-                            color=TAB_COLORS[ci % len(TAB_COLORS)],
-                            opacity=0.8),
-                name=cn[ci],
-                legendgroup=cn[ci],
-                showlegend=(col == 1),
-                row=1, col=col,
+        for ci in present_indices:
+            mask = (labs == ci)
+            if not np.any(mask): continue
+                
+            val = int(ci)
+            class_name = cn[val] if val < len(cn) else str(val)
+            
+            fig.add_trace(
+                go.Scatter(
+                    x=proj[mask, 0], y=proj[mask, 1],
+                    mode="markers",
+                    marker=dict(
+                        size=6, color=class_color_map[class_name],
+                        opacity=0.7, line=dict(width=0.5, color='black')
+                    ),
+                    name=class_name,
+                    legendgroup=class_name,
+                    showlegend=(class_name not in legend_tracker),
+                ),
+                row=1, col=col
             )
+            legend_tracker.add(class_name)
 
     proj_method = "UMAP" if UMAP_AVAILABLE else "PCA"
-    base = _base_layout(f"{task_label} — Embedding Space ({proj_method}) per Method")
-    base["legend"] = dict(
-        orientation="v", x=1.01, y=0.5,
-        font=dict(size=10),
-        bgcolor="rgba(0,0,0,0)",
+    fig.update_layout(**_base_layout(f"{task_label} — Latent Space ({proj_method})"))
+    fig.update_layout(
+        width=600 * n, height=700,
+        legend=dict(title="<b>Classes</b>", orientation="v", x=1.02, y=0.5, xanchor="left"),
+        margin=dict(t=100, b=80, l=50, r=150)
     )
-    fig.update_layout(**base)
-    fig.update_xaxes(title_text=f"{proj_method}-1", showgrid=False, zeroline=False,
-                     tickfont=dict(size=10))
-    fig.update_yaxes(title_text=f"{proj_method}-2", showgrid=False, zeroline=False,
-                     tickfont=dict(size=10))
-
     return fig
 
-def plot_confusion(results_dict, task_label, save_path=None):
-    save_path = save_path or f"confusion_{task_label}.png"
-    names = list(results_dict.keys())
-    n     = len(names)
+def plot_confusion(results_dict, task_label, global_class_names=None):
+    names = [k for k, v in results_dict.items() if v.get("preds") is not None]
+    n = len(names)
+    if n == 0: 
+        return None
 
-    fig = make_subplots(rows=1, cols=n, subplot_titles=names,
-                        horizontal_spacing=0.10)
+    fig = make_subplots(
+        rows=1, cols=n, 
+        subplot_titles=[f"<b>{name}</b>" for name in names], 
+        horizontal_spacing=0.12
+    )
 
     for col, name in enumerate(names, start=1):
-        d  = results_dict[name]
-        cn = d["class_names"] or [str(i) for i in range(int(d["labels"].max()) + 1)]
-        cm = confusion_matrix(d["labels"], d["preds"], labels=list(range(len(cn))))
-        with np.errstate(divide="ignore", invalid="ignore"):
-            cm_norm = np.where(cm.sum(axis=1, keepdims=True) == 0, 0,
-                               cm / cm.sum(axis=1, keepdims=True))
+        d = results_dict[name]
+        y_true, y_pred = d["labels"], d["preds"]
+        present_indices = np.unique(np.concatenate([y_true, y_pred]))
+        
+        cn = global_class_names or d.get("class_names")
+        if cn:
+            tick_text = [cn[int(i)] if int(i) < len(cn) else str(i) for i in present_indices]
+        else:
+            tick_text = [str(i) for i in present_indices]
 
-        fig.add_heatmap(
-            z=cm_norm,
-            x=cn, y=cn,
-            colorscale="Blues",
-            zmin=0, zmax=1,
-            showscale=(col == n),
-            colorbar=dict(title="Rate", tickfont=dict(size=10)) if col == n else None,
-            row=1, col=col,
+        cm = confusion_matrix(y_true, y_pred, labels=present_indices)
+        with np.errstate(divide="ignore", invalid="ignore"):
+            cm_sum = cm.sum(axis=1, keepdims=True)
+            cm_norm = np.where(cm_sum == 0, 0, cm / cm_sum)
+
+        annot_text = []
+        for i, row in enumerate(cm_norm):
+            row_text = []
+            for j, val in enumerate(row):
+                if val < 0.005:
+                    row_text.append("") 
+                else:
+                    color = "#00FF00" if i == j else "#FF0000"
+                    row_text.append(f"<span style='color:{color}; font-size:14px'><b>{val:.2f}</b></span>")
+            annot_text.append(row_text)
+
+        # 3. Add Heatmap Trace
+        fig.add_trace(
+            go.Heatmap(
+                z=cm_norm, 
+                x=tick_text, 
+                y=tick_text,
+                text=annot_text, 
+                texttemplate="%{text}",
+                textfont={"family": "Arial Black", "size": 14},
+                colorscale=[[0, "rgb(10,10,10)"], [1, "rgb(20, 40, 80)"]],
+                zmin=0, zmax=1,
+                showscale=(col == n), 
+                xgap=1, ygap=1,
+            ),
+            row=1, col=col
         )
 
+    fig.update_layout(**_base_layout(f"{task_label} — Confusion Analysis"))
+
     fig.update_layout(
-        **_base_layout(f"{task_label} — Confusion Matrices (normalised per row)"),
-        legend=dict(visible=False),
+        width=850 * n, 
+        height=850,
+        paper_bgcolor="black",
+        plot_bgcolor="white", 
+        font=dict(color="white")
     )
-    fig.update_xaxes(title_text="Predicted", tickfont=dict(size=8), tickangle=35)
-    fig.update_yaxes(title_text="True",      tickfont=dict(size=8), autorange="reversed")
-    _save(fig, save_path)
+
+    fig.update_xaxes(
+        showline=True, linewidth=2, linecolor='white', 
+        mirror=True, tickfont=dict(color="white", size=11),
+        gridcolor="rgba(255,255,255,0.1)"
+    )
+    fig.update_yaxes(
+        showline=True, linewidth=2, linecolor='white', 
+        mirror=True, tickfont=dict(color="white", size=11),
+        autorange="reversed", scaleanchor="x", scaleratio=1
+    )
+    
     return fig
 
-def plot_weight_delta(results_dict, task_label, save_path=None):
-    save_path = save_path or f"weight_delta_{task_label}.png"
-
+def plot_weight_delta(results_dict, task_label):
     layer_names = []
     for d in results_dict.values():
         if d["weight_delta"]:
@@ -232,21 +323,23 @@ def plot_weight_delta(results_dict, task_label, save_path=None):
                    title_text="L2 norm of ΔW"),
     )
     fig.update_traces(cliponaxis=False)
-    _save(fig, save_path)
     return fig
 
-def plot_retention_plasticity(results_t1, results_t2, save_path=None):
-    save_path = save_path or "retention_plasticity.png"
-
+def plot_retention_plasticity(results_t1, results_t2):
     task_data    = {"T1": results_t1, "T2": results_t2}
     task_markers = {"T1": "circle",   "T2": "square"}
     task_labels  = {"T1": "● T1",     "T2": "■ T2"}
 
     fig = go.Figure()
 
+    # 1. Plot the actual data points
     for task_label, results in task_data.items():
         for name, d in results.items():
+            if d.get("new_acc") is None or d.get("old_acc") is None:
+                continue
+                
             color = METHOD_COLORS.get(name, "#cdccca")
+            
             fig.add_scatter(
                 x=[d["new_acc"]],
                 y=[d["old_acc"]],
@@ -254,19 +347,21 @@ def plot_retention_plasticity(results_t1, results_t2, save_path=None):
                 marker=dict(
                     size=18, color=color,
                     symbol=task_markers[task_label],
-                    line=dict(width=1.5, color=TEXT_COLOR),
+                    line=dict(width=1.5, color="white"),
                 ),
                 text=[f"  {name} ({task_label})"],
                 textposition="middle right",
-                textfont=dict(size=10, color=TEXT_COLOR),
+                textfont=dict(size=11, color="white"),
                 name=f"{name} — {task_label}",
                 showlegend=False,
             )
 
     fig.add_annotation(
-        x=0.97, y=0.97, text="★ ideal", showarrow=False,
-        font=dict(size=13, color="#6daa45"), xref="paper", yref="paper",
+        x=1.0, y=1.0, text="★ IDEAL (100/100)", showarrow=False,
+        font=dict(size=14, color="#6daa45"), 
+        xanchor="right", yanchor="bottom"
     )
+
     fig.add_shape(
         type="line", x0=0, y0=0, x1=1, y1=1,
         line=dict(color=GRID_COLOR, dash="dot", width=1.5),
@@ -285,147 +380,105 @@ def plot_retention_plasticity(results_t1, results_t2, save_path=None):
             name=task_labels[task_label], showlegend=True,
         )
 
-    fig.update_layout(
-        **_base_layout("Retention vs Plasticity — Rehearsal vs Reptile (T1 & T2)"),
-        legend=dict(orientation="v", x=1.02, y=1.0,
-                    font=dict(size=11), bgcolor="rgba(0,0,0,0)"),
+    layout_args = _base_layout("Retention (Old) vs. Plasticity (New) — T1 & T2 Comparison")
+    
+    layout_args.update(dict(
+        paper_bgcolor="black",
+        plot_bgcolor="black",
+        legend=dict(
+            orientation="v", 
+            x=1.02, y=1.0,
+            font=dict(size=11, color="white"), 
+            bgcolor="rgba(0,0,0,0.3)",
+            bordercolor="white",
+            borderwidth=1
+        ),
+    ))
+
+    fig.update_layout(**layout_args)
+
+    fig.update_xaxes(
+        title_text="New-task Plasticity (Learning)",
+        range=[0, 1.1], tickformat=".0%",
+        gridcolor=GRID_COLOR, linecolor="white", zeroline=False
     )
-    fig.update_xaxes(title_text="New-task plasticity",
-                     range=[0, 1.08], tickformat=".0%",
-                     gridcolor=GRID_COLOR, zeroline=False)
-    fig.update_yaxes(title_text="Old-task retention",
-                     range=[0, 1.08], tickformat=".0%",
-                     gridcolor=GRID_COLOR, zeroline=False)
-    _save(fig, save_path)
+    fig.update_yaxes(
+        title_text="Old-task Retention (Remembering)",
+        range=[0, 1.1], tickformat=".0%",
+        gridcolor=GRID_COLOR, linecolor="white", zeroline=False
+    )
+
     return fig
 
-# ──────────────────────────────────────────────────────────────────────────────
-# NEW PLOT 1 — Continual-learning accuracy curve over tasks
-# ──────────────────────────────────────────────────────────────────────────────
 
-def plot_cl_curve(history, save_path="cl_curve.png"):
+def plot_cl_curves(history_dict):
+    """
+    Plots accuracy trends over sequential tasks.
+    Expects history_dict = {"Method Name": [task1_acc, task2_acc, ...]}
+    """
+    if not history_dict:
+        print("  [plot_cl_curves] empty history dict")
+        return None
+
     fig = go.Figure()
 
-    for method, entries in history.items():
-        if not entries:
+    for method, scores in history_dict.items():
+        if not scores:
             continue
-        entries_sorted = sorted(entries, key=lambda e: e["task_id"])
-        xs = [e["task_id"] for e in entries_sorted]
-        ys = [e["all_acc"]  for e in entries_sorted]
-
+        
+        # Get color from your global METHOD_COLORS map
+        color = METHOD_COLORS.get(method, "#cdccca")
+        
+        # X-axis represents the task number (1, 2, 3...)
+        task_indices = list(range(1, len(scores) + 1))
+        
         fig.add_scatter(
-            x=xs, y=ys,
+            x=task_indices,
+            y=scores,
             mode="lines+markers",
             name=method,
-            line=dict(color=METHOD_COLORS.get(method, None), width=2.5),
-            marker=dict(size=9),
+            line=dict(color=color, width=3),
+            marker=dict(size=10, symbol="circle", opacity=0.9),
+            hovertemplate="<b>" + method + "</b><br>Task: %{x}<br>Accuracy: %{y:.1%}<extra></extra>"
         )
 
+    # 1. Apply base layout
+    fig.update_layout(**_base_layout("Continual Learning Curves (Accuracy vs. Tasks)"))
+
+    # 2. Force the Dark Mode / High Contrast theme
     fig.update_layout(
-        **_base_layout("Average accuracy over tasks (CL curve)"),
+        paper_bgcolor="black",
+        plot_bgcolor="black",
+        font=dict(color="white"),
+        showlegend=True,
+        legend=dict(
+            bgcolor="rgba(0,0,0,0.5)",
+            bordercolor="white",
+            borderwidth=1
+        ),
+        margin=dict(t=80, b=80, l=80, r=40)
     )
+
+    # 3. Style the Axes
     fig.update_xaxes(
-        title_text="Task index (k)",
-        gridcolor=GRID_COLOR,
-        tickmode="linear", dtick=1,
+        showgrid=False, 
+        title_text="Task Index", 
+        tickmode="linear",
+        dtick=1,
+        tickfont=dict(color="white", size=12),
+        linecolor="white",
+        linewidth=1
     )
     fig.update_yaxes(
-        title_text="Combined accuracy (all tasks seen so far)",
+        title_text="Combined Accuracy",
         tickformat=".0%",
-        gridcolor=GRID_COLOR,
+        gridcolor=GRID_COLOR, # Uses your global GRID_COLOR (#393836)
         range=[0, 1.05],
+        tickfont=dict(color="white", size=12),
+        linecolor="white",
+        linewidth=1
     )
-    _save(fig, save_path)
-    return fig
 
-# ──────────────────────────────────────────────────────────────────────────────
-# NEW PLOT 2 — Forgetting per task
-# ──────────────────────────────────────────────────────────────────────────────
-
-def plot_forgetting(forgetting_dict, save_path="forgetting.png"):
-    methods = list(forgetting_dict.keys())
-    if not methods:
-        print("  [plot_forgetting] empty forgetting_dict")
-        return None
-
-    task_ids = sorted(next(iter(forgetting_dict.values())).keys())
-    x        = np.arange(len(task_ids), dtype=float)
-    width    = 0.8 / max(len(methods), 1)
-
-    fig = go.Figure()
-    for i, method in enumerate(methods):
-        vals   = [forgetting_dict[method].get(t, 0.0) for t in task_ids]
-        offset = (i - (len(methods) - 1) / 2.0) * width
-        fig.add_bar(
-            x=x + offset, y=vals,
-            name=method,
-            width=width * 0.92,
-            marker_color=METHOD_COLORS.get(method, None),
-            text=[f"{v:.2f}" for v in vals],
-            textposition="outside",
-            textfont=dict(size=10, color=TEXT_COLOR),
-        )
-
-    all_vals = [v for m in methods for v in forgetting_dict[m].values()]
-    y_max    = max(all_vals) * 1.3 if all_vals else 0.3
-
-    fig.update_layout(
-        **_base_layout("Forgetting per task — Rehearsal vs Reptile"),
-        barmode="group",
-    )
-    fig.update_xaxes(
-        title_text="Task ID",
-        tickvals=x,
-        ticktext=[f"T{t}" for t in task_ids],
-        showgrid=False,
-    )
-    fig.update_yaxes(
-        title_text="Forgetting  (best acc − final acc)",
-        tickformat=".0%",
-        gridcolor=GRID_COLOR,
-        range=[0, y_max],
-    )
-    fig.update_traces(cliponaxis=False)
-    _save(fig, save_path)
-    return fig
-
-# ──────────────────────────────────────────────────────────────────────────────
-# NEW PLOT 3 — Run-to-run variability (box plot)
-# ──────────────────────────────────────────────────────────────────────────────
-
-def plot_run_variance(runs, save_path="run_variance.png"):
-    if not runs:
-        print("  [plot_run_variance] empty runs dict")
-        return None
-
-    fig = go.Figure()
-    for method, accs in runs.items():
-        if not accs:
-            continue
-        color = METHOD_COLORS.get(method, None)
-        fig.add_box(
-            y=accs,
-            name=method,
-            marker_color=color,
-            line_color=color,
-            boxmean=True,
-            boxpoints="all",
-            jitter=0.3,
-            pointpos=0,
-            marker=dict(size=7, opacity=0.7),
-        )
-
-    fig.update_layout(
-        **_base_layout("Run-to-run variability (final combined accuracy)"),
-    )
-    fig.update_xaxes(showgrid=False, title_text="Method")
-    fig.update_yaxes(
-        title_text="Final combined accuracy (all_acc)",
-        tickformat=".0%",
-        gridcolor=GRID_COLOR,
-        range=[0, 1.05],
-    )
-    _save(fig, save_path)
     return fig
 
 
@@ -486,242 +539,131 @@ def plot_hparam_sensitivity(trials, x_param, method_name):
     )
     return fig
 
-# ──────────────────────────────────────────────────────────────────────────────
-# NEW PLOT 5 — Optuna trial history (val acc over trial index)
-# ──────────────────────────────────────────────────────────────────────────────
+def plot_per_class_accuracy(results_dict, task_label, global_class_names=None):
+    names = [k for k, v in results_dict.items() if v.get("preds") is not None]
+    if not names: return None
 
-def plot_optuna_history(studies, save_path="optuna_history.png"):
-    fig = go.Figure()
-
-    for method, study in studies.items():
-        trials     = [t for t in study.trials if t.state.name == "COMPLETE"
-                      and t.value is not None]
-        trial_nums = [t.number for t in trials]
-        values     = [t.value  for t in trials]
-
-        if not values:
-            continue
-
-        running_best = []
-        cur_best = -1.0
-        for v in values:
-            cur_best = max(cur_best, v)
-            running_best.append(cur_best)
-
-        color = METHOD_COLORS.get(method, None)
-
-        fig.add_scatter(
-            x=trial_nums, y=values,
-            mode="markers",
-            name=f"{method} (trials)",
-            marker=dict(color=color, size=6, opacity=0.45),
-            showlegend=True,
-        )
-
-        fig.add_scatter(
-            x=trial_nums, y=running_best,
-            mode="lines",
-            name=f"{method} (best so far)",
-            line=dict(color=color, width=2.5, dash="solid"),
-            showlegend=True,
-        )
-
-    fig.update_layout(
-        **_base_layout("Optuna search history — val acc per trial"),
-    )
-    fig.update_xaxes(title_text="Trial index", gridcolor=GRID_COLOR)
-    fig.update_yaxes(
-        title_text="Validation accuracy",
-        tickformat=".0%",
-        gridcolor=GRID_COLOR,
-        range=[0, 1.05],
-    )
-    _save(fig, save_path)
-    return fig
-
-# ──────────────────────────────────────────────────────────────────────────────
-# NEW PLOT 6 — Per-class accuracy heatmap (Rehearsal vs Reptile)
-# ──────────────────────────────────────────────────────────────────────────────
-
-def plot_per_class_accuracy(results_dict, task_label, save_path=None):
-    save_path = save_path or f"per_class_acc_{task_label}.png"
-    names = list(results_dict.keys())
-
-    first = next(iter(results_dict.values()))
-    n_cls = int(first["labels"].max()) + 1
-    cn    = first["class_names"] or [str(i) for i in range(n_cls)]
-
-    matrix = []
+    # 1. Calculate the raw matrix first
+    n_cls = int(max([v["labels"].max() for v in results_dict.values()])) + 1
+    raw_matrix = []
     for name in names:
         d = results_dict[name]
-        row = []
-        for ci in range(n_cls):
-            mask  = d["labels"] == ci
-            if mask.sum() == 0:
-                row.append(float("nan"))
-            else:
-                row.append((d["preds"][mask] == ci).mean())
-        matrix.append(row)
+        y_true, y_pred = d["labels"], d["preds"]
+        row = [(y_pred[y_true == ci] == ci).mean() if (y_true == ci).any() else np.nan for ci in range(n_cls)]
+        raw_matrix.append(row)
+    
+    matrix_np = np.array(raw_matrix)
 
+    # 2. Identify columns (classes) that are NOT all NaN
+    # This removes classes that weren't present in any of the results
+    valid_col_mask = ~np.all(np.isnan(matrix_np), axis=0)
+    filtered_matrix = matrix_np[:, valid_col_mask]
+    
+    # 3. Filter the class names to match
+    all_cn = global_class_names or results_dict[names[0]].get("class_names") or [str(i) for i in range(n_cls)]
+    filtered_cn = [all_cn[i] for i, valid in enumerate(valid_col_mask) if valid]
+
+    # 4. Create Heatmap with filtered data
     fig = go.Figure()
     fig.add_heatmap(
-        z=matrix,
-        x=cn,
+        z=filtered_matrix,
+        x=filtered_cn,
         y=names,
         colorscale="RdYlGn",
         zmin=0, zmax=1,
-        colorbar=dict(title="Accuracy", tickformat=".0%",
-                      tickfont=dict(size=10)),
-        text=[[f"{v:.2f}" if not np.isnan(v) else "—" for v in row] for row in matrix],
+        colorbar=dict(title="Accuracy", tickformat=".0%"),
+        # Use filtered_matrix for annotations
+        text=[[f"<b>{v:.2f}</b>" if not np.isnan(v) else "" for v in row] for row in filtered_matrix],
         texttemplate="%{text}",
-        textfont=dict(size=9),
+        textfont=dict(size=12, family="Arial Black"),
     )
 
+    fig.update_layout(**_base_layout(f"{task_label} — Per-Class Accuracy"))
     fig.update_layout(
-        **_base_layout(f"{task_label} — Per-class accuracy (Rehearsal vs Reptile)"),
-        legend=dict(visible=False),
+        width=max(400, 120 * len(filtered_cn)), # Dynamic width based on active classes
+        height=100 * len(names) + 200,
+        paper_bgcolor="black",
+        plot_bgcolor="black",
+        margin=dict(t=100, b=100, l=180, r=50)
     )
-    fig.update_xaxes(title_text="Class", tickangle=40, tickfont=dict(size=9),
-                     showgrid=False)
-    fig.update_yaxes(title_text="Method", tickfont=dict(size=11), showgrid=False)
-    _save(fig, save_path)
+    
+    fig.update_xaxes(tickangle=45)
     return fig
 
-# ──────────────────────────────────────────────────────────────────────────────
-# NEW PLOT 7 — Buffer composition (Replay vs Episode)
-# ──────────────────────────────────────────────────────────────────────────────
 
-def plot_buffer_composition(buffer_stats, class_names=None, save_path="buffer_comp.png"):
-    """
-    buffer_stats: dict with keys 'rehearsal' and 'reptile', each a list of dicts:
-        rehearsal entry: { "task_tag": str, "total": int, "per_class": {cls_id: count, ...} }
-        reptile entry:   { "task_tag": str, "total": int,
-                           "per_class": {cls_id: count, ...},
-                           "old_counts": {cls_id: count, ...},
-                           "new_counts": {cls_id: count, ...} }
-    """
-    entries = []
-    if buffer_stats.get("rehearsal"):
-        entries.append(("Rehearsal", buffer_stats["rehearsal"][0]["per_class"]))
-    if buffer_stats.get("reptile"):
-        entries.append(("Reptile", buffer_stats["reptile"][0]["per_class"]))
 
-    if not entries:
-        print("  [plot_buffer_composition] no buffer stats")
+
+#### Buffers
+def _buffer_class_counts(buf):
+    counts = {}
+    if hasattr(buf, "data"):
+        data = buf.data
+        if isinstance(data, list):                      # ReplayBuffer
+            for _, lbl in data:
+                counts[lbl] = counts.get(lbl, 0) + 1
+        elif isinstance(data, dict):                    # EpisodeBuffer
+            for lbl, items in data.items():
+                counts[lbl] = len(items)
+    return counts
+
+
+def plot_buffer_composition(buffer_stats, class_names=None):
+    if not buffer_stats:
+        print("  [plot_buffer_composition] empty buffer_stats")
         return None
 
-    cls_ids = sorted(set(c for _, d in entries for c in d.keys()))
+    all_counts = {label: _buffer_class_counts(buf)
+                  for label, buf in buffer_stats.items()}
+    all_classes = sorted({c for counts in all_counts.values() for c in counts})
+
     if class_names is None:
-        x = [str(c) for c in cls_ids]
-    else:
-        x = [class_names[c] for c in cls_ids]
+        class_names = [str(c) for c in all_classes]
+
+    buf_labels = list(buffer_stats.keys())
 
     fig = go.Figure()
-    for name, counts in entries:
-        if name == "Rehearsal":
-            color = METHOD_COLORS.get("Rehearsal KD", "#e8af34")
-        else:
-            color = METHOD_COLORS.get("Reptile KD", "#4f98a3")
-        y = [counts.get(c, 0) for c in cls_ids]
+
+    palette = [
+        "#4f98a3", "#e8af34", "#6daa45", "#dd6974",
+        "#a86fdf", "#fdab43", "#5591c7", "#bb653b",
+    ]
+
+    for idx, cls_id in enumerate(all_classes):
+        cls_name = class_names[idx] if idx < len(class_names) else str(cls_id)
+        vals = [all_counts[bl].get(cls_id, 0) for bl in buf_labels]
         fig.add_bar(
-            x=x,
-            y=y,
-            name=name,
-            marker_color=color,
+            x=buf_labels,
+            y=vals,
+            name=cls_name,
+            marker_color=palette[idx % len(palette)],
+            text=[str(v) if v > 0 else "" for v in vals],
+            textposition="inside",
+            textfont=dict(size=10, color="#1c1b19"),
         )
+
+    totals = [sum(all_counts[bl].values()) for bl in buf_labels]
+    for i, total in enumerate(totals):
+        fig.add_annotation(
+            x=i, y=total,
+            text=f"<b>{total:,}</b>",
+            showarrow=False,
+            yshift=12,
+            font=dict(size=12, color=TEXT_COLOR),
+        )
+
+    max_y = max(totals) * 1.18 if totals else 10
 
     fig.update_layout(
-        **_base_layout("Buffer composition — samples per class"),
-        barmode="group",
+        **_base_layout("Replay Buffer Composition — samples per class"),
+        barmode="stack",
+        xaxis=dict(title_text="Buffer", tickfont=dict(size=12), showgrid=False),
+        yaxis=dict(title_text="Number of samples", gridcolor=GRID_COLOR,
+                range=[0, max_y]),
     )
-    fig.update_xaxes(title_text="Class", tickangle=40, tickfont=dict(size=9),
-                     showgrid=False)
-    fig.update_yaxes(title_text="# exemplars", gridcolor=GRID_COLOR,
-                     tickfont=dict(size=11))
-    _save(fig, save_path)
+    fig.update_layout(legend=dict(
+        title_text="Class",
+        orientation="v", x=1.02, y=1.0,
+        font=dict(size=11), bgcolor="rgba(0,0,0,0)",
+    ))
+    fig.update_traces(cliponaxis=False)
     return fig
-
-# ──────────────────────────────────────────────────────────────────────────────
-# WRAPPERS
-# ──────────────────────────────────────────────────────────────────────────────
-
-def plot_all(results_dict, task_label, out_dir="."):
-    os.makedirs(out_dir, exist_ok=True)
-    print(f"\n  Generating plots for {task_label} ...")
-
-    plot_accuracy(
-        results_dict, task_label,
-        save_path=f"{out_dir}/accuracy_{task_label}.png",
-    )
-    plot_umap(
-        results_dict, task_label,
-        save_path=f"{out_dir}/umap_{task_label}.png",
-    )
-    plot_confusion(
-        results_dict, task_label,
-        save_path=f"{out_dir}/confusion_{task_label}.png",
-    )
-    plot_weight_delta(
-        results_dict, task_label,
-        save_path=f"{out_dir}/weight_delta_{task_label}.png",
-    )
-    plot_per_class_accuracy(
-        results_dict, task_label,
-        save_path=f"{out_dir}/per_class_acc_{task_label}.png",
-    )
-
-    print(f"  All {task_label} plots saved to {out_dir}/")
-
-def plot_all_tasks(
-    results_t1,
-    results_t2,
-    history=None,
-    forgetting_dict=None,
-    runs=None,
-    studies=None,
-    buffer_stats=None,
-    class_names=None,
-    out_dir=".",
-):
-    os.makedirs(out_dir, exist_ok=True)
-
-    plot_all(results_t1, task_label="T1", out_dir=out_dir)
-    plot_all(results_t2, task_label="T2", out_dir=out_dir)
-
-    plot_retention_plasticity(
-        results_t1, results_t2,
-        save_path=f"{out_dir}/retention_plasticity.png",
-    )
-
-    if history is not None:
-        plot_cl_curve(
-            history,
-            save_path=f"{out_dir}/cl_curve.png",
-        )
-
-    if forgetting_dict is not None:
-        plot_forgetting(
-            forgetting_dict,
-            save_path=f"{out_dir}/forgetting.png",
-        )
-
-    if runs is not None:
-        plot_run_variance(
-            runs,
-            save_path=f"{out_dir}/run_variance.png",
-        )
-
-    if studies is not None:
-        plot_optuna_history(
-            studies,
-            save_path=f"{out_dir}/optuna_history.png",
-        )
-
-    if buffer_stats is not None:
-        plot_buffer_composition(
-            buffer_stats,
-            class_names=class_names,
-            save_path=f"{out_dir}/buffer_comp.png",
-        )
-
-    print(f"\n  All plots saved to {out_dir}/")
