@@ -415,10 +415,6 @@ def plot_retention_plasticity(results_t1, results_t2):
 
 
 def plot_cl_curves(history_dict):
-    """
-    Plots accuracy trends over sequential tasks.
-    Expects history_dict = {"Method Name": [task1_acc, task2_acc, ...]}
-    """
     if not history_dict:
         print("  [plot_cl_curves] empty history dict")
         return None
@@ -617,13 +613,9 @@ def plot_buffer_composition(buffer_stats, class_names=None):
 
     all_counts = {label: _buffer_class_counts(buf)
                   for label, buf in buffer_stats.items()}
+    
     all_classes = sorted({c for counts in all_counts.values() for c in counts})
-
-    if class_names is None:
-        class_names = [str(c) for c in all_classes]
-
     buf_labels = list(buffer_stats.keys())
-
     fig = go.Figure()
 
     palette = [
@@ -632,12 +624,17 @@ def plot_buffer_composition(buffer_stats, class_names=None):
     ]
 
     for idx, cls_id in enumerate(all_classes):
-        cls_name = class_names[idx] if idx < len(class_names) else str(cls_id)
+        if class_names and cls_id < len(class_names):
+            cls_display_name = class_names[cls_id]
+        else:
+            cls_display_name = f"Class {cls_id}"
+            
         vals = [all_counts[bl].get(cls_id, 0) for bl in buf_labels]
+        
         fig.add_bar(
             x=buf_labels,
             y=vals,
-            name=cls_name,
+            name=cls_display_name,
             marker_color=palette[idx % len(palette)],
             text=[str(v) if v > 0 else "" for v in vals],
             textposition="inside",
@@ -651,22 +648,35 @@ def plot_buffer_composition(buffer_stats, class_names=None):
             text=f"<b>{total:,}</b>",
             showarrow=False,
             yshift=12,
-            font=dict(size=12, color=TEXT_COLOR),
+            font=dict(size=12, color=TEXT_COLOR if 'TEXT_COLOR' in globals() else "black"),
         )
 
     max_y = max(totals) * 1.18 if totals else 10
 
-    fig.update_layout(
-        **_base_layout("Replay Buffer Composition — samples per class"),
+    # Combine layout settings to avoid duplicate argument errors
+    layout_args = _base_layout("Replay Buffer Composition — samples per class")
+    
+    layout_args.update(
         barmode="stack",
-        xaxis=dict(title_text="Buffer", tickfont=dict(size=12), showgrid=False),
-        yaxis=dict(title_text="Number of samples", gridcolor=GRID_COLOR,
-                range=[0, max_y]),
+        # 'r' creates the empty space on the right for the class names
+        margin=dict(r=160, t=80, b=50, l=50), 
+        xaxis=dict(title_text="Buffer Type", tickfont=dict(size=12), showgrid=False),
+        yaxis=dict(title_text="Number of samples", 
+                   gridcolor=GRID_COLOR if 'GRID_COLOR' in globals() else "#eee",
+                   range=[0, max_y]),
+        legend=dict(
+            title_text="<b>Classes</b>",
+            orientation="v",
+            x=1.02,            # Position slightly to the right of the y-axis
+            xanchor="left",    # Anchor from the left side of the legend box
+            y=1.0,
+            yanchor="top",
+            font=dict(size=11),
+            bgcolor="rgba(0,0,0,0)"  # Transparent background
+        )
     )
-    fig.update_layout(legend=dict(
-        title_text="Class",
-        orientation="v", x=1.02, y=1.0,
-        font=dict(size=11), bgcolor="rgba(0,0,0,0)",
-    ))
+
+    fig.update_layout(**layout_args)
     fig.update_traces(cliponaxis=False)
+    
     return fig
