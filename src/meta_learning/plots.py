@@ -7,6 +7,9 @@ import plotly.express as px
 from plotly.subplots import make_subplots
 from sklearn.decomposition import PCA
 from sklearn.metrics import confusion_matrix
+import torch.nn as nn
+
+
 
 try:
     import umap
