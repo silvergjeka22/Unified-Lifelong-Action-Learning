@@ -15,18 +15,17 @@ def record(
     new_loader,           # T1 test (T1) or T2 test (T2)
     all_loader,           # combined test — primary CL metric
     device,
-    val_loader=None,      # combined val — needed for UMAP embeddings
+    embed_loader=None,    # any loader for UMAP embeddings (val, test, or None to skip)
     class_names=None,     # list of all class name strings seen so far
     W0=None,              # pre-training weight snapshot for ∆W
 ):
     model.eval()
 
-    # accuracies (always collected)
+    # accuracies for old and new tasks
     _, old_acc = evaluate(model, old_loader, device)
     _, new_acc = evaluate(model, new_loader, device)
-    _, all_acc = evaluate(model, all_loader, device)
 
-    # confusion matrix (collected over combined test loader)
+    # single pass over all_loader — confusion matrix + combined accuracy
     all_preds, all_labels = [], []
     with torch.no_grad():
         for x, y in all_loader:
@@ -36,12 +35,15 @@ def record(
     all_preds  = torch.cat(all_preds).numpy()
     all_labels = torch.cat(all_labels).numpy()
 
-    # UMAP embeddings (only when val_loader is passed)
+    # derive all_acc directly from predictions — no second pass needed
+    all_acc = float((all_preds == all_labels).mean())
+
+    # UMAP embeddings — extracted from embed_loader (explicit, any split)
     embeddings, emb_labels = None, None
-    if val_loader is not None:
+    if embed_loader is not None:
         emb_list, lab_list = [], []
         with torch.no_grad():
-            for x, y in val_loader:
+            for x, y in embed_loader:
                 h = model.get_embedding(x.to(device))
                 emb_list.append(h.cpu())
                 lab_list.append(y)
