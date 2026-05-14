@@ -2,14 +2,12 @@ import copy
 import torch
 import optuna
 
-
 from meta_learning.models   import fresh_model, evaluate
 from meta_learning.buffers  import ReplayBuffer, EpisodeBuffer
 from meta_learning.training import train_reptile, train_rehearsal
 
 
-
-# utilities 
+# utilities
 def _make_study():
     return optuna.create_study(
         direction="maximize",
@@ -24,8 +22,6 @@ def _print_search_summary(study, tag):
     print(f"\n  [{tag}] Best params  : {study.best_params}")
     print(f"  [{tag}] Best val acc : {study.best_value:.4f}")
 
-
-
 def optuna_search_reptile(
     task_tag,
     val_loader,
@@ -35,15 +31,13 @@ def optuna_search_reptile(
     cfg, device, lstm_hidden,
     exemplar_train_loader,
     num_old_classes,
-    kd_flag=False,
+    kd_flag=False,          # if False => lambda_kd = 0.0 and not searched
     teacher=None,
     search_new_repeat=10,
     search_epochs=2,
     rep_n_way=5,
     rep_k_support=3,
     rep_k_query=2,
-    rep_lambda_kd=0.3,        
-    search_lambda_kd=True,     
     n_trials=20,
 ):
     print(
@@ -60,23 +54,23 @@ def optuna_search_reptile(
 
     def objective(trial):
         # base hyperparameters
-        inner_lr   = trial.suggest_float("inner_lr",   0.001, 0.02, log=True)
-        epsilon    = trial.suggest_float("epsilon",    0.1,   0.5,  step=0.05)
-        lstm_lr    = trial.suggest_float("lstm_lr",    1e-5,  1e-3, log=True)
-        fc_lr      = trial.suggest_float("fc_lr",      1e-4,  1e-2, log=True)
+        inner_lr   = trial.suggest_float("inner_lr",   0.001, 0.02, log=True)      
+        epsilon    = trial.suggest_float("epsilon",    0.1,   0.5,  step=0.05)    
+        lstm_lr    = trial.suggest_float("lstm_lr",    1e-5,  1e-3, log=True)      
+        fc_lr      = trial.suggest_float("fc_lr",      1e-4,  1e-2, log=True)      
         new_weight = (
-            trial.suggest_float("new_weight", 1.0, 6.0, step=0.5)
+            trial.suggest_float("new_weight", 1.0, 6.0, step=0.5)                 
             if search_new_weight else 1.0
         )
 
-        # NEW: search over lambda_kd if enabled
-        if search_lambda_kd:
-            lambda_kd = trial.suggest_float("lambda_kd", 0.0, 1.0, step=0.05)
+        # lambda_kd: search only if KD is enabled, else hard 0.0
+        if kd_flag:
+            lambda_kd = trial.suggest_float("lambda_kd", 0.0, 1.0, step=0.05)  
         else:
-            lambda_kd = rep_lambda_kd
+            lambda_kd = 0.0
 
         num_classes = num_old_classes + len(new_class_ids or [])
-        m   = fresh_model(
+        m = fresh_model(
             num_classes=num_classes,
             cfg=cfg,
             device=device,
@@ -102,7 +96,7 @@ def optuna_search_reptile(
             epsilon=epsilon,
             new_repeat=search_new_repeat,
             epochs=search_epochs,
-            lambda_kd=lambda_kd,           # use tuned or fixed value here
+            lambda_kd=lambda_kd,
             new_class_ids=new_class_ids,
             new_weight=new_weight,
             kd=kd_flag,
@@ -115,14 +109,11 @@ def optuna_search_reptile(
         return val_acc
 
     study = _make_study()
-    study.optimize(objective, n_trials=n_trials, show_progress_bar=True)
+    study.optimize(objective, n_trials=n_trials, show_progress_bar=True)  
     _print_search_summary(study, task_tag)
     return study.best_params, study
 
 
-
-# Rehearsal hyper-parameter search
-# Rehearsal hyper-parameter search
 def optuna_search_rehearsal(
     task_tag,
     train_loader,               # new-task training data
@@ -134,26 +125,22 @@ def optuna_search_rehearsal(
     num_classes,                # total output classes across all tasks seen so far
     num_old_classes,            # number of old classes (for distillation masking)
     limit=3,                    # max exemplars per class stored in the replay buffer
-    kd=True,                    # enable knowledge-distillation loss
+    kd=True,                    # if False => lambda_distill = 0.0 and not searched
     n_trials=20,
     search_epochs=3,
     new_repeat=10,              # times new-task samples are up-sampled per epoch
-    lambda_distill=0.3,         # NEW: default fixed lambda if we don't search
-    search_lambda_distill=True, # NEW: toggle for searching lambda_distill
 ):
     print(f"\nOPTUNA REHEARSAL — {task_tag} | {n_trials} trials × {search_epochs} epochs")
 
     def objective(trial):
-        # hyper-parameters being searched
-        if search_lambda_distill:
-            lambda_d = trial.suggest_float(
-                "lambda_distill", 0.05, 1.0, step=0.05
-            )
+        # lambda_distill: search only if KD is enabled, else hard 0.0
+        if kd:
+            lambda_d = trial.suggest_float("lambda_distill", 0.05, 1.0, step=0.05)
         else:
-            lambda_d = lambda_distill
+            lambda_d = 0.0
 
-        lstm_lr = trial.suggest_float("lstm_lr", 1e-5, 1e-3, log=True)
-        fc_lr   = trial.suggest_float("fc_lr",   1e-4, 1e-2, log=True)
+        lstm_lr = trial.suggest_float("lstm_lr", 1e-5, 1e-3, log=True)           
+        fc_lr   = trial.suggest_float("fc_lr",   1e-4, 1e-2, log=True)          
 
         m = fresh_model(
             num_classes=num_classes,
@@ -200,6 +187,6 @@ def optuna_search_rehearsal(
         return val_acc
 
     study = _make_study()
-    study.optimize(objective, n_trials=n_trials, show_progress_bar=True)
+    study.optimize(objective, n_trials=n_trials, show_progress_bar=True)  
     _print_search_summary(study, task_tag)
     return study.best_params, study
