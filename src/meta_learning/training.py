@@ -95,7 +95,7 @@ def _reptile_update(model, W_start, epsilon):
 def train_reptile(
     model,
     episode_buffer,         # EpisodeBuffer
-    train_loader,           # NEW task train loader
+    train_loader,           # new task training
     val_loader,
     device,
     teacher=None,
