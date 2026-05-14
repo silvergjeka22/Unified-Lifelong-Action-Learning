@@ -81,12 +81,10 @@ def train_rehearsal(
 
 # Reptile Training
 def _snapshot(model):
-    # save a detached copy of all model weights before inner-loop updates
     return {k: v.clone().detach() for k, v in model.state_dict().items()}
 
 
 def _reptile_update(model, W_start, epsilon):
-    # outer update: W_start <- W_start + ε · (W_after_inner − W_start)
     sd = model.state_dict()
     with torch.no_grad():
         for key in W_start:
@@ -96,35 +94,33 @@ def _reptile_update(model, W_start, epsilon):
 
 def train_reptile(
     model,
-    episode_buffer,         # EpisodeBuffer with old + new class samples
-    val_loader,             # combined val loader
+    episode_buffer,         # EpisodeBuffer
+    train_loader,           # NEW task train loader
+    val_loader,
     device,
-    teacher=None,           # frozen teacher for KD
-    num_old_classes=None,   # number of old class logits used for distillation
-    n_way=5,                # classes sampled per episode
-    k_support=3,            # support samples per class
-    k_query=2,              # query samples per class
-    inner_lr=0.01,          # SGD learning rate for inner loop adaptation
-    lstm_lr=1e-4,           # outer Adam LR for LSTM layers
-    fc_lr=1e-3,             # outer Adam LR for FC head
-    inner_steps=5,          # gradient steps inside each episode
-    epsilon=0.1,            # outer loop step size (Reptile update)
-    episodes=200,           # meta episodes per epoch
+    teacher=None,
+    num_old_classes=None,
+    n_way=5,
+    k_support=3,
+    k_query=2,
+    inner_lr=0.01,
+    lstm_lr=1e-4,
+    fc_lr=1e-3,
+    inner_steps=5,
+    epsilon=0.1,
+    new_repeat=10,
     epochs=5,
-    lambda_kd=0.3,          # weight of the KD loss term
-    lambda_qry=0.5,         # weight of the query loss term
-    new_class_bias=3,       # episode sampling bias toward new classes
-    new_class_ids=None,     # set of new class indices
-    new_weight=1.0,         # loss weight for new classes
-    kd=False,               # knowledge distillation loss
+    lambda_kd=0.3,
+    lambda_qry=0.5,
+    new_class_ids=None,
+    new_weight=1.0,
+    kd=False,
     tag="Reptile",
-    trial=None,             # optuna trial object
+    trial=None,
 ):
     best_val     = 0.0
-    # weighted cross entropy only when new classes carry extra weight
     use_weighted = (new_class_ids is not None and new_weight != 1.0)
 
-    # outer optimizer — applied once per epoch after all episodes
     outer_opt = torch.optim.Adam(
         [
             {"params": model.lstm.parameters(), "lr": lstm_lr},
@@ -135,67 +131,79 @@ def train_reptile(
 
     for epoch in range(epochs):
         model.train()
+        qry_loss = torch.tensor(0.0, device=device)
 
-        for _ in range(episodes):
-            # save current weights as the meta initialisation
-            W_start = _snapshot(model)
+        for _ in range(new_repeat):
+            for x_new, y_new in train_loader:
+                x_new, y_new = x_new.to(device), y_new.to(device)
 
-            # sample a random episode
-            sup_x, sup_y, qry_x, qry_y = episode_buffer.sample_episode(
-                n_way, k_support, k_query, device, new_class_bias=new_class_bias
-            )
+                # OLD-CLASS branch: Reptile retention
+                W_start = _snapshot(model)
 
-            # inner loop
-            inner_opt = torch.optim.SGD(model.parameters(), lr=inner_lr)
-            for _ in range(inner_steps):
-                logits = model(sup_x)
-                loss   = (
-                    weighted_ce(logits, sup_y, new_class_ids, new_weight, device)
-                    if use_weighted
-                    else F.cross_entropy(logits, sup_y)
+                sup_x_old, sup_y_old, qry_x_old, qry_y_old = episode_buffer.sample_episode(
+                    n_way, k_support, k_query, device
                 )
-                # KD loss
-                if kd and teacher is not None:
-                    with torch.no_grad():
-                        t_logits = teacher(sup_x)
-                    loss += lambda_kd * distillation_loss(
-                        logits[:, :num_old_classes],
-                        t_logits[:, :num_old_classes],
+
+                inner_opt = torch.optim.SGD(model.parameters(), lr=inner_lr)
+                for _ in range(inner_steps):
+                    logits = model(sup_x_old)
+                    loss = (
+                        weighted_ce(logits, sup_y_old, new_class_ids, new_weight, device)
+                        if use_weighted
+                        else F.cross_entropy(logits, sup_y_old)
                     )
-                inner_opt.zero_grad()
-                loss.backward()
-                inner_opt.step()
 
-            # query loss — evaluate generalisation on held-out query set
-            qry_logits = model(qry_x)
-            qry_loss   = (
-                weighted_ce(qry_logits, qry_y, new_class_ids, new_weight, device)
-                if use_weighted
-                else F.cross_entropy(qry_logits, qry_y)
-            )
-            outer_opt.zero_grad()
-            (lambda_qry * qry_loss).backward()
-            outer_opt.step()
+                    if kd and teacher is not None:
+                        with torch.no_grad():
+                            t_logits = teacher(sup_x_old)
+                        loss += lambda_kd * distillation_loss(
+                            logits[:, :num_old_classes],
+                            t_logits[:, :num_old_classes],
+                        )
 
-            # outer-update
-            _reptile_update(model, W_start, epsilon)
+                    inner_opt.zero_grad()
+                    loss.backward()
+                    inner_opt.step()
 
-        # apply outer Adam step after all episodes for this epoch
+                _reptile_update(model, W_start, epsilon)
+
+                qry_logits = model(qry_x_old)
+                qry_loss = (
+                    weighted_ce(qry_logits, qry_y_old, new_class_ids, new_weight, device)
+                    if use_weighted
+                    else F.cross_entropy(qry_logits, qry_y_old)
+                )
+                outer_opt.zero_grad()
+                (lambda_qry * qry_loss).backward()
+                outer_opt.step()
+
+                # NEW-CLASS branch: standard supervised SGD
+                new_logits = model(x_new)
+                new_loss = (
+                    weighted_ce(new_logits, y_new, new_class_ids, new_weight, device)
+                    if use_weighted
+                    else F.cross_entropy(new_logits, y_new)
+                )
+                outer_opt.zero_grad()
+                new_loss.backward()
+                outer_opt.step()
+
         outer_opt.step()
         outer_opt.zero_grad()
 
-        # validation
         _, val_acc = evaluate(model, val_loader, device)
         if val_acc > best_val:
             best_val = val_acc
 
-        # optuna for pruning during hyper-parameter search
         if trial is not None:
             trial.report(val_acc, epoch)
             if trial.should_prune():
                 raise optuna.TrialPruned()
 
-        print(f"[{tag}] Epoch {epoch+1}/{epochs} | ValAcc: {val_acc:.4f} | QryLoss: {qry_loss.item():.4f}")
+        print(
+            f"[{tag}] Epoch {epoch+1}/{epochs} | "
+            f"ValAcc: {val_acc:.4f} | QryLoss: {qry_loss.item():.4f}"
+        )
 
     print(f"  [{tag}] Best val acc : {best_val:.4f}")
     return model, best_val
