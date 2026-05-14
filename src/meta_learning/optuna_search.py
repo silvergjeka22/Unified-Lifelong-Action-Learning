@@ -29,40 +29,36 @@ def _print_search_summary(study, tag):
 def optuna_search_reptile(
     task_tag,
     val_loader,
-    new_loaders_for_buffer,     # loaders whose samples are added as new classes
-    new_class_ids,              # set of new class indices for this task
-    search_new_weight,          # whether to also search the new-class loss weight
+    train_loader,               
+    new_class_ids,
+    search_new_weight,
     cfg, device, lstm_hidden,
-    exemplar_train_loader,      # old-task exemplars (marked as not-new)
+    exemplar_train_loader,
     num_old_classes,
-    kd_flag=False,              # enable knowledge-distillation loss
-    teacher=None,               # frozen teacher model (used only when kd_flag=True)
-    new_class_bias=3,           # episode sampling bias toward new classes
-    n_trials=20,
-    search_episodes=100,        # meta-episodes per search epoch
+    kd_flag=False,
+    teacher=None,
+    search_new_repeat=10,       
     search_epochs=2,
     rep_n_way=5,
     rep_k_support=3,
     rep_k_query=2,
     rep_lambda_kd=0.3,
+    n_trials=20,
 ):
     print(
         f"\nOPTUNA REPTILE — {task_tag} "
         f"({'KD' if kd_flag else 'no-KD'}) | "
-        f"{n_trials} trials | episodes={search_episodes} × epochs={search_epochs}"
+        f"{n_trials} trials | new_repeat={search_new_repeat} × epochs={search_epochs}"
     )
 
-    # build episode buffer once — each trial gets a deep copy
+    # build episode buffer
     shared_buf = EpisodeBuffer()
     shared_buf.add_from_loader(exemplar_train_loader, mark_new=False)
-    for ldr in new_loaders_for_buffer:
-        shared_buf.add_from_loader(ldr, mark_new=True)
 
-    # cap n_way to the number of available classes in the buffer
     n_way_eff = min(rep_n_way, len(shared_buf.available_classes()))
 
+    # hyper-parmameters to tune
     def objective(trial):
-        # hyper-parameters being searched
         inner_lr   = trial.suggest_float("inner_lr",   0.001, 0.02, log=True)
         epsilon    = trial.suggest_float("epsilon",    0.1,   0.5,  step=0.05)
         lstm_lr    = trial.suggest_float("lstm_lr",    1e-5,  1e-3, log=True)
@@ -75,11 +71,12 @@ def optuna_search_reptile(
         num_classes = num_old_classes + len(new_class_ids or [])
         m   = fresh_model(num_classes=num_classes, cfg=cfg,
                           device=device, lstm_hidden=lstm_hidden)
-        buf = copy.deepcopy(shared_buf)   # isolate each trial's buffer
+        buf = copy.deepcopy(shared_buf)
 
         _, val_acc = train_reptile(
             model=m,
             episode_buffer=buf,
+            train_loader=train_loader,
             val_loader=val_loader,
             device=device,
             teacher=teacher if kd_flag else None,
@@ -92,10 +89,9 @@ def optuna_search_reptile(
             fc_lr=fc_lr,
             inner_steps=5,
             epsilon=epsilon,
-            episodes=search_episodes,
+            new_repeat=search_new_repeat, 
             epochs=search_epochs,
             lambda_kd=rep_lambda_kd,
-            new_class_bias=new_class_bias,
             new_class_ids=new_class_ids,
             new_weight=new_weight,
             kd=kd_flag,
@@ -103,7 +99,6 @@ def optuna_search_reptile(
             trial=trial,
         )
 
-        # free GPU memory before next trial
         del m, buf
         torch.cuda.empty_cache()
         return val_acc
