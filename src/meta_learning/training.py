@@ -1,11 +1,9 @@
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
-import optuna
 
 
-from src.meta_learning.models import evaluate, distillation_loss, weighted_ce
-
+from src.meta_learning.models import evaluate, distillation_loss
 
 # Rehearsal Training 
 def train_rehearsal(
@@ -21,7 +19,6 @@ def train_rehearsal(
     epochs=5,
     new_repeat=8,      # times new task data is iterated per epoch
     kd=True,            # kd loss
-    trial=None,         # optuna trial object
 ):
     ce = nn.CrossEntropyLoss()
 
@@ -67,12 +64,6 @@ def train_rehearsal(
 
         _, val_acc = evaluate(model, val_loader, device)
 
-        # optuna for pruning during hyper-parameter search
-        if trial is not None:
-            trial.report(val_acc, epoch)
-            if trial.should_prune():
-                raise optuna.TrialPruned()
-
         print(
             f"[Rehearsal {'KD' if kd else 'no-KD'}] "
             f"Epoch {epoch+1}/{epochs} | Loss: {total_loss:.4f} | ValAcc: {val_acc:.4f}"
@@ -93,117 +84,56 @@ def _reptile_update(model, W_start, epsilon):
 
 
 def train_reptile(
-    model,
-    episode_buffer,         # EpisodeBuffer
-    train_loader,           # new task training
-    val_loader,
-    device,
-    teacher=None,
-    num_old_classes=None,
-    n_way=5,
-    k_support=3,
-    k_query=2,
-    inner_lr=0.01,
-    lstm_lr=1e-4,
-    fc_lr=1e-3,
-    inner_steps=5,
-    epsilon=0.1,
-    new_repeat=10,
-    epochs=5,
-    lambda_kd=0.3,
-    lambda_qry=0.5,
-    new_class_ids=None,
-    new_weight=1.0,
-    kd=False,
-    tag="Reptile",
-    trial=None,
+    model, episode_buffer, train_loader,
+    val_loader, device, teacher=None,
+    num_old_classes=None, n_way=3,
+    k_support=3, k_query=2, inner_lr=0.02,
+    lstm_lr=0.0001, fc_lr=0.001, inner_steps=8,
+    epsilon=0.1, new_repeat=5,
+    epochs=5, lambda_kd=0.5, lambda_qry=0.5,
+    kd=False, tag="Reptile"
 ):
-    best_val     = 0.0
-    use_weighted = (new_class_ids is not None and new_weight != 1.0)
+    
 
-    outer_opt = torch.optim.Adam(
-        [
-            {"params": model.lstm.parameters(), "lr": lstm_lr},
-            {"params": model.fc.parameters(),   "lr": fc_lr},
-        ],
-        weight_decay=1e-4,
-    )
+    outer_opt = torch.optim.Adam([
+        {"params": model.lstm.parameters(), "lr": lstm_lr},
+        {"params": model.fc.parameters(), "lr": fc_lr},
+    ], weight_decay=1e-4)
 
     for epoch in range(epochs):
         model.train()
-        qry_loss = torch.tensor(0.0, device=device)
-
         for _ in range(new_repeat):
             for x_new, y_new in train_loader:
                 x_new, y_new = x_new.to(device), y_new.to(device)
-
-                # OLD-CLASS branch: Reptile retention
+                
+                # Snapshot for the Meta-Step
                 W_start = _snapshot(model)
-
-                sup_x_old, sup_y_old, qry_x_old, qry_y_old = episode_buffer.sample_episode(
+                sup_x, sup_y, qry_x, qry_y = episode_buffer.sample_episode(
                     n_way, k_support, k_query, device
                 )
-
+                
+                # Inner Loop: Fast Adaptation
                 inner_opt = torch.optim.SGD(model.parameters(), lr=inner_lr)
                 for _ in range(inner_steps):
-                    logits = model(sup_x_old)
-                    loss = (
-                        weighted_ce(logits, sup_y_old, new_class_ids, new_weight, device)
-                        if use_weighted
-                        else F.cross_entropy(logits, sup_y_old)
-                    )
-
+                    l_in = F.cross_entropy(model(sup_x), sup_y)
                     if kd and teacher is not None:
-                        with torch.no_grad():
-                            t_logits = teacher(sup_x_old)
-                        loss += lambda_kd * distillation_loss(
-                            logits[:, :num_old_classes],
-                            t_logits[:, :num_old_classes],
+                        l_in += lambda_kd * distillation_loss(
+                            model(sup_x)[:, :num_old_classes], 
+                            teacher(sup_x)[:, :num_old_classes]
                         )
+                    inner_opt.zero_grad(); l_in.backward(); inner_opt.step()
 
-                    inner_opt.zero_grad()
-                    loss.backward()
-                    inner_opt.step()
-
+                # Meta-Update (The Secret Sauce)
                 _reptile_update(model, W_start, epsilon)
 
-                qry_logits = model(qry_x_old)
-                qry_loss = (
-                    weighted_ce(qry_logits, qry_y_old, new_class_ids, new_weight, device)
-                    if use_weighted
-                    else F.cross_entropy(qry_logits, qry_y_old)
-                )
-                outer_opt.zero_grad()
-                (lambda_qry * qry_loss).backward()
-                outer_opt.step()
+                # Outer Update: Stability via Query Loss
+                q_loss = F.cross_entropy(model(qry_x), qry_y)
+                outer_opt.zero_grad(); (lambda_qry * q_loss).backward(); outer_opt.step()
 
-                # NEW-CLASS branch: standard supervised SGD
-                new_logits = model(x_new)
-                new_loss = (
-                    weighted_ce(new_logits, y_new, new_class_ids, new_weight, device)
-                    if use_weighted
-                    else F.cross_entropy(new_logits, y_new)
-                )
-                outer_opt.zero_grad()
-                new_loss.backward()
-                outer_opt.step()
-
-        outer_opt.step()
-        outer_opt.zero_grad()
+                # New Data Update: Direct Supervised Learning
+                n_loss = F.cross_entropy(model(x_new), y_new)
+                outer_opt.zero_grad(); n_loss.backward(); outer_opt.step()
 
         _, val_acc = evaluate(model, val_loader, device)
-        if val_acc > best_val:
-            best_val = val_acc
-
-        if trial is not None:
-            trial.report(val_acc, epoch)
-            if trial.should_prune():
-                raise optuna.TrialPruned()
-
-        print(
-            f"[{tag}] Epoch {epoch+1}/{epochs} | "
-            f"ValAcc: {val_acc:.4f} | QryLoss: {qry_loss.item():.4f}"
-        )
-
-    print(f"  [{tag}] Best val acc : {best_val:.4f}")
-    return model, best_val
+        print(f"[{tag}] Epoch {epoch+1} | Val Acc: {val_acc:.4f}")
+    return model
