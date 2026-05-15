@@ -480,64 +480,6 @@ def plot_cl_curves(history_dict):
 
     return fig
 
-
-def plot_hparam_sensitivity(trials, x_param, method_name):
-    xs, ys, pruned_xs, pruned_ys = [], [], [], []
-    for t in trials:
-        if x_param not in t.params:
-            continue
-        val = t.params[x_param]
-        if t.state.name == "COMPLETE" and t.value is not None:
-            xs.append(val)
-            ys.append(t.value)
-        elif t.state.name == "PRUNED":
-            pruned_xs.append(val)
-            pruned_ys.append(0.0)
-
-    if not xs:
-        print(f"  [plot_hparam_sensitivity] no completed trials with param '{x_param}'")
-        return None
-
-    color = METHOD_COLORS.get(method_name, "#cdccca")
-
-    fig = go.Figure()
-
-    fig.add_scatter(
-        x=xs, y=ys,
-        mode="markers",
-        name="Completed",
-        marker=dict(color=color, size=9, line=dict(width=1, color=TEXT_COLOR)),
-    )
-
-    if pruned_xs:
-        fig.add_scatter(
-            x=pruned_xs, y=pruned_ys,
-            mode="markers",
-            name="Pruned",
-            marker=dict(symbol="x", color="#888", size=8),
-        )
-
-    best_idx = int(np.argmax(ys))
-    fig.add_scatter(
-        x=[xs[best_idx]], y=[ys[best_idx]],
-        mode="markers",
-        name="Best",
-        marker=dict(symbol="star", size=16, color="#6daa45",
-                    line=dict(width=1, color=TEXT_COLOR)),
-    )
-
-    fig.update_layout(
-        **_base_layout(f"{method_name} — {x_param} vs val acc"),
-    )
-    fig.update_xaxes(title_text=x_param, gridcolor=GRID_COLOR)
-    fig.update_yaxes(
-        title_text="Validation accuracy",
-        tickformat=".0%",
-        gridcolor=GRID_COLOR,
-        range=[0, 1.05],
-    )
-    return fig
-
 def plot_per_class_accuracy(results_dict, task_label, global_class_names=None):
     names = [k for k, v in results_dict.items() if v.get("preds") is not None]
     if not names: return None
@@ -588,8 +530,6 @@ def plot_per_class_accuracy(results_dict, task_label, global_class_names=None):
     
     fig.update_xaxes(tickangle=45)
     return fig
-
-
 
 
 #### Buffers
