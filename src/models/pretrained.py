@@ -186,3 +186,55 @@ class VGG19BNLSTM(nn.Module):
         features = features.view(B, T, -1)      # [B, T, 512]
         out, _   = self.lstm(features)
         return self.fc(out[:, -1, :])
+
+
+#  ViT 16 + LSTM
+class ViTLSTM(torch.nn.Module):
+    def __init__(self, num_classes=int):
+        super().__init__()
+
+
+        self.classes = num_classes  # Number of output classes
+
+        self.vit = models.vit_b_16(weights=models.ViT_B_16_Weights.IMAGENET1K_V1)
+        self.vit.heads = torch.nn.Identity()  # Remove the classification head
+        self.lstm = torch.nn.LSTM(input_size=768, hidden_size=256, num_layers=2, batch_first=True)
+
+        self.fc = torch.nn.Linear(256, self.classes)  # Classification layer
+
+
+        # Freeze all ViT parameters except the last 2 encoder layers
+        for param in self.vit.parameters():
+            param.requires_grad = False
+
+        for i, block in enumerate(self.vit.encoder.layers):
+            if i >= 10: 
+                for param in block.parameters(): param.requires_grad = True
+    
+        for param in self.lstm.parameters(): param.requires_grad = True
+        
+        for param in self.fc.parameters(): param.requires_grad = True
+
+    def forward(self, x):
+        # x: [B, T, 3, 224, 224]
+        B, T, C, H, W = x.shape
+
+        # Merge batch and time
+        x = x.view(B*T, C, H, W)   # [B*T, 3, 224, 224]
+
+        # Pass through ViT
+        x = self.vit(x)            # [B*T, 768]
+
+        # Reshape back to sequence
+        x = x.view(B, T, -1)       # [B, T, 768]
+
+        # LSTM
+        x, _ = self.lstm(x)        # [B, T, 256]
+
+        # Take last time step
+        x = x[:, -1, :]            # [B, 256]
+
+        # Classifier
+        x = self.fc(x)     # [B, classes]
+
+        return x
