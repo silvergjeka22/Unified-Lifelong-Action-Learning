@@ -129,35 +129,3 @@ def evaluate(model, loader, device):
         total += y.size(0)
 
     return loss_sum / max(len(loader), 1), (correct / total if total else 0.0)
-
-
-def make_student_t1():
-    return build_student_from_task0(
-        num_classes    = NUM_CLASSES_T1,
-        cfg            = cfg,
-        device         = device,
-        lstm_hidden    = LSTM_HIDDEN,
-        num_old_classes= N0,
-    )
-
-def make_student_t2(trained_t1_model):
-    t2 = fresh_model(
-        num_classes = NUM_CLASSES_T2,
-        cfg         = cfg,
-        device      = device,
-        lstm_hidden = LSTM_HIDDEN,
-    )
-    sd_t1 = trained_t1_model.state_dict()
-    sd_t2 = t2.state_dict()
-    for k in sd_t2:
-        if k.startswith("lstm"):
-            sd_t2[k] = sd_t1[k].clone()
-    with torch.no_grad():
-        rows = NUM_CLASSES_T1
-        sd_t2["fc.weight"][:rows] = sd_t1["fc.weight"][:rows].clone()
-        sd_t2["fc.bias"][:rows]   = sd_t1["fc.bias"][:rows].clone()
-    t2.load_state_dict(sd_t2)
-    return t2.to(device)
-
-def make_reh_opt(m):
-    return make_rehearsal_optimizer(m, lr=REH_LR)
