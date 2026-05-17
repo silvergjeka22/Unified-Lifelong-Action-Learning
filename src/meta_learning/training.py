@@ -18,7 +18,6 @@ def _reptile_update(model, W_start, epsilon):
     model.load_state_dict(sd)
 
 
-
 def train_rehearsal(
     model,
     teacher,
