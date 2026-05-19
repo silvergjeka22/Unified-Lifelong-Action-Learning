@@ -120,3 +120,88 @@ def ewc_report(model, fisher_dict, optpar_dict):
         for rank, i in enumerate(sorted(range(len(penalty)), key=lambda i: penalty[i], reverse=True)[:5], 1):
             print(f"    {rank}. {names[i][-45:]:<45}  {100*penalty[i]/(total_p+1e-12):5.1f}%")
     print("=" * 60)
+
+
+
+def theta_star(model):
+    "Where si the model."
+
+    theta_star = {
+        n: p.clone().detach()
+        for n, p in model.named_parameters()
+        if p.requires_grad
+    }
+
+    return theta_star
+
+
+def getFisherDiagonal(train_loader, model, fishermax=1e6, device='cuda'):
+
+    fisher = {
+        n: torch.zeros_like(p, device=device)
+        for n, p in model.named_parameters()
+        if p.requires_grad
+    }
+
+    model.train()
+    model.to(device)
+
+
+    for module in model.modules():
+        if isinstance(module, torch.nn.Dropout):
+            module.eval()
+
+
+    for inputs, targets in tqdm(train_loader, desc="Computing Fisher", leave=False):
+        inputs = inputs.to(device)
+        targets = targets.to(device)
+
+        model.zero_grad(set_to_none=True)
+
+        logits = model(inputs)
+        loss = torch.nn.functional.cross_entropy(logits, targets)
+
+        loss.backward()
+
+        for n, p in model.named_parameters():
+            if p.grad is not None:
+                fisher[n] += p.grad.pow(2)
+
+    # average over batches (standard)
+    for n in fisher:
+        fisher[n] /= len(train_loader.dataset)
+        fisher[n] = torch.clamp(fisher[n], min=0.0, max=1.0)
+
+    print(f"Fisher diagonal computed ")
+
+    return fisher
+
+
+
+def compute_ewc_loss(model, theta_star, fisher, lambda_ewc=5000, device='cuda'):
+    ewc_loss = 0.0
+
+    for n, p in model.named_parameters():
+        if p.requires_grad and n in theta_star and n in fisher:
+            old = theta_star[n].to(device)
+            f = fisher[n].to(device)
+
+            # SAFE handling
+            if p.shape == old.shape:
+                ewc_loss += (f * (p - old).pow(2)).sum()
+            else:
+                # handle classifier expansion
+                if len(p.shape) == 2:  # weight [C, D]
+                    c_old = old.shape[0]
+                    ewc_loss += (f[:c_old] *
+                                 (p[:c_old] - old).pow(2)).sum()
+
+                elif len(p.shape) == 1:  # bias [C]
+                    c_old = old.shape[0]
+                    ewc_loss += (f[:c_old] *
+                                 (p[:c_old] - old).pow(2)).sum()
+
+    return lambda_ewc * ewc_loss
+
+
+
