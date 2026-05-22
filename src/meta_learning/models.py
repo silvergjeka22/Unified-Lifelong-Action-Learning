@@ -64,7 +64,7 @@ def load_old_head_weights(model, checkpoint_path, device, num_old_classes):
     return model
 
 
-def build_student_from_task0(num_classes, cfg, device, lstm_hidden, num_old_classes):
+def build_student(num_classes, cfg, device, lstm_hidden, num_old_classes):
     model = fresh_model(
         num_classes=num_classes,
         cfg=cfg,
@@ -76,7 +76,7 @@ def build_student_from_task0(num_classes, cfg, device, lstm_hidden, num_old_clas
     return model
 
 
-def make_frozen_teacher_from_checkpoint(num_classes, cfg, device, lstm_hidden, checkpoint_path):
+def make_frozen_teacher(num_classes, cfg, device, lstm_hidden, checkpoint_path):
     teacher = fresh_model(
         num_classes=num_classes,
         cfg=cfg,
