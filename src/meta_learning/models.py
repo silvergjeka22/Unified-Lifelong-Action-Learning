@@ -4,7 +4,6 @@ import torch.nn as nn
 import torch.nn.functional as F
 
 
-
 class EmbeddingLSTM(nn.Module):
     def __init__(self, input_size=2048, hidden_size=256,
                  num_layers=1, num_classes=16, dropout=0.3):
