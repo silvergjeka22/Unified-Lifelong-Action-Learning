@@ -185,15 +185,13 @@ class EpisodeBuffer:
 
 def build_task1_buffers(exemplar_train_loader, device=None):
     replay_t1       = ReplayBuffer(max_size=2000)
-    replay_t1_nokd  = ReplayBuffer(max_size=2000)
 
-    for buf in (replay_t1, replay_t1_nokd):
+    for buf in (replay_t1):
         buf.add_from_loader(exemplar_train_loader, max_per_class=LIMIT)
 
     episode_t1       = EpisodeBuffer()
-    episode_t1_nokd  = EpisodeBuffer()
 
-    for buf in (episode_t1, episode_t1_nokd):
+    for buf in (episode_t1):
         buf.add_from_loader(exemplar_train_loader,
                             mark_new=False,
                             max_per_class=LIMIT)
@@ -204,21 +202,18 @@ def build_task1_buffers(exemplar_train_loader, device=None):
     print(f"[T1 episode] {episode_t1}")
     print(f"[T1] Effective n_way = {n_way_eff_t1}")
 
-    return replay_t1, replay_t1_nokd, episode_t1, episode_t1_nokd, n_way_eff_t1
+    return replay_t1, episode_t1, n_way_eff_t1
 
 
 def build_task2_buffers(exemplar_train_loader, task1_train_loader, device=None):
     replay_t2       = ReplayBuffer(max_size=2000)
-    replay_t2_nokd  = ReplayBuffer(max_size=2000)
 
-    for buf in (replay_t2, replay_t2_nokd):
+    for buf in (replay_t2):
         buf.add_from_loader(exemplar_train_loader, max_per_class=LIMIT)
         buf.add_from_loader(task1_train_loader,    max_per_class=LIMIT)
 
     episode_t2       = EpisodeBuffer()
-    episode_t2_nokd  = EpisodeBuffer()
-
-    for buf in (episode_t2, episode_t2_nokd):
+    for buf in (episode_t2):
         buf.add_from_loader(exemplar_train_loader,
                             mark_new=False,
                             max_per_class=LIMIT)
@@ -232,4 +227,4 @@ def build_task2_buffers(exemplar_train_loader, task1_train_loader, device=None):
     print(f"[T2 episode] {episode_t2}")
     print(f"[T2] Effective n_way = {n_way_eff_t2}")
 
-    return replay_t2, replay_t2_nokd, episode_t2, episode_t2_nokd, n_way_eff_t2
+    return replay_t2, episode_t2, n_way_eff_t2
