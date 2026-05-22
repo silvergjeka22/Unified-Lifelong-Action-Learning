@@ -1,17 +1,13 @@
 import random
 import torch
 
-# update if more new calsses
-REP_N_WAY = 3
-LIMIT = 8
-
 class ReplayBuffer:
     def __init__(self, max_size=2000):
         self.max_size   = max_size
         self.data       = []            # flat list
         self._by_class  = {}           # balanced sampling
 
-    def add_from_loader(self, loader, max_per_class=LIMIT):
+    def add_from_loader(self, loader, max_per_class=8):
         counts = {lbl: len(items) for lbl, items in self._by_class.items()}
 
         for x_batch, y_batch in loader:
@@ -26,7 +22,7 @@ class ReplayBuffer:
 
         self._trim()
 
-    def add_batch(self, x, y, max_per_class=LIMIT):
+    def add_batch(self, x, y, max_per_class=8):
         counts = {lbl: len(items) for lbl, items in self._by_class.items()}
 
         for i in range(len(x)):
@@ -94,7 +90,7 @@ class EpisodeBuffer:
         self.new_classes    = set()     # labels that arrived in the current task
         self._live_counts   = {}        # per-epoch live-ingestion quota
 
-    def add_from_loader(self, loader, mark_new=False, max_per_class=LIMIT):
+    def add_from_loader(self, loader, mark_new=False, max_per_class=8):
         counts = {lbl: len(v) for lbl, v in self.data.items()}
         added  = set()
 
@@ -110,7 +106,7 @@ class EpisodeBuffer:
         if mark_new:
             self.new_classes.update(added)
 
-    def add_batch(self, x, y, max_per_class=LIMIT):
+    def add_batch(self, x, y, max_per_class=8):
         for i in range(x.size(0)):
             lbl = y[i].item() if torch.is_tensor(y[i]) else int(y[i])
             if self._live_counts.get(lbl, 0) >= max_per_class:
@@ -183,20 +179,16 @@ class EpisodeBuffer:
         new    = list(self.new_classes)
         return f"EpisodeBuffer(total={len(self)}, new_classes={new}, per_class={counts})"
 
-def build_task1_buffers(exemplar_train_loader, device=None):
+def build_task1_buffers(exemplar_train_loader, limit=8,rep_n_way=3, device=None):
     replay_t1       = ReplayBuffer(max_size=2000)
-
-    for buf in (replay_t1):
-        buf.add_from_loader(exemplar_train_loader, max_per_class=LIMIT)
+    replay_t1.add_from_loader(exemplar_train_loader, max_per_class=limit)
 
     episode_t1       = EpisodeBuffer()
-
-    for buf in (episode_t1):
-        buf.add_from_loader(exemplar_train_loader,
+    episode_t1.add_from_loader(exemplar_train_loader,
                             mark_new=False,
-                            max_per_class=LIMIT)
+                            max_per_class=limit)
 
-    n_way_eff_t1 = min(REP_N_WAY, len(episode_t1.available_classes()))
+    n_way_eff_t1 = min(rep_n_way, len(episode_t1.available_classes()))
 
     print(f"[T1 buffers] {replay_t1}")
     print(f"[T1 episode] {episode_t1}")
@@ -205,23 +197,21 @@ def build_task1_buffers(exemplar_train_loader, device=None):
     return replay_t1, episode_t1, n_way_eff_t1
 
 
-def build_task2_buffers(exemplar_train_loader, task1_train_loader, device=None):
+def build_task2_buffers(exemplar_train_loader, task1_train_loader, limit=8, rep_n_way=3, device=None):
     replay_t2       = ReplayBuffer(max_size=2000)
 
-    for buf in (replay_t2):
-        buf.add_from_loader(exemplar_train_loader, max_per_class=LIMIT)
-        buf.add_from_loader(task1_train_loader,    max_per_class=LIMIT)
+    replay_t2.add_from_loader(exemplar_train_loader, max_per_class=limit)
+    replay_t2.add_from_loader(task1_train_loader,    max_per_class=limit)
 
     episode_t2       = EpisodeBuffer()
-    for buf in (episode_t2):
-        buf.add_from_loader(exemplar_train_loader,
+    episode_t2.add_from_loader(exemplar_train_loader,
                             mark_new=False,
-                            max_per_class=LIMIT)
-        buf.add_from_loader(task1_train_loader,
+                            max_per_class=limit)
+    episode_t2.add_from_loader(task1_train_loader,
                             mark_new=True,       # important
-                            max_per_class=LIMIT)
+                            max_per_class=limit)
 
-    n_way_eff_t2 = min(REP_N_WAY, len(episode_t2.available_classes()))
+    n_way_eff_t2 = min(rep_n_way, len(episode_t2.available_classes()))
 
     print(f"[T2 buffers] {replay_t2}")
     print(f"[T2 episode] {episode_t2}")
