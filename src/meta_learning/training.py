@@ -4,7 +4,10 @@ import torch.nn as nn
 import torch.nn.functional as F
 
 from torch.optim.lr_scheduler import CosineAnnealingLR
-from src.meta_learning.models import evaluate, distillation_loss, make_reptile_outer_optimizer
+
+def make_optimizer(model, lr=1e-4):
+    trainable_parameters = filter(lambda p: p.requires_grad, model.parameters())
+    return torch.optim.Adam(trainable_parameters, lr=lr)
 
 def _snapshot(model):
     return {k: v.detach().clone() for k, v in model.state_dict().items()}
@@ -16,6 +19,10 @@ def _reptile_update(model, W_start, epsilon):
             sd[k] = W_start[k] + epsilon * (sd[k] - W_start[k])
     model.load_state_dict(sd)
 
+def distillation_loss(student_logits, teacher_logits, T=5.0):
+    s = F.log_softmax(student_logits / T, dim=1)
+    t = F.softmax(teacher_logits / T, dim=1)
+    return F.kl_div(s, t, reduction="batchmean") * (T * T)
 
 def _safe_ce(logits, targets, num_classes, label_smoothing=0.0):
     targets = targets.clamp(0, num_classes - 1)
@@ -35,6 +42,21 @@ def _sample_replay(replay_buffer, batch_size, ratio, device):
     if x_old is None:
         return None, None
     return x_old.to(device), y_old.to(device)
+
+@torch.no_grad()
+def evaluate(model, loader, device):
+    model.eval()
+    ce = nn.CrossEntropyLoss()
+    loss_sum, correct, total = 0.0, 0, 0
+
+    for x, y in loader:
+        x, y = x.to(device), y.to(device)
+        logits = model(x)
+        loss_sum += ce(logits, y).item()
+        correct += (logits.argmax(1) == y).sum().item()
+        total += y.size(0)
+
+    return loss_sum / max(len(loader), 1), (correct / total if total else 0.0)
 
 
 def train_rehearsal(
@@ -111,6 +133,7 @@ def train_rehearsal(
 def train_reptile(
     model,
     episode_buffer,
+    optimizer,
     train_loader,
     val_loader,
     device,
@@ -132,7 +155,7 @@ def train_reptile(
     kd=False,
     patience=3,
 ):
-    outer_opt = make_reptile_outer_optimizer(model)
+    outer_opt = optimizer
     scheduler = CosineAnnealingLR(outer_opt, T_max=epochs)
     base_outer_lr = outer_opt.param_groups[0]['lr']
     best_val, patience_count, best_state = 0.0, 0, None
