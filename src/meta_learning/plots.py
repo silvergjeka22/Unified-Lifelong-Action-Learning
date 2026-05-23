@@ -458,28 +458,63 @@ def plot_per_class_accuracy(results_dict, task_label, global_class_names=None):
     return fig
 
 
-
 def _buffer_class_counts(buf):
     counts = {}
-    if hasattr(buf, "data") and isinstance(buf.data, list):
+
+    if not hasattr(buf, "data"):
+        return counts
+
+    if isinstance(buf.data, list):
         for _, lbl in buf.data:
-            # Safely handle both standard integers and PyTorch tensors
             lbl_val = lbl.item() if hasattr(lbl, "item") else int(lbl)
             counts[lbl_val] = counts.get(lbl_val, 0) + 1
+
+    elif isinstance(buf.data, dict):
+        for lbl, tensors in buf.data.items():
+            lbl_val = lbl.item() if hasattr(lbl, "item") else int(lbl)
+            counts[lbl_val] = len(tensors)
+
     return counts
 
+def print_buffer_embeddings(buf, name, max_classes=3, max_items_per_class=2):
+    print(f"\n{name}")
+
+    if not hasattr(buf, "data"):
+        print("  no data")
+        return
+
+    # ReplayBuffer
+    if isinstance(buf.data, list):
+        shown = {}
+        for x, lbl in buf.data:
+            lbl_val = lbl.item() if hasattr(lbl, "item") else int(lbl)
+            shown.setdefault(lbl_val, [])
+            if len(shown[lbl_val]) < max_items_per_class:
+                shown[lbl_val].append(x)
+
+        for cls in sorted(shown.keys())[:max_classes]:
+            print(f"  class {cls}:")
+            for i, emb in enumerate(shown[cls]):
+                print(f"    sample {i}: shape={tuple(emb.shape)}")
+                print(emb)
+
+    # EpisodeBuffer
+    elif isinstance(buf.data, dict):
+        for cls in sorted(buf.data.keys())[:max_classes]:
+            print(f"  class {cls}:")
+            for i, emb in enumerate(buf.data[cls][:max_items_per_class]):
+                print(f"    sample {i}: shape={tuple(emb.shape)}")
+                print(emb)
 
 def plot_buffer_composition(buffer_stats, class_names=None):
     if not buffer_stats:
-        print("  [plot_buffer_composition] empty buffer_stats")
+        print("[plot_buffer_composition] empty buffer_stats")
         return None
 
-    # Get the processed counts using our updated helper
-    all_counts = {label: _buffer_class_counts(buf)
-                  for label, buf in buffer_stats.items()}
-    
+    all_counts = {label: _buffer_class_counts(buf) for label, buf in buffer_stats.items()}
     all_classes = sorted({c for counts in all_counts.values() for c in counts})
     buf_labels = list(buffer_stats.keys())
+
     fig = go.Figure()
 
     palette = [
@@ -492,9 +527,9 @@ def plot_buffer_composition(buffer_stats, class_names=None):
             cls_display_name = class_names[cls_id]
         else:
             cls_display_name = f"Class {cls_id}"
-            
+
         vals = [all_counts[bl].get(cls_id, 0) for bl in buf_labels]
-        
+
         fig.add_bar(
             x=buf_labels,
             y=vals,
@@ -502,48 +537,39 @@ def plot_buffer_composition(buffer_stats, class_names=None):
             marker_color=palette[idx % len(palette)],
             text=[str(v) if v > 0 else "" for v in vals],
             textposition="inside",
-            textfont=dict(size=10, color="#1c1b19"),
+            textfont=dict(size=10, color="black"),
         )
 
     totals = [sum(all_counts[bl].values()) for bl in buf_labels]
     for i, total in enumerate(totals):
         fig.add_annotation(
-            x=i, y=total,
-            text=f"<b>{total:,}</b>",
+            x=i,
+            y=total,
+            text=f"<b>{total}</b>",
             showarrow=False,
             yshift=12,
-            font=dict(size=12, color=TEXT_COLOR if 'TEXT_COLOR' in globals() else "black"),
+            font=dict(size=12, color="white"),
         )
 
     max_y = max(totals) * 1.18 if totals else 10
 
-    # Build the base layout configuration safely
-    layout_args = {}
-    if '_base_layout' in globals():
-        layout_args = _base_layout("Replay Buffer Composition — samples per class")
-    else:
-        layout_args = dict(title=dict(text="Replay Buffer Composition — samples per class", x=0.5))
-    
-    layout_args.update(
+    fig.update_layout(
+        title="Buffer Composition — samples per class",
         barmode="stack",
-        margin=dict(r=160, t=80, b=50, l=50), 
+        margin=dict(r=160, t=80, b=50, l=50),
         xaxis=dict(title_text="Buffer Type", tickfont=dict(size=12), showgrid=False),
-        yaxis=dict(title_text="Number of samples", 
-                   gridcolor=GRID_COLOR if 'GRID_COLOR' in globals() else "#eee",
-                   range=[0, max_y]),
+        yaxis=dict(title_text="Number of samples", range=[0, max_y]),
         legend=dict(
-            title_text="<b>Classes</b>",
+            title_text="Classes",
             orientation="v",
-            x=1.02,            
-            xanchor="left",    
+            x=1.02,
+            xanchor="left",
             y=1.0,
             yanchor="top",
             font=dict(size=11),
-            bgcolor="rgba(0,0,0,0)"  
-        )
+        ),
+        template="plotly_dark",
     )
 
-    fig.update_layout(**layout_args)
     fig.update_traces(cliponaxis=False)
-    
     return fig
