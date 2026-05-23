@@ -32,12 +32,13 @@ class ReplayBuffer:
 
 class EpisodeBuffer:
     def __init__(self):
-        self.data = {}           # {label: [tensor, ...]}
+        self.data = {}          # {label: [tensor, ...]}
         self.new_classes = set()
 
     def add_from_loader(self, loader, mark_new=False, max_per_class=8):
         counts = {lbl: len(v) for lbl, v in self.data.items()}
         added = set()
+
         for x_batch, y_batch in loader:
             for i in range(x_batch.size(0)):
                 lbl = y_batch[i].item()
@@ -46,17 +47,17 @@ class EpisodeBuffer:
                 self.data.setdefault(lbl, []).append(x_batch[i].cpu())
                 counts[lbl] = counts.get(lbl, 0) + 1
                 added.add(lbl)
+
         if mark_new:
             self.new_classes.update(added)
 
     def sample_episode(self, n_way, k_support, k_query, device, new_class_bias=3):
-        # bias class selection toward new classes
         old_cls = [c for c in self.data if c not in self.new_classes]
         new_cls = list(self.new_classes & self.data.keys())
+
         pool = old_cls + new_cls * new_class_bias
         random.shuffle(pool)
 
-        # pick n_way unique classes
         seen, chosen = set(), []
         for c in pool:
             if c not in seen:
@@ -65,18 +66,27 @@ class EpisodeBuffer:
             if len(chosen) == n_way:
                 break
 
+        if len(chosen) < n_way:
+            remaining = [c for c in self.data if c not in seen]
+            chosen += random.sample(remaining, min(n_way - len(chosen), len(remaining)))
+
         if not chosen:
             raise ValueError("EpisodeBuffer is empty — call add_from_loader before training.")
 
-        # build support / query splits
         sup_x, sup_y, qry_x, qry_y = [], [], [], []
         for cls in chosen:
             samples = self.data[cls]
             need = k_support + k_query
-            picked = random.sample(samples, need) if len(samples) >= need \
-                     else samples + random.choices(samples, k=need - len(samples))
-            sup_x += picked[:k_support];  sup_y += [cls] * k_support
-            qry_x += picked[k_support:];  qry_y += [cls] * k_query
+
+            if len(samples) >= need:
+                picked = random.sample(samples, need)
+            else:
+                picked = samples + random.choices(samples, k=need - len(samples))
+
+            sup_x += picked[:k_support]
+            sup_y += [cls] * k_support
+            qry_x += picked[k_support:]
+            qry_y += [cls] * k_query
 
         return (
             torch.stack(sup_x).to(device),
