@@ -140,7 +140,6 @@ def plot_accuracy(results_dict, task_label):
     return fig
 
 def plot_umap(results_dict, task_label, global_class_names=None):
-    # 1. Identify which methods actually have embedding data
     names = [n for n in results_dict
              if results_dict[n].get("embeddings") is not None
              and len(results_dict[n]["embeddings"]) > 0]
@@ -153,7 +152,6 @@ def plot_umap(results_dict, task_label, global_class_names=None):
     for name in names:
         d = results_dict[name]
         labs = d["emb_labels"]
-        # Use provided global list, the dict's local list, or numeric strings
         cn = global_class_names or d.get("class_names") or [str(i) for i in range(int(labs.max()) + 1)]
         for idx in np.unique(labs):
             val = int(idx)
@@ -413,78 +411,10 @@ def plot_retention_plasticity(results_t1, results_t2):
 
     return fig
 
-
-def plot_cl_curves(history_dict):
-    if not history_dict:
-        print("  [plot_cl_curves] empty history dict")
-        return None
-
-    fig = go.Figure()
-
-    for method, scores in history_dict.items():
-        if not scores:
-            continue
-        
-        # Get color from your global METHOD_COLORS map
-        color = METHOD_COLORS.get(method, "#cdccca")
-        
-        # X-axis represents the task number (1, 2, 3...)
-        task_indices = list(range(1, len(scores) + 1))
-        
-        fig.add_scatter(
-            x=task_indices,
-            y=scores,
-            mode="lines+markers",
-            name=method,
-            line=dict(color=color, width=3),
-            marker=dict(size=10, symbol="circle", opacity=0.9),
-            hovertemplate="<b>" + method + "</b><br>Task: %{x}<br>Accuracy: %{y:.1%}<extra></extra>"
-        )
-
-    # 1. Apply base layout
-    fig.update_layout(**_base_layout("Continual Learning Curves (Accuracy vs. Tasks)"))
-
-    # 2. Force the Dark Mode / High Contrast theme
-    fig.update_layout(
-        paper_bgcolor="black",
-        plot_bgcolor="black",
-        font=dict(color="white"),
-        showlegend=True,
-        legend=dict(
-            bgcolor="rgba(0,0,0,0.5)",
-            bordercolor="white",
-            borderwidth=1
-        ),
-        margin=dict(t=80, b=80, l=80, r=40)
-    )
-
-    # 3. Style the Axes
-    fig.update_xaxes(
-        showgrid=False, 
-        title_text="Task Index", 
-        tickmode="linear",
-        dtick=1,
-        tickfont=dict(color="white", size=12),
-        linecolor="white",
-        linewidth=1
-    )
-    fig.update_yaxes(
-        title_text="Combined Accuracy",
-        tickformat=".0%",
-        gridcolor=GRID_COLOR, # Uses your global GRID_COLOR (#393836)
-        range=[0, 1.05],
-        tickfont=dict(color="white", size=12),
-        linecolor="white",
-        linewidth=1
-    )
-
-    return fig
-
 def plot_per_class_accuracy(results_dict, task_label, global_class_names=None):
     names = [k for k, v in results_dict.items() if v.get("preds") is not None]
     if not names: return None
 
-    # 1. Calculate the raw matrix first
     n_cls = int(max([v["labels"].max() for v in results_dict.values()])) + 1
     raw_matrix = []
     for name in names:
@@ -495,16 +425,12 @@ def plot_per_class_accuracy(results_dict, task_label, global_class_names=None):
     
     matrix_np = np.array(raw_matrix)
 
-    # 2. Identify columns (classes) that are NOT all NaN
-    # This removes classes that weren't present in any of the results
     valid_col_mask = ~np.all(np.isnan(matrix_np), axis=0)
     filtered_matrix = matrix_np[:, valid_col_mask]
     
-    # 3. Filter the class names to match
     all_cn = global_class_names or results_dict[names[0]].get("class_names") or [str(i) for i in range(n_cls)]
     filtered_cn = [all_cn[i] for i, valid in enumerate(valid_col_mask) if valid]
 
-    # 4. Create Heatmap with filtered data
     fig = go.Figure()
     fig.add_heatmap(
         z=filtered_matrix,
@@ -521,7 +447,7 @@ def plot_per_class_accuracy(results_dict, task_label, global_class_names=None):
 
     fig.update_layout(**_base_layout(f"{task_label} — Per-Class Accuracy"))
     fig.update_layout(
-        width=max(400, 120 * len(filtered_cn)), # Dynamic width based on active classes
+        width=max(400, 120 * len(filtered_cn)), 
         height=100 * len(names) + 200,
         paper_bgcolor="black",
         plot_bgcolor="black",
@@ -532,17 +458,14 @@ def plot_per_class_accuracy(results_dict, task_label, global_class_names=None):
     return fig
 
 
-#### Buffers
+
 def _buffer_class_counts(buf):
     counts = {}
-    if hasattr(buf, "data"):
-        data = buf.data
-        if isinstance(data, list):                      # ReplayBuffer
-            for _, lbl in data:
-                counts[lbl] = counts.get(lbl, 0) + 1
-        elif isinstance(data, dict):                    # EpisodeBuffer
-            for lbl, items in data.items():
-                counts[lbl] = len(items)
+    if hasattr(buf, "data") and isinstance(buf.data, list):
+        for _, lbl in buf.data:
+            # Safely handle both standard integers and PyTorch tensors
+            lbl_val = lbl.item() if hasattr(lbl, "item") else int(lbl)
+            counts[lbl_val] = counts.get(lbl_val, 0) + 1
     return counts
 
 
@@ -551,6 +474,7 @@ def plot_buffer_composition(buffer_stats, class_names=None):
         print("  [plot_buffer_composition] empty buffer_stats")
         return None
 
+    # Get the processed counts using our updated helper
     all_counts = {label: _buffer_class_counts(buf)
                   for label, buf in buffer_stats.items()}
     
@@ -593,12 +517,15 @@ def plot_buffer_composition(buffer_stats, class_names=None):
 
     max_y = max(totals) * 1.18 if totals else 10
 
-    # Combine layout settings to avoid duplicate argument errors
-    layout_args = _base_layout("Replay Buffer Composition — samples per class")
+    # Build the base layout configuration safely
+    layout_args = {}
+    if '_base_layout' in globals():
+        layout_args = _base_layout("Replay Buffer Composition — samples per class")
+    else:
+        layout_args = dict(title=dict(text="Replay Buffer Composition — samples per class", x=0.5))
     
     layout_args.update(
         barmode="stack",
-        # 'r' creates the empty space on the right for the class names
         margin=dict(r=160, t=80, b=50, l=50), 
         xaxis=dict(title_text="Buffer Type", tickfont=dict(size=12), showgrid=False),
         yaxis=dict(title_text="Number of samples", 
@@ -607,12 +534,12 @@ def plot_buffer_composition(buffer_stats, class_names=None):
         legend=dict(
             title_text="<b>Classes</b>",
             orientation="v",
-            x=1.02,            # Position slightly to the right of the y-axis
-            xanchor="left",    # Anchor from the left side of the legend box
+            x=1.02,            
+            xanchor="left",    
             y=1.0,
             yanchor="top",
             font=dict(size=11),
-            bgcolor="rgba(0,0,0,0)"  # Transparent background
+            bgcolor="rgba(0,0,0,0)"  
         )
     )
 

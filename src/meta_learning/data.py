@@ -18,8 +18,6 @@ class UCF101Embeddings(Dataset):
     def __getitem__(self, i):
         path, label = self.samples[i]
         t = torch.load(path)
-        if t.dim() != 2 or t.shape[1] != 2048:
-            raise RuntimeError(f"Bad embedding {tuple(t.shape)} at {path}")
         return t, label
 
 

@@ -3,128 +3,60 @@ import torch
 
 class ReplayBuffer:
     def __init__(self, max_size=2000):
-        self.max_size   = max_size
-        self.data       = []            # flat list
-        self._by_class  = {}           # balanced sampling
+        self.max_size = max_size
+        self.data = []
 
     def add_from_loader(self, loader, max_per_class=8):
-        counts = {lbl: len(items) for lbl, items in self._by_class.items()}
-
+        counts = {}
         for x_batch, y_batch in loader:
             for i in range(x_batch.size(0)):
                 lbl = y_batch[i].item()
                 if counts.get(lbl, 0) >= max_per_class:
                     continue
-                tensor = x_batch[i].detach().cpu()
-                self.data.append((tensor, lbl))
-                self._by_class.setdefault(lbl, []).append(tensor)
+                self.data.append((x_batch[i].cpu(), lbl))
                 counts[lbl] = counts.get(lbl, 0) + 1
 
-        self._trim()
+        if len(self.data) > self.max_size:
+            self.data = self.data[-self.max_size:]
 
-    def add_batch(self, x, y, max_per_class=8):
-        counts = {lbl: len(items) for lbl, items in self._by_class.items()}
-
-        for i in range(len(x)):
-            lbl = y[i].item() if torch.is_tensor(y[i]) else int(y[i])
-            if counts.get(lbl, 0) >= max_per_class:
-                continue
-            tensor = x[i].detach().cpu()
-            self.data.append((tensor, lbl))
-            self._by_class.setdefault(lbl, []).append(tensor)
-            counts[lbl] = counts.get(lbl, 0) + 1
-
-        self._trim()
-
-    def sample(self, batch_size, balanced=True):
-        if not self.data or batch_size <= 0:
+    def sample(self, batch_size):
+        if not self.data:
             return None, None
-
-        if not balanced:
-            picked = random.sample(self.data, min(batch_size, len(self.data)))
-        else:
-            classes    = list(self._by_class.keys())
-            per_class  = max(1, batch_size // len(classes))
-            picked     = []
-
-            for cls in classes:
-                items = self._by_class[cls]
-                take  = min(per_class, len(items))
-                chosen = (random.sample(items, take)
-                          if len(items) >= take
-                          else random.choices(items, k=take))
-                picked.extend([(t, cls) for t in chosen])
-
-            if len(picked) < batch_size:
-                extra = random.sample(self.data,
-                                      min(batch_size - len(picked), len(self.data)))
-                picked.extend(extra)
-
-            picked = picked[:batch_size]
-
+        picked = random.sample(self.data, min(batch_size, len(self.data)))
         xs, ys = zip(*picked)
         return torch.stack(xs), torch.tensor(ys, dtype=torch.long)
-
-    def available_classes(self):
-        return list(self._by_class.keys())
-
-    def _trim(self):
-        if len(self.data) > self.max_size:
-            drop = len(self.data) - self.max_size
-            removed = self.data[:drop]
-            self.data = self.data[drop:]
-            for tensor, lbl in removed:
-                if lbl in self._by_class and tensor in self._by_class[lbl]:
-                    self._by_class[lbl].remove(tensor)
 
     def __len__(self):
         return len(self.data)
 
-    def __repr__(self):
-        counts = {lbl: len(v) for lbl, v in self._by_class.items()}
-        return f"ReplayBuffer(total={len(self.data)}, classes={counts})"
 
 class EpisodeBuffer:
     def __init__(self):
-        self.data           = {}        # {label: [tensor, ...]}
-        self.new_classes    = set()     # labels that arrived in the current task
-        self._live_counts   = {}        # per-epoch live-ingestion quota
+        self.data = {}           # {label: [tensor, ...]}
+        self.new_classes = set()
 
     def add_from_loader(self, loader, mark_new=False, max_per_class=8):
         counts = {lbl: len(v) for lbl, v in self.data.items()}
-        added  = set()
-
+        added = set()
         for x_batch, y_batch in loader:
             for i in range(x_batch.size(0)):
                 lbl = y_batch[i].item()
                 if counts.get(lbl, 0) >= max_per_class:
                     continue
-                self.data.setdefault(lbl, []).append(x_batch[i].detach().cpu())
+                self.data.setdefault(lbl, []).append(x_batch[i].cpu())
                 counts[lbl] = counts.get(lbl, 0) + 1
                 added.add(lbl)
-
         if mark_new:
             self.new_classes.update(added)
 
-    def add_batch(self, x, y, max_per_class=8):
-        for i in range(x.size(0)):
-            lbl = y[i].item() if torch.is_tensor(y[i]) else int(y[i])
-            if self._live_counts.get(lbl, 0) >= max_per_class:
-                continue
-            self.data.setdefault(lbl, []).append(x[i].detach().cpu())
-            self._live_counts[lbl] = self._live_counts.get(lbl, 0) + 1
-
-    def reset_live_counts(self):
-        self._live_counts = {}
-
-    def sample_episode(self, n_way, k_support, k_query, device,
-                       new_class_bias=3):
+    def sample_episode(self, n_way, k_support, k_query, device, new_class_bias=3):
+        # bias class selection toward new classes
         old_cls = [c for c in self.data if c not in self.new_classes]
         new_cls = list(self.new_classes & self.data.keys())
-
         pool = old_cls + new_cls * new_class_bias
         random.shuffle(pool)
 
+        # pick n_way unique classes
         seen, chosen = set(), []
         for c in pool:
             if c not in seen:
@@ -133,88 +65,25 @@ class EpisodeBuffer:
             if len(chosen) == n_way:
                 break
 
-        if len(chosen) < n_way:
-            remaining = [c for c in self.data if c not in seen]
-            chosen   += random.sample(remaining,
-                                      min(n_way - len(chosen), len(remaining)))
-
         if not chosen:
-            raise ValueError(
-                "EpisodeBuffer is empty — call add_from_loader before training."
-            )
+            raise ValueError("EpisodeBuffer is empty — call add_from_loader before training.")
 
+        # build support / query splits
         sup_x, sup_y, qry_x, qry_y = [], [], [], []
-
         for cls in chosen:
             samples = self.data[cls]
-            need    = k_support + k_query
-
-            if len(samples) >= need:
-                picked = random.sample(samples, need)
-            else:
-                picked = samples + random.choices(samples, k=need - len(samples))
-
-            for s in picked[:k_support]:
-                sup_x.append(s)
-                sup_y.append(cls)
-            for q in picked[k_support:]:
-                qry_x.append(q)
-                qry_y.append(cls)
+            need = k_support + k_query
+            picked = random.sample(samples, need) if len(samples) >= need \
+                     else samples + random.choices(samples, k=need - len(samples))
+            sup_x += picked[:k_support];  sup_y += [cls] * k_support
+            qry_x += picked[k_support:];  qry_y += [cls] * k_query
 
         return (
             torch.stack(sup_x).to(device),
-            torch.tensor(sup_y,  dtype=torch.long).to(device),
+            torch.tensor(sup_y, dtype=torch.long).to(device),
             torch.stack(qry_x).to(device),
-            torch.tensor(qry_y,  dtype=torch.long).to(device),
+            torch.tensor(qry_y, dtype=torch.long).to(device),
         )
-
-    def available_classes(self):
-        return list(self.data.keys())
 
     def __len__(self):
         return sum(len(v) for v in self.data.values())
-
-    def __repr__(self):
-        counts = {lbl: len(v) for lbl, v in self.data.items()}
-        new    = list(self.new_classes)
-        return f"EpisodeBuffer(total={len(self)}, new_classes={new}, per_class={counts})"
-
-def build_task1_buffers(exemplar_train_loader, limit=8,rep_n_way=3, device=None):
-    replay_t1       = ReplayBuffer(max_size=2000)
-    replay_t1.add_from_loader(exemplar_train_loader, max_per_class=limit)
-
-    episode_t1       = EpisodeBuffer()
-    episode_t1.add_from_loader(exemplar_train_loader,
-                            mark_new=False,
-                            max_per_class=limit)
-
-    n_way_eff_t1 = min(rep_n_way, len(episode_t1.available_classes()))
-
-    print(f"[T1 buffers] {replay_t1}")
-    print(f"[T1 episode] {episode_t1}")
-    print(f"[T1] Effective n_way = {n_way_eff_t1}")
-
-    return replay_t1, episode_t1, n_way_eff_t1
-
-
-def build_task2_buffers(exemplar_train_loader, task1_train_loader, limit=8, rep_n_way=3, device=None):
-    replay_t2       = ReplayBuffer(max_size=2000)
-
-    replay_t2.add_from_loader(exemplar_train_loader, max_per_class=limit)
-    replay_t2.add_from_loader(task1_train_loader,    max_per_class=limit)
-
-    episode_t2       = EpisodeBuffer()
-    episode_t2.add_from_loader(exemplar_train_loader,
-                            mark_new=False,
-                            max_per_class=limit)
-    episode_t2.add_from_loader(task1_train_loader,
-                            mark_new=True,       # important
-                            max_per_class=limit)
-
-    n_way_eff_t2 = min(rep_n_way, len(episode_t2.available_classes()))
-
-    print(f"[T2 buffers] {replay_t2}")
-    print(f"[T2 episode] {episode_t2}")
-    print(f"[T2] Effective n_way = {n_way_eff_t2}")
-
-    return replay_t2, episode_t2, n_way_eff_t2

@@ -36,7 +36,7 @@ def fresh_model(num_classes, cfg, device, lstm_hidden):
     return model
 
 
-def load_compatible_checkpoint(model, checkpoint_path, device):
+def load_model_checkpoint(model, checkpoint_path, device):
     ckpt = torch.load(checkpoint_path, map_location=device)
     model_dict = model.state_dict()
 
@@ -71,7 +71,7 @@ def build_student(num_classes, cfg, device, lstm_hidden, num_old_classes):
         device=device,
         lstm_hidden=lstm_hidden
     )
-    model = load_compatible_checkpoint(model, cfg.RESNET50_PATH, device)
+    model = load_model_checkpoint(model, cfg.RESNET50_PATH, device)
     model = load_old_head_weights(model, cfg.RESNET50_PATH, device, num_old_classes)
     return model
 
@@ -83,48 +83,9 @@ def make_frozen_teacher(num_classes, cfg, device, lstm_hidden, checkpoint_path):
         device=device,
         lstm_hidden=lstm_hidden
     )
-    teacher = load_compatible_checkpoint(teacher, checkpoint_path, device)
+    teacher = load_model_checkpoint(teacher, checkpoint_path, device)
     teacher.eval()
     for p in teacher.parameters():
         p.requires_grad = False
     return teacher
 
-
-def snapshot_weights(model):
-    return {k: v.detach().cpu().clone() for k, v in model.state_dict().items()}
-
-
-def make_rehearsal_optimizer(model, lr=1e-4):
-    return torch.optim.Adam(
-        filter(lambda p: p.requires_grad, model.parameters()),
-        lr=lr
-    )
-
-
-def make_reptile_outer_optimizer(model, lstm_lr=1e-4, fc_lr=1e-3):
-    return torch.optim.Adam([
-        {"params": model.lstm.parameters(), "lr": lstm_lr},
-        {"params": model.fc.parameters(), "lr": fc_lr},
-    ], weight_decay=1e-4)
-
-
-def distillation_loss(student_logits, teacher_logits, T=5.0):
-    s = F.log_softmax(student_logits / T, dim=1)
-    t = F.softmax(teacher_logits / T, dim=1)
-    return F.kl_div(s, t, reduction="batchmean") * (T * T)
-
-
-@torch.no_grad()
-def evaluate(model, loader, device):
-    model.eval()
-    ce = nn.CrossEntropyLoss()
-    loss_sum, correct, total = 0.0, 0, 0
-
-    for x, y in loader:
-        x, y = x.to(device), y.to(device)
-        logits = model(x)
-        loss_sum += ce(logits, y).item()
-        correct += (logits.argmax(1) == y).sum().item()
-        total += y.size(0)
-
-    return loss_sum / max(len(loader), 1), (correct / total if total else 0.0)
