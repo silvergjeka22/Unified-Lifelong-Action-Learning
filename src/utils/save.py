@@ -1,6 +1,6 @@
 import torch
 
-from src.meta_learning.models import evaluate
+from src.meta_learning.training import evaluate
 
 
 # recording meta-learning results
