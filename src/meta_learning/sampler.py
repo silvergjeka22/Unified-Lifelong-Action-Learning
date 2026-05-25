@@ -1,6 +1,7 @@
 import random
 import torch
 
+
 def sample(s_embs, t_embs, labels, n_way, k_sup, k_qry, device):
     lbl = {}
     for i, l in enumerate(labels.tolist()):
