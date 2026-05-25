@@ -91,7 +91,6 @@ get_ipython().run_line_magic('run', '/content/src/cl_strategies/ewc.py')
 # meta-learning
 get_ipython().run_line_magic('run', '/content/src/meta_learning/models.py')
 get_ipython().run_line_magic('run', '/content/src/meta_learning/sampler.py')
-get_ipython().run_line_magic('run', '/content/src/meta_learning/embeddings.py')
 get_ipython().run_line_magic('run', '/content/src/meta_learning/reptile.py')
 
 # kd
