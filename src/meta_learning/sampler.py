@@ -1,36 +1,29 @@
 import random
 import torch
 
+def sample(s_embs, t_embs, labels, n_way, k_sup, k_qry, device):
+    lbl = {}
+    for i, l in enumerate(labels.tolist()):
+        lbl.setdefault(int(l), []).append(i)
 
-def sample_episode(s_embs, t_embs, labels, n_way, k_support, k_query, device):
-    by_class = {}
-    for i, y in enumerate(labels.tolist()):
-        by_class.setdefault(int(y), []).append(i)
-
-    classes = list(by_class.keys())
-    n_way = min(n_way, len(classes))
-    chosen = random.sample(classes, n_way)
+    valid  = list(lbl.keys())
+    n_way  = min(n_way, len(valid))
+    chosen = random.sample(valid, n_way)
 
     sup_s, sup_t, sup_y = [], [], []
-    qry_s, qry_y = [], []
+    qry_s, qry_y        = [], []
 
-    for cls in chosen:
-        idxs = by_class[cls]
-        need = k_support + k_query
+    for l in chosen:
+        idxs = lbl[l]
+        need = k_sup + k_qry
+        sel  = random.sample(idxs, min(need, len(idxs)))
+        while len(sel) < need:
+            sel += random.choices(idxs, k=need - len(sel))
 
-        if len(idxs) >= need:
-            picked = random.sample(idxs, need)
-        else:
-            picked = idxs[:] + random.choices(idxs, k=need - len(idxs))
-
-        for i in picked[:k_support]:
-            sup_s.append(s_embs[i])
-            sup_t.append(t_embs[i])
-            sup_y.append(cls)
-
-        for i in picked[k_support:]:
-            qry_s.append(s_embs[i])
-            qry_y.append(cls)
+        for i in sel[:k_sup]:
+            sup_s.append(s_embs[i]); sup_t.append(t_embs[i]); sup_y.append(l)
+        for i in sel[k_sup:]:
+            qry_s.append(s_embs[i]); qry_y.append(l)
 
     return (
         torch.stack(sup_s).to(device),
@@ -40,17 +33,15 @@ def sample_episode(s_embs, t_embs, labels, n_way, k_support, k_query, device):
         torch.tensor(qry_y, dtype=torch.long).to(device),
     )
 
-
-def limit_to_k_per_class(s_embs, t_embs, labels, k_per_class=20, seed=42):
+def limit_to_k_per_class(s_embs, t_embs, labels, k_per_class=5, seed=42):
     rng = random.Random(seed)
-    by_class = {}
-
+    class_to_idx = {}
     for i, y in enumerate(labels.tolist()):
-        by_class.setdefault(int(y), []).append(i)
+        class_to_idx.setdefault(int(y), []).append(i)
 
     keep = []
-    for cls in sorted(by_class.keys()):
-        idxs = by_class[cls][:]
+    for c in sorted(class_to_idx.keys()):
+        idxs = class_to_idx[c][:]
         rng.shuffle(idxs)
         keep.extend(idxs[:k_per_class])
 
