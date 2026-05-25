@@ -5,7 +5,7 @@ import torch.nn.functional as F
 import torch.optim as optim
 from torch.utils.data import DataLoader, TensorDataset
 
-from utils import eval_head
+from src.kd.utils import eval_head
 
 
 def finetune_head(

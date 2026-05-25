@@ -4,8 +4,8 @@ import torch.nn as nn
 import torch.nn.functional as F
 import torch.optim as optim
 
-from sampler import sample_episode
-from utils import eval_head
+from src.meta_learning.sampler import sample_episode
+from src.kd.utils import eval_head
 
 
 def _snap(model):
