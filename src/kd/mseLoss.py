@@ -9,49 +9,21 @@ from src.meta_learning.reptile import eval_head
 
 
 def finetune_head(
-    head: nn.Module,
-    train_s: torch.Tensor,
-    train_t: torch.Tensor,
-    train_y: torch.Tensor,
-    val_s: torch.Tensor,
-    val_y: torch.Tensor,
-    device: torch.device,
-    finetune_epochs: int,
-    finetune_lr: float,
-    finetune_wd: float,
-    finetune_batch: int,
-    finetune_patience: int,
-    ce_weight: float,
-    mse_weight: float,
-    desc: str = "",
-) -> nn.Module:
-    """
-    Phase 2 — Global fine-tuning of the EmbeddingHead with a combined
-    cross-entropy + MSE knowledge-distillation loss.
-
-    The optimizer is AdamW with cosine-annealing LR decay.
-    Early-stopping is applied on validation accuracy.
-
-    Args:
-        head              : EmbeddingHead (output of train_reptile, or freshly initialised)
-        train_s           : Training student embeddings  [N, D_s]
-        train_t           : Training teacher embeddings  [N, D_t]  — KD targets
-        train_y           : Training labels              [N]
-        val_s             : Validation student embeddings [M, D_s]
-        val_y             : Validation labels             [M]
-        device            : Training device
-        finetune_epochs   : Number of fine-tuning epochs
-        finetune_lr       : Learning rate for AdamW
-        finetune_wd       : Weight decay for AdamW
-        finetune_batch    : Batch size for the training DataLoader
-        finetune_patience : Early-stopping patience (epochs)
-        ce_weight         : Weight for cross-entropy loss term
-        mse_weight        : Weight for MSE distillation loss term
-        desc              : Short string printed in progress messages
-
-    Returns:
-        head with best-validation-accuracy weights loaded
-    """
+    head,
+    train_s,
+    train_t,
+    train_y,
+    val_s,
+    val_y,
+    device,
+    finetune_epochs,
+    finetune_lr,
+    finetune_wd,
+    finetune_batch,
+    finetune_patience,
+    ce_weight,
+    mse_weight,
+):
     head.to(device)
     mse_fn    = nn.MSELoss()
     optimizer = optim.AdamW(head.parameters(), lr=finetune_lr, weight_decay=finetune_wd)
@@ -65,11 +37,9 @@ def finetune_head(
         shuffle=True,
     )
 
-    best_acc   = 0.0
-    best_state = copy.deepcopy(head.state_dict())
+    best_acc         = 0.0
+    best_state       = copy.deepcopy(head.state_dict())
     patience_counter = 0
-
-    print(f"\n--- Running Phase 2: Global Fine-Tuning Head ({desc}) ---")
 
     for epoch in range(finetune_epochs):
         head.train()
@@ -88,16 +58,18 @@ def finetune_head(
 
         scheduler.step()
 
-        val_acc = eval_head(head, val_s, val_y, device)
+        val_acc   = eval_head(head, val_s, val_y, device)
+        train_acc = eval_head(head, train_s, train_y, device)
+        print(f"Train_Acc: {train_acc:.2%} | Val_Acc: {val_acc:.2%} | Loss: {loss.item():.4f}")
 
         if val_acc > best_acc:
-            best_acc     = val_acc
-            best_state   = copy.deepcopy(head.state_dict())
+            best_acc         = val_acc
+            best_state       = copy.deepcopy(head.state_dict())
             patience_counter = 0
         else:
             patience_counter += 1
             if patience_counter >= finetune_patience:
-                print(f"  [FineTune-EarlyStop] Triggered at Epoch {epoch + 1}")
+                print(f"EarlyStop at Epoch {epoch + 1}")
                 break
 
     head.load_state_dict(best_state)
