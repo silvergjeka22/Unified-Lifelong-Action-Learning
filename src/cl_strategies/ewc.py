@@ -1,7 +1,8 @@
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
-
+from fine_tune.trainer import evaluate_model
+import tqdm
 
 # global EWC
 EWC_LAMBDA   = 5000.0
