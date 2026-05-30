@@ -3,16 +3,23 @@
 import torch
 import torch.nn as nn
 import torch.optim as optim
-import numpy as np
 from tqdm import tqdm
 from sklearn.metrics import (
-    accuracy_score, f1_score, precision_score,
-    recall_score, classification_report
+    accuracy_score,
 )
 from config.config import SELECTED_CLASSES
 
 from torchvision.models import mobilenet_v2
 from torchvision import models
+from torchvision.models import (
+    ResNet50_Weights,
+)
+from config.config import SELECTED_CLASSES
+from config.config import DROPOUT_P
+
+num_classes = len(SELECTED_CLASSES)
+
+
 
 
 class StudentModel_KD_cosine(nn.Module):
