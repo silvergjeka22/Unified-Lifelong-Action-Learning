@@ -205,3 +205,83 @@ def compute_ewc_loss(model, theta_star, fisher, lambda_ewc=5000, device='cuda'):
 
 
 
+def train_one_epoch_EWC(model, train_loader, criterion, optimizer, device, theta_star, fisher):
+    """
+    Handles the training loop for a single epoch.
+    """
+    model.train()
+
+    for module in model.modules():
+        if isinstance(module, torch.nn.Dropout):
+            module.eval()
+
+    running_loss, correct, total = 0.0, 0, 0
+
+    for clips, labels in tqdm(train_loader, desc="  Training", leave=False):
+
+        clips, labels = clips.to(device), labels.to(device)
+
+        optimizer.zero_grad()
+        outputs = model(clips)
+        loss = criterion(outputs, labels) + compute_ewc_loss(model, theta_star, fisher)
+        loss.backward()
+        optimizer.step()
+
+        running_loss += loss.item() * labels.size(0)
+        preds = outputs.argmax(dim=1)
+        correct += (preds == labels).sum().item()
+        total += labels.size(0)
+
+    return correct / total, running_loss / total
+
+
+
+def train_cl_EWC(model, new_task_train_loader, new_task_val_loader, old_task_val_loader, device='cuda', num_epochs=10, lr=1e-5, theta_star=None, fisher=None):
+    """
+    
+        new_task_train_loader: DataLoader for the new task training set
+        new_task_val_loader: DataLoader for the new task validation set
+        old_task_val_loader: DataLoader for the old task validation set
+        device: Device to run the training on
+        num_epochs: Number of epochs to train for
+        lr: Learning rate
+        theta_star: Dictionary of optimal parameters
+        fisher: Dictionary of Fisher information matrices
+
+    """
+
+    model.to(device)
+
+    optimizer = torch.optim.Adam(filter(lambda p: p.requires_grad, model.parameters()), lr=lr)
+    criterion = torch.nn.CrossEntropyLoss()
+
+
+    history = {
+        'train_losses': [], 'val_losses': [],
+        'train_accs': [], 'val_accs': [],
+        'best_val_acc': 0.0
+    }
+
+
+    for epoch in range(num_epochs):
+        
+        train_acc, train_loss = train_one_epoch_EWC(model, new_task_train_loader, criterion, optimizer, device, theta_star,fisher)
+        # Validation on new task
+        
+        val_acc, val_loss = evaluate_model(model, new_task_val_loader, device)
+
+        old_task_acc, old_task_loss = evaluate_model(model, old_task_val_loader, device)
+
+        
+
+        print(f"Epoch [{epoch+1}/{num_epochs}] | "
+              f"Train Acc: {train_acc:.4f} Loss: {train_loss:.4f} | "
+              f"Val Acc: {val_acc:.4f} Loss: {val_loss:.4f} | "
+              f"Old task Acc: {old_task_acc:.4f} Oldtask Loss {old_task_loss:.4f} ")
+
+        history['train_losses'].append(train_loss)
+        history['train_accs'].append(train_acc)
+        history['val_losses'].append(val_loss)
+        history['val_accs'].append(val_acc)
+
+    return history
