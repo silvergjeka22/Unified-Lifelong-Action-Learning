@@ -1,226 +1,249 @@
-# Continual Learning on UCF101 — Task Tracker
+# ULAL — Task Tracker
+> Unified Lifelong Action Learning on UCF101
 
-[x] -> done
-[/] -> in progress
-[ ] -> not done
-
-## Project Overview
-
-A continual learning pipeline for video-based action recognition on UCF101.
-A pretrained ResNet-50 is fine-tuned on a base set of 10 classes, then incrementally trained across 4 additional tasks of 10 new classes each.
-Five continual learning strategies are compared (Naive, EWC, Rehearsal, LwF, La-MAML), with Active Learning integrated into rehearsal buffer selection.
-The best-performing model is used as a teacher in a final Knowledge Distillation step to train a lightweight ResNet-18 student.
+```
+[x] done   [/] in progress   [ ] not started
+```
 
 ---
 
-## Phase 1 — Dataset Preparation
+## Notebook Index
+
+| # | File | Purpose | Status |
+|---|------|---------|--------|
+| 01 | `APAI_cnn_backbone.ipynb`   | Backbone + Transfer Learning on Task 0 | [x] |
+| 02 | `EWC_CL.ipynb`              | EWC continual learning experiments | [x] |
+| 03 | `CL_Replay_buffer.ipynb`    | Rehearsal buffer + LwF experiments | [x] |
+| 04 | `APAI_NAIVE_CL.ipynb`       | Naive sequential fine-tuning baseline | [/] |
+| 05 | `kd_mse&mamal.ipynb`        | KD + Reptile meta-learning (working) | [x] |
+| 06 | `06_active_domain_adapt.ipynb` | **YouTube AL + Smart Replay + Reptile adaptation** | [ ] |
+| 07 | *(to create)* `07_evaluation.ipynb` | Full comparison table + plots | [ ] |
+
+---
+
+## Scripts
+
+| File | Purpose |
+|------|---------|
+| `bash/fetch_src.sh`   | Fetch `/src` from any branch → local + Drive. **Change branch at top of file or set `BRANCH` env var in Colab.** |
+| `bash/setup_colab.sh` | Download UCF101 from Kaggle, update `config.py` paths |
+
+---
+
+## Phase 1 — Dataset Preparation ✅
 
 - [x] Download and organize UCF101 dataset
 - [x] Verify video integrity and organize by class
-- [x] Explore dataset statistics (classes, video counts, durations)
-- [x] Select 50 balanced classes for the project
-- [x] Record class-to-index mapping in config
-- [x] Build the 5-task continual learning split (Task 0–4, 10 classes each)
-- [x] Save task split in `config.py` with fixed random seed (42)
+- [x] Select 50 balanced classes, record class-to-index mapping
+- [x] Build 5-task CL split (Task 0–4, 10 classes each) with seed 42
 - [x] Extract 16-frame clips at 224×224 with ImageNet normalization
-- [x] Create train / val / test splits (80/20) per class
-- [x] Save split metadata (clip path, label, task id, source video)
+- [x] Create 80/20 train/val splits per class, save metadata
 
 ---
 
 ## Phase 2 — Dataloaders
 
-- [x] Implement `dataset.py` — UCF101 clip dataset class
-- [x] Implement `preprocessing.py` — frame extraction and transforms
-- [x] Implement `study_dataset.py` — dataset exploration utilities
-- [ ] Add task-incremental dataloader wrapper
-- [ ] Add class-incremental dataloader wrapper
-- [ ] Add replay buffer sampler
-- [ ] Add distillation training dataloader
-- [ ] Test all dataloaders end-to-end
+- [x] `dataset.py` — UCF101 clip dataset class
+- [x] `preprocessing.py` — frame extraction and transforms
+- [x] `study_dataset.py` — dataset exploration utilities
+- [ ] Task-incremental dataloader wrapper (feeds tasks sequentially)
+- [ ] Replay buffer sampler (current task + replay mix)
+- [ ] Distillation training dataloader
+- [ ] End-to-end dataloader test
 
 ---
 
-## Phase 3 — Backbone and Baseline Setup
+## Phase 3 — Backbone & Transfer Learning ✅
 
-- [x] Choose ResNet-50 as the 2D CNN backbone
-- [x] Load ImageNet pretrained weights
-- [x] Verify input preprocessing matches pretrained settings
-- [x] Implement expandable classification head (`pretrained.py`)
-- [x] Implement baseline model variants (`baselines.py`)
-- [x] Train on Task 0 — frozen backbone + new head
-- [x] Train on Task 0 — partial fine-tuning
-- [x] Train on Task 0 — full fine-tuning
-- [x] Compare configurations and select best transfer learning setup
-- [x] Save Task 0 checkpoint and log accuracy / loss curves
+- [x] ResNet-50 with ImageNet weights, expandable head (`pretrained.py`)
+- [x] Baseline variants (`baselines.py`)
+- [x] Train Task 0: frozen / partial / full fine-tuning — best config selected
+- [x] Task 0 checkpoint saved, loss/accuracy curves logged
 
 ---
 
 ## Phase 4 — Core Training Framework
 
-- [x] Implement generic training loop with validation (`trainer.py`)
-- [x] Implement checkpoint saving and loading
-- [x] Implement training visualizer (`visualizer.py`)
-- [ ] Build incremental training pipeline (sequential tasks, dynamic head expansion)
-- [ ] Evaluate on all seen tasks after each new task
-- [ ] Track per-task accuracy, average accuracy, and forgetting
-- [ ] Save all metrics to structured files (CSV / JSON)
+- [x] Generic training loop + validation (`trainer.py`)
+- [x] Checkpoint save/load, visualizer (`visualizer.py`)
+- [ ] Incremental training pipeline (sequential tasks, dynamic head expansion)
+- [ ] Per-task accuracy tracking + forgetting measure after each task
+- [ ] Save all metrics to CSV / JSON
+
 ---
 
 ## Phase 5 — Continual Learning Methods
 
-### 5.1 Naive Fine-Tuning (Lower-Bound Baseline)
+### 5.1 Naive Fine-Tuning (lower-bound baseline)
+- [/] `naive.py` — sequential training, no forgetting mitigation
+- [ ] Measure forgetting on all previous tasks after each new task
 
-- [/] Implement `naive.py` — sequential training with no forgetting mitigation
-- [ ] Evaluate forgetting on all previous tasks after each new task
-- [ ] Save forgetting statistics
+### 5.2 EWC — Elastic Weight Consolidation
+- [x] Fisher Information estimation per task
+- [x] EWC penalty: `loss = CE + λ * Σ F*(θ-θ*)²`
+- [x] `pad_fisher_after_expand()` for head growth
+- [x] `ewc_report()` + `check_ewc_penalty()` diagnostics
+- [ ] Tune EWC lambda across tasks
+- [ ] Validate forgetting reduction
 
-### 5.2 EWC (Elastic Weight Consolidation)
+### 5.3 Smart Prototype Replay Buffer
+- [x] Basic `ReplayBuffer` FIFO (`reharsal.py`)
+- [ ] Implement `SmartReplayBuffer` in `src/cl_strategies/smart_replay.py`:
+  - [ ] Per-class prototype (μ, σ) stored instead of raw clips
+  - [ ] Hard-example selection: keep samples farthest from μ
+  - [ ] Uncertainty selection: keep highest-entropy samples
+  - [ ] Diversity selection: coreset / greedy coverage
+- [ ] Ablation: FIFO vs hard vs uncertainty vs diversity
 
-- [ ] Implement Fisher Information estimation
-- [ ] Store parameter importance matrices after each task
-- [ ] Add EWC penalty to the training loss
-- [ ] Tune EWC lambda hyperparameter
-- [ ] Validate that stronger regularization reduces forgetting
+### 5.4 LwF — Learning without Forgetting
+- [x] `distillation_loss()` with KL divergence + temperature (`reharsal.py`)
+- [x] `train_continual()` with `kd=True/False` flag
+- [ ] Tune alpha (CE vs KD) and temperature T
+- [ ] Compare CE-only vs CE+KD on old-task retention
 
-### 5.3 Rehearsal (Experience Replay)
-
-- [ ] Design and implement replay buffer
-- [ ] Set memory budget (per task / total fixed)
-- [ ] Implement mixed sampling (current task + replay)
-- [ ] Baseline: random replay selection
-- [ ] Compare random vs. AL-informed buffer selection
-
-### 5.4 LwF (Learning without Forgetting / Knowledge Distillation for CL)
-
-- [ ] Save frozen teacher model after each task
-- [ ] Generate soft targets from teacher logits
-- [ ] Implement KL divergence loss with temperature scaling
-- [ ] Tune alpha (CE vs. KD balance) and temperature
-- [ ] Compare CE-only vs. CE + KD loss
-
-### 5.5 La-MAML (Meta-Continual Learning)
-
-- [ ] Study La-MAML algorithm before implementation
-- [ ] Define episodic / meta-training procedure
-- [ ] Implement inner-loop (task adaptation) updates
-- [ ] Implement outer-loop (meta) updates
-- [ ] Integrate with sequential task stream
-- [ ] Validate on a small toy setting before full UCF101 run
+### 5.5 Meta-Learning — Reptile / La-MAML
+- [x] `ResNet50LSTMTeacher` + `MobileNetV3SmallLSTMStudent` (`models.py`)
+- [x] `EmbeddingHead` with classifier + projector
+- [x] N-way K-shot episodic sampler (`sampler.py`)
+- [x] Reptile outer loop with early stopping (`reptile.py`)
+- [x] Combined CE + MSE(proj, teacher_emb) loss
+- [x] `finetune_head()` baseline (`mseLoss.py`)
+- [ ] Wire Reptile into full sequential task stream (Tasks 0 → 4)
+- [ ] Validate fast adaptation: test after K inner steps on new task
+- [ ] Compare Reptile vs standard fine-tune head
+- [ ] Run Reptile + SmartReplayBuffer, measure forgetting
 
 ---
 
-## Phase 6 — Active Learning Integration
+## Phase 6 — Active Domain Adaptation (YouTube)
 
-- [ ] Decide AL integration point (rehearsal buffer, new-task labeling, or both)
+> Handled by **notebook 06** (`06_active_domain_adapt.ipynb`).
+> Goal: adapt to YouTube-domain clips using only a small AL-labeled budget,
+> without forgetting UCF101 performance.
 
-### 6.1 AL for Replay Buffer Selection
+### 6.1 Domain Shift Setup
+- [ ] Download 3 YouTube clips (one per class) using `yt-dlp`
+- [ ] Extract 16-frame clips with identical UCF101 transforms
+- [ ] Extract teacher + student embeddings for YouTube clips
+- [ ] Measure distribution shift: compare UCF101 vs YouTube μ, σ per class
+- [ ] Quantify baseline accuracy drop on YouTube clips
 
-- [ ] Implement uncertainty-based sample selection (entropy / margin)
-- [ ] Implement diversity-based sample selection
-- [ ] Optionally implement centroid / prototype selection
-- [ ] Compare AL selection vs. random buffer filling
+### 6.2 Active Learning Acquisition (`src/active_learning/acquisition.py`)
+- [ ] Entropy: `H = -Σ p log p`
+- [ ] Margin: difference between top-2 softmax scores
+- [ ] Coreset: greedy max-coverage in embedding space
+- [ ] Score all YouTube clips → select top-K per class
+- [ ] Ablation: random vs entropy vs margin vs coreset at K=5/10/20/50
 
-### 6.2 AL for New Task Labeling
+### 6.3 Smart Buffer + Reptile Adaptation
+- [ ] Add AL-selected YouTube clips to SmartReplayBuffer (diverse strategy)
+- [ ] Mix UCF101 hard exemplars + YouTube diverse exemplars in buffer
+- [ ] Reptile adaptation: treat domain shift as a new episode
+  - Inner loop: adapt EmbeddingHead on K AL-selected YouTube embs
+  - Outer loop: Reptile update moves meta-weights toward adapted weights
+- [ ] Optional: EWC penalty to protect UCF101-critical weights during adaptation
+- [ ] Evaluate: UCF101 accuracy (forgetting) + YouTube accuracy (gain)
 
-- [ ] Simulate unlabeled pool for each new task
-- [ ] Define annotation budget per task
-- [ ] Implement acquisition function (entropy / margin / diversity)
-- [ ] Retrain using only AL-selected labeled samples
-- [ ] Measure label efficiency vs. full supervision
-
-### 6.3 AL Ablation Study
-
-- [ ] Compare: no AL / random selection / uncertainty / diversity
-- [ ] Report effect on accuracy and forgetting
+### 6.4 Results
+- [ ] Plot: YouTube accuracy gain vs UCF101 forgetting tradeoff
+- [ ] Table: strategy × budget ablation
+- [ ] Save: adapted head + buffer + results JSON to Drive
 
 ---
 
 ## Phase 7 — Evaluation Protocol
 
-- [ ] Define and implement all metrics:
-  - [ ] Average Accuracy
-  - [ ] Final Average Accuracy
-  - [ ] Per-task Accuracy
-  - [ ] Backward Transfer (Forgetting)
+- [ ] Implement metrics in `src/utils/metrics.py`:
+  - [ ] Average Accuracy, Final Average Accuracy
+  - [ ] Per-task accuracy matrix
+  - [ ] Backward Transfer (Forgetting Measure)
   - [ ] Forward Transfer
-  - [ ] Training time and memory usage
-- [ ] Evaluate all methods on the same protocol after each task
-- [ ] Save results in structured tables (CSV / JSON)
-- [ ] Build comparison tables across all CL methods
-- [ ] Generate plots:
-  - [ ] Accuracy vs. task index
-  - [ ] Forgetting vs. method
-  - [ ] Memory cost vs. accuracy
-  - [ ] AL budget vs. performance
-  - [ ] Teacher vs. student comparison
-- [ ] Run multiple seeds and report mean ± std
+  - [ ] Training time + GPU memory
+- [ ] Evaluate all methods on same protocol after each task
+- [ ] Save structured CSV / JSON results
+- [ ] Plots (notebook 07):
+  - [ ] Accuracy vs task index (one line per method)
+  - [ ] Forgetting bar chart across methods
+  - [ ] YouTube accuracy vs UCF101 accuracy tradeoff
+  - [ ] Teacher vs student comparison
+- [ ] Run 3 seeds, report mean ± std
 
 ---
 
 ## Phase 8 — Best Method Selection
 
-- [ ] Compare all CL methods on accuracy, forgetting, and efficiency
-- [ ] Justify and document the winning method
-- [ ] Save final teacher model checkpoint with all hyperparameters
-- [ ] Write short analysis: why did this method win?
+- [ ] Compare: Naive / EWC / SmartReplay / LwF / Reptile
+- [ ] Select winner, justify with metrics
+- [ ] Save final teacher checkpoint + hyperparameters
 
 ---
 
 ## Phase 9 — Final Knowledge Distillation
 
-- [ ] Choose student architecture: ResNet-18
-- [ ] Compute teacher logits on the full task stream output
-- [ ] Implement KD pipeline (KL divergence + CE combined loss)
-- [ ] Tune alpha and temperature for distillation
-- [ ] Save best student checkpoint
-- [ ] Compare teacher vs. student:
-  - [ ] Accuracy
-  - [ ] Inference time
-  - [ ] Parameter count
-  - [ ] Storage size
-- [ ] Optional: teacher → assistant (ResNet-34) → student (ResNet-18) chain
+- [ ] Teacher: ResNet50+LSTM (best CL model)
+- [ ] Student: MobileNetV3Small+LSTM (already in `models.py`)
+- [ ] Loss: `CE + KL(student ∥ teacher) + MSE(proj, teacher_emb)`
+- [ ] Tune temperature T and alpha
+- [ ] Use SmartReplayBuffer during student training
+- [ ] Compare teacher vs student: accuracy / params / inference time / size
+- [ ] Optional: ResNet50 → ResNet34 → MobileNetV3 chain
 
 ---
 
-## Phase 10 — Experiments and Ablations
+## Phase 10 — Ablations
 
-- [ ] Hyperparameter tuning (LR, batch size, memory size, EWC λ, KD temp/alpha, AL budget)
-- [ ] Memory budget ablation — vary replay buffer size
-- [ ] Task order ablation — test different class orderings
-- [ ] Distillation ablation — CE only / KD only / CE+KD / different temperatures
-- [ ] Active Learning ablation — measure benefit vs. added complexity
-
----
-
-## Phase 11 — Documentation and Reporting
-
-- [ ] Maintain structured experiment logs (config, checkpoint path, metrics, notes)
-- [ ] Write method descriptions (intuition, implementation, hyperparameters, pros/cons)
-- [ ] Prepare final report:
-  - [ ] Introduction and related work
-  - [ ] Methodology
-  - [ ] Dataset and task split design
-  - [ ] Experimental setup and results
-  - [ ] Discussion, limitations, future work
-- [ ] Prepare visuals (pipeline diagram, accuracy/forgetting curves, KD chart, AL workflow)
-- [ ] Prepare presentation / demo summary
+- [ ] Memory budget: vary replay buffer size (10 / 20 / 50 / 100 per class)
+- [ ] Task order: test different class orderings
+- [ ] KD: CE only / KD only / CE+KD / temperatures
+- [ ] Replay strategy: FIFO / hard / uncertainty / diversity
+- [ ] Domain adaptation: acquisition × budget grid
+- [ ] Reptile: inner steps / epsilon / episodes
 
 ---
 
-## Phase 12 — Final Cleanup
+## Phase 11 — Report & Documentation
+
+- [ ] Method descriptions (intuition, impl, hyperparams, pros/cons)
+- [ ] Final report sections:
+  - [ ] Introduction + related work (cite GIL paper: arXiv 2410.10497)
+  - [ ] Methodology + pipeline diagram
+  - [ ] Dataset + task split design
+  - [ ] Experimental results + discussion
+  - [ ] Domain adaptation section
+  - [ ] Limitations + future work
+- [ ] Visuals: pipeline diagram, accuracy curves, t-SNE/UMAP, AL workflow
+
+---
+
+## Phase 12 — Cleanup & Reproducibility
 
 - [ ] Remove unused scripts and duplicate notebooks
-- [ ] Organize configs, checkpoints, and outputs
-- [ ] Verify full pipeline reproducibility from config files
+- [ ] Rename notebooks to numbered convention (see Notebook Index above)
+- [ ] Verify full pipeline reproducibility from config
 - [ ] Final checklist:
-  - [x] Dataset prepared
-  - [x] Task split fixed
-  - [x] Backbone selected and fine-tuned on Task 0
-  - [ ] All CL methods implemented and evaluated
-  - [ ] Active Learning integrated
+  - [x] Dataset prepared, task split fixed
+  - [x] Backbone fine-tuned on Task 0
+  - [x] EWC implemented
+  - [x] Basic replay + LwF implemented
+  - [x] Reptile meta-learning working
+  - [ ] Smart prototype replay buffer
+  - [ ] All CL methods evaluated on full task stream
+  - [ ] Active Domain Adaptation (YouTube) complete
   - [ ] Best method selected and justified
-  - [ ] Final KD compression completed
-  - [ ] Results plotted and tabled
+  - [ ] KD student (MobileNetV3) trained and compared
+  - [ ] Results plotted + tabled
   - [ ] Report written
-  - [ ] Code cleaned and reproducible
+  - [ ] Code clean and reproducible
+
+---
+
+## New Files to Create
+
+| File | Purpose |
+|------|---------|
+| `src/cl_strategies/smart_replay.py` | SmartReplayBuffer with prototype + hard/uncertainty/diversity |
+| `src/active_learning/acquisition.py` | Entropy, margin, coreset acquisition functions |
+| `src/active_learning/domain_shift.py` | YouTube setup, shift measurement, AL-Reptile loop |
+| `src/utils/metrics.py` | AA, FAA, forgetting, forward/backward transfer, timing |
+| `src/cl_strategies/naive.py` | Complete naive sequential training |
+| `notebooks/07_evaluation.ipynb` | Full method comparison + plots |
