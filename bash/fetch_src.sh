@@ -13,7 +13,7 @@ set -e
 # ─── EDIT ONLY THIS BLOCK ────────────────────────────────────────────────────
 GITHUB_USER="silvergjeka22"
 GITHUB_REPO="Unified-Lifelong-Action-Learning"
-BRANCH="${BRANCH:-kd&mamal}"          # ← CHANGE BRANCH HERE (or set env var)
+BRANCH="${BRANCH:-GAN&ActiveLearning}"          # ← CHANGE BRANCH HERE (or set env var)
 FOLDER="src"                          # folder inside repo to download
 DEST="/content"                       # local destination  → /content/src/
 DRIVE_DEST="/content/drive/MyDrive/apai/src"  # Drive backup (set "" to skip)

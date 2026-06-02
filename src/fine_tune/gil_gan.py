@@ -13,10 +13,10 @@ from torch.utils.data import DataLoader, TensorDataset
 from tqdm.auto import tqdm
 
 # Default dimensions (match paper + project setup)
-FEAT_DIM   = 512   # ResNet50+LSTM hidden state output
+FEAT_DIM   = 256   # ResNet50+LSTM hidden state output (hidden_size=256 checkpoint)
 SEM_DIM    = 384   # sentence-transformers all-MiniLM-L6-v2
-LATENT_DIM = 512   # CVAE latent space
-NOISE_DIM  = 512   # Generator noise input
+LATENT_DIM = 256   # CVAE latent space
+NOISE_DIM  = 256   # Generator noise input
 HIDDEN     = 4096  # GAN hidden layers (from paper)
 
 
