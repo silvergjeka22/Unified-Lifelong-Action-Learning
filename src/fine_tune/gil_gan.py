@@ -249,7 +249,7 @@ def gradient_penalty(D: Discriminator, real: torch.Tensor, fake: torch.Tensor,
 
 
 # ── GAN Training (Phase 1, Part 2) ───────────────────────────────────────────
-def train_gan(F: FeatureGenerator, G: Discriminator, H: ProjectionHead,
+def train_gan(gen: FeatureGenerator, G: Discriminator, H: ProjectionHead,
               buffer: GILReplayBuffer, class_to_label: dict, device,
               epochs: int = 30, lam1: float = 0.01, lam2: float = 0.1,
               alpha: float = 10.0, lr: float = 1e-4, batch_size: int = 64,
@@ -260,7 +260,7 @@ def train_gan(F: FeatureGenerator, G: Discriminator, H: ProjectionHead,
     L_D = E[G(fake,a)] - E[G(real,a)] + alpha * gradient_penalty  (minimise)
     L_F = -E[G(fake,a)] + lam1*L_CLS + lam2*L_MI                 (minimise)
 
-    After training, F is frozen permanently.
+    After training, gen is frozen permanently.
     Returns history dict with keys: d_loss, g_loss, cls_loss.
     """
     if len(buffer) == 0:
@@ -280,12 +280,11 @@ def train_gan(F: FeatureGenerator, G: Discriminator, H: ProjectionHead,
     lab_t = torch.tensor(lab_list, dtype=torch.long).to(device)
 
     num_classes = len(buffer)
-    # Auxiliary classifier on top of F (used only during GAN training)
     aux_cls = nn.Linear(FEAT_DIM, num_classes).to(device)
 
     opt_D = torch.optim.Adam(G.parameters(), lr=lr, betas=(0.5, 0.9))
     opt_F = torch.optim.Adam(
-        list(F.parameters()) + list(H.parameters()) + list(aux_cls.parameters()),
+        list(gen.parameters()) + list(H.parameters()) + list(aux_cls.parameters()),
         lr=lr, betas=(0.5, 0.9),
     )
 
@@ -300,7 +299,7 @@ def train_gan(F: FeatureGenerator, G: Discriminator, H: ProjectionHead,
     history = {"d_loss": [], "g_loss": [], "cls_loss": []}
 
     for epoch in range(1, epochs + 1):
-        F.train(); G.train(); H.train()
+        gen.train(); G.train(); H.train()
         ed, eg, ec, nb = 0.0, 0.0, 0.0, 0
 
         for mu_b, sig_b, sem_b, lab_b in loader:
@@ -308,9 +307,9 @@ def train_gan(F: FeatureGenerator, G: Discriminator, H: ProjectionHead,
 
             # ── Discriminator update ──────────────────────────────────────
             for _ in range(n_critic):
-                z     = torch.randn(B, NOISE_DIM, device=device)
-                x_hat = F(mu_b, sig_b, z).detach()
-                gp    = gradient_penalty(G, mu_b, x_hat, sem_b, device)
+                z      = torch.randn(B, NOISE_DIM, device=device)
+                x_hat  = gen(mu_b, sig_b, z).detach()
+                gp     = gradient_penalty(G, mu_b, x_hat, sem_b, device)
                 loss_D = G(x_hat, sem_b).mean() - G(mu_b, sem_b).mean() + alpha * gp
                 opt_D.zero_grad()
                 loss_D.backward()
@@ -318,7 +317,7 @@ def train_gan(F: FeatureGenerator, G: Discriminator, H: ProjectionHead,
 
             # ── Generator / Head / Aux-classifier update ──────────────────
             z        = torch.randn(B, NOISE_DIM, device=device)
-            x_hat    = F(mu_b, sig_b, z)
+            x_hat    = gen(mu_b, sig_b, z)
             adv_loss = -G(x_hat, sem_b).mean()
             cls_loss = F.cross_entropy(aux_cls(x_hat), lab_b)
             mi_loss  = -F.cosine_similarity(H(x_hat), sem_b).mean()
@@ -342,10 +341,10 @@ def train_gan(F: FeatureGenerator, G: Discriminator, H: ProjectionHead,
                   f"G: {history['g_loss'][-1]:+.4f}  "
                   f"CLS: {history['cls_loss'][-1]:.4f}")
 
-    # Freeze F permanently after Phase 1
-    for p in F.parameters():
+    # Freeze gen permanently after Phase 1
+    for p in gen.parameters():
         p.requires_grad_(False)
-    print("FeatureGenerator F frozen permanently.")
+    print("FeatureGenerator frozen permanently.")
 
     return history
 
@@ -419,19 +418,19 @@ def update_buffer_and_cvae(model, E: CVAE, new_classes: list,
 
 
 # ── Zero-Shot Testing ─────────────────────────────────────────────────────────
-def zero_shot_test(model, F: FeatureGenerator, E: CVAE,
+def zero_shot_test(model, gen: FeatureGenerator, E: CVAE,
                    unseen_classes: list, sem_embs: dict, class_to_label: dict,
                    test_loader, device, J: int = 50):
     """
     Zero-shot evaluation pipeline:
-    1. For each unseen class: sem_emb → E → (μ̂, σ̂) → F × J → synthetic feats.
+    1. For each unseen class: sem_emb → E → (μ̂, σ̂) → gen × J → synthetic feats.
     2. Fine-tune a fresh GILClassifier on these synthetic features.
     3. 1-NN against synthetic class centroids at test time.
 
     Returns (top1_acc, all_preds, all_true).
     """
     E.eval()
-    F.eval()
+    gen.eval()
 
     num_unseen = len(unseen_classes)
     synth_feats, synth_labels, centroids = [], [], {}
@@ -442,7 +441,7 @@ def zero_shot_test(model, F: FeatureGenerator, E: CVAE,
             mu_hat, sigma_hat, _, _ = E(a)
             mu_hat    = mu_hat.expand(J, -1)
             sigma_hat = sigma_hat.expand(J, -1)
-            x_hat = F(mu_hat, sigma_hat)
+            x_hat = gen(mu_hat, sigma_hat)
             synth_feats.append(x_hat.cpu())
             lbl = class_to_label[cls_name]
             synth_labels.extend([lbl] * J)
