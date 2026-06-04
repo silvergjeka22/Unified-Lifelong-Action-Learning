@@ -1,7 +1,20 @@
 import torch
 import numpy as np
 
-from src.kd.utils import eval_head
+
+def remap_teacher_checkpoint(raw_ckpt: dict) -> dict:
+    """
+    Remap legacy ResNet key names to backbone.* and drop num_batches_tracked buffers.
+    Handles checkpoints saved from ResNet50LSTM (resnet.*) for ResNet50LSTMTeacher (backbone.*).
+    """
+    remapped, n_dropped = {}, 0
+    for k, v in raw_ckpt.items():
+        if k.endswith("num_batches_tracked"):
+            n_dropped += 1
+            continue
+        remapped["backbone." + k[len("resnet."):] if k.startswith("resnet.") else k] = v
+    print(f"  Dropped {n_dropped} num_batches_tracked buffer(s).")
+    return remapped
 
 
 # ── Recording containers ──────────────────────────────────────────────────────
