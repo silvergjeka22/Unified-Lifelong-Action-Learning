@@ -1,13 +1,69 @@
+import os
 import torch
 import torch.nn as nn
 import torch.optim as optim
 import numpy as np
 from tqdm import tqdm
+from torch.utils.data import DataLoader
 from sklearn.metrics import (
     accuracy_score, f1_score, precision_score,
     recall_score, classification_report
 )
 from src.config.config import SELECTED_CLASSES
+
+
+def make_loader(ds, batch_size=8, shuffle=False, num_workers=2, pin_memory=False):
+    return DataLoader(ds, batch_size=batch_size, shuffle=shuffle,
+                      num_workers=num_workers, pin_memory=pin_memory)
+
+
+def chunks(lst, n):
+    for i in range(0, len(lst), n):
+        yield lst[i:i + n]
+
+
+class ModelWrapper(nn.Module):
+    """Wraps a model that returns (logits, embedding) to return logits only."""
+    def __init__(self, original_model):
+        super().__init__()
+        self.original_model = original_model
+
+    def forward(self, x):
+        out = self.original_model(x)
+        if isinstance(out, (tuple, list)):
+            return out[0]
+        return out
+
+
+@torch.no_grad()
+def extract_class_features(model, root, class_list, global_class_to_label, device, num_workers=2):
+    """
+    Extract LSTM hidden states for every clip across train/val/test splits.
+    Returns {class_name: Tensor(N, feat_dim)}.
+    """
+    from src.data.dataset import UCF101Clips
+
+    local_c2i  = {c: global_class_to_label[c] for c in class_list if c in global_class_to_label}
+    feat_store = {c: [] for c in class_list}
+    label_to_class = {v: k for k, v in global_class_to_label.items()}
+
+    split_dirs    = [d for d in ["train", "val", "test"] if os.path.isdir(os.path.join(root, d))]
+    roots_to_scan = [os.path.join(root, s) for s in split_dirs] if split_dirs else [root]
+
+    model.eval()
+    for split_root in roots_to_scan:
+        dataset = UCF101Clips(split_root, class_to_idx=local_c2i)
+        if len(dataset) == 0:
+            continue
+        loader = DataLoader(dataset, batch_size=8, shuffle=False, num_workers=num_workers)
+        for clips, labels in tqdm(loader, desc=f"Extracting [{os.path.basename(split_root)}]"):
+            _, h = model(clips.to(device))
+            for feat, lbl in zip(h.cpu(), labels.cpu()):
+                cls_name = label_to_class.get(lbl.item())
+                if cls_name and cls_name in feat_store:
+                    feat_store[cls_name].append(feat)
+
+    return {c: torch.stack(v) for c, v in feat_store.items() if v}
 
 def evaluate_model(model, dataloader, device):
     """

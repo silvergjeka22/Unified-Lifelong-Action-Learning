@@ -486,3 +486,82 @@ def zero_shot_test(model, gen: FeatureGenerator, E: CVAE,
     acc = correct / max(total, 1)
     print(f"ZSL Top-1: {acc:.2%}  ({correct}/{total})")
     return acc, all_preds, all_true
+
+
+# ── Ablation Baseline ─────────────────────────────────────────────────────────
+def run_incremental_baseline(
+    strategy: str,
+    seen_classes: list,
+    base_class_feats: dict,
+    all_seen_feats: dict,
+    buffer_ref: GILReplayBuffer,
+    F_gen: FeatureGenerator,
+    known_label_local: dict,
+    label_to_class: dict,
+    device,
+    ft_epochs: int = 5,
+    ft_lr: float = 1e-4,
+):
+    """
+    Runs the incremental loop with a given replay strategy for ablation.
+
+    strategy: 'none' | 'random' | 'gil'
+    Returns list of base-class accuracies per iteration.
+    """
+    import config.config as _cfg
+    from src.utils.train import chunks as _chunks
+
+    num_base    = len(_cfg.SELECTED_CLASSES)
+    num_known   = num_base + len(seen_classes)
+    clf         = GILClassifier(feat_dim=FEAT_DIM, num_classes=num_known).to(device)
+    chunk_size  = max(1, len(seen_classes) // 10)
+    accs        = []
+
+    for class_chunk in _chunks(seen_classes, chunk_size):
+        real_feats  = torch.cat([all_seen_feats[c] for c in class_chunk if c in all_seen_feats])
+        real_labels = torch.cat([
+            torch.full((all_seen_feats[c].shape[0],), known_label_local[c], dtype=torch.long)
+            for c in class_chunk if c in all_seen_feats
+        ])
+
+        if strategy == "none":
+            mixed_feats, mixed_labels = real_feats, real_labels
+
+        elif strategy == "random":
+            J_iter  = max(1, len(real_feats) // max(len(buffer_ref), 1))
+            n_synth = J_iter * len(buffer_ref)
+            synth_f = torch.randn(n_synth, FEAT_DIM)
+            buf_labels = []
+            for cls_name in buffer_ref.class_list:
+                buf_labels.extend([known_label_local[cls_name]] * J_iter)
+            synth_l = torch.tensor(buf_labels[:n_synth], dtype=torch.long)
+            mixed_feats  = torch.cat([real_feats, synth_f], dim=0)
+            mixed_labels = torch.cat([real_labels, synth_l], dim=0)
+
+        else:  # 'gil'
+            J_iter = max(1, len(real_feats) // max(len(buffer_ref), 1))
+            synth_f, synth_g = buffer_ref.generate_all(F_gen, J=J_iter, device=device)
+            if len(synth_f) > 0:
+                synth_l = torch.tensor(
+                    [known_label_local[label_to_class[lb.item()]] for lb in synth_g],
+                    dtype=torch.long,
+                )
+                mixed_feats  = torch.cat([real_feats, synth_f], dim=0)
+                mixed_labels = torch.cat([real_labels, synth_l], dim=0)
+            else:
+                mixed_feats, mixed_labels = real_feats, real_labels
+
+        loader = DataLoader(TensorDataset(mixed_feats, mixed_labels), batch_size=64, shuffle=True)
+        fine_tune_last2(clf, loader, epochs=ft_epochs, lr=ft_lr, device=device)
+
+        clf.eval()
+        val_feats  = torch.cat(list(base_class_feats.values()), dim=0)
+        val_labels = torch.cat([
+            torch.full((base_class_feats[c].shape[0],), known_label_local[c], dtype=torch.long)
+            for c in _cfg.SELECTED_CLASSES if c in base_class_feats
+        ])
+        with torch.no_grad():
+            acc = (clf(val_feats.to(device)).argmax(1).cpu() == val_labels).float().mean().item()
+        accs.append(acc)
+
+    return accs

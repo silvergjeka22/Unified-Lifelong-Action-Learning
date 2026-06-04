@@ -11,6 +11,33 @@ Standard metrics used to compare CL methods:
 """
 
 import numpy as np
+import torch
+
+
+def forgetting(accs: list) -> float:
+    """
+    Average forgetting across tasks.
+    accs[i] = accuracy on task i after final training step.
+    Computes max(accs) - accs[-1] averaged over all tasks.
+    """
+    if len(accs) < 2:
+        return 0.0
+    return float(np.mean([max(a, accs[-1]) - accs[-1] for a in accs[:-1]]))
+
+
+def avg_intra_dist(emb: torch.Tensor, labels: torch.Tensor) -> float:
+    """Average intra-class pairwise L2 distance across all classes."""
+    dists = []
+    for cls in labels.unique():
+        mask = labels == cls
+        feats = emb[mask].float()
+        if feats.shape[0] < 2:
+            continue
+        diff = feats.unsqueeze(0) - feats.unsqueeze(1)          # (N,N,D)
+        d    = diff.norm(dim=-1)                                  # (N,N)
+        idx  = torch.triu_indices(d.shape[0], d.shape[1], offset=1)
+        dists.append(d[idx[0], idx[1]].mean().item())
+    return float(np.mean(dists)) if dists else 0.0
 
 
 def build_accuracy_matrix(results_per_task: list) -> np.ndarray:

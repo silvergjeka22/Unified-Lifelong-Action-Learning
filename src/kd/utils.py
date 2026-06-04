@@ -1,6 +1,22 @@
 import torch
+import random
 from torch.utils.data import DataLoader, TensorDataset
 import numpy as np
+
+
+def limit_to_k_per_class(s_embs, t_embs, labels, k_per_class=5, seed=42):
+    """
+    Subsample at most k_per_class examples per class, keeping s/t/label aligned.
+    Returns (s_subset, t_subset, label_subset).
+    """
+    rng = random.Random(seed)
+    selected = []
+    for cls in labels.unique().tolist():
+        idxs = (labels == cls).nonzero(as_tuple=True)[0].tolist()
+        rng.shuffle(idxs)
+        selected.extend(idxs[:k_per_class])
+    selected = torch.tensor(selected)
+    return s_embs[selected], t_embs[selected], labels[selected]
 
 
 @torch.no_grad()
@@ -70,6 +86,43 @@ def calculate_accuracies(model, loader, num_classes, device):
     class_acc   = {i: class_correct[i] / max(class_total[i], 1) * 100 for i in range(num_classes)}
     overall_acc = total_correct / max(total_samples, 1) * 100
     return class_acc, overall_acc
+
+@torch.no_grad()
+def extract_features(model, clip_tensor, device=None):
+    """
+    Extract LSTM hidden states from a ResNet+LSTM model (ResNet50LSTM style).
+    model must have .resnet and .lstm attributes.
+    clip_tensor: (B, T, C, H, W)
+    """
+    if device is not None:
+        clip_tensor = clip_tensor.to(device)
+    B, T, C, H, W = clip_tensor.shape
+    features  = model.resnet(clip_tensor.view(B * T, C, H, W))
+    features  = features.view(B, T, -1)
+    lstm_out, _ = model.lstm(features)
+    return lstm_out[:, -1, :].cpu()
+
+
+def process_dataloader(dataloader, model, features_file, labels_file, device=None):
+    """
+    Run extract_features over a full DataLoader and save to .pt files.
+    Returns (all_features, all_labels).
+    """
+    if device is None:
+        device = next(model.parameters()).device
+    all_features, all_labels = [], []
+    for clips, labels in dataloader:
+        feats = extract_features(model, clips, device=device)
+        all_features.append(feats)
+        all_labels.append(labels.cpu())
+    all_features = torch.cat(all_features, dim=0)
+    all_labels   = torch.cat(all_labels, dim=0)
+    torch.save(all_features, features_file)
+    torch.save(all_labels, labels_file)
+    print(f"Saved features to {features_file}")
+    print(f"Saved labels to {labels_file}")
+    return all_features, all_labels
+
 
 @torch.no_grad()
 def compare_head_vs_student_on_same_batch(student, head, loader, device, max_batches=1):
