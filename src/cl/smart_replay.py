@@ -33,8 +33,11 @@ class SmartReplayBuffer:
     # ── Adding / updating a class ─────────────────────────────────────────────
     def add_class(self, class_idx: int, s_embs: torch.Tensor,
                   t_embs: torch.Tensor, strategy: str = "hard"):
+        # flatten(1) keeps this shape-agnostic: works for (N, D) latents and for
+        # (N, T, D) frame-feature sequences alike.
+        flat  = s_embs.flatten(1).float()
         mu    = s_embs.mean(0)
-        dists = (s_embs - mu).norm(dim=1)
+        dists = (s_embs - mu).flatten(1).float().norm(dim=1)
 
         if strategy == "hard":
             idx = dists.argsort(descending=True)[:self.max_per_class]
@@ -45,7 +48,7 @@ class SmartReplayBuffer:
             remaining = list(range(len(s_embs)))
             remaining.remove(selected[0])
             while len(selected) < min(self.max_per_class, len(s_embs)):
-                d    = torch.cdist(s_embs[remaining], s_embs[selected]).min(1).values
+                d    = torch.cdist(flat[remaining], flat[selected]).min(1).values
                 best = remaining[d.argmax().item()]
                 selected.append(best)
                 remaining.remove(best)

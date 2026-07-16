@@ -111,6 +111,7 @@ _ipython.run_line_magic('run', '/content/src/models/baselines.py')
 _ipython.run_line_magic('run', '/content/src/models/teacher.py')
 _ipython.run_line_magic('run', '/content/src/models/student.py')
 _ipython.run_line_magic('run', '/content/src/models/head.py')
+_ipython.run_line_magic('run', '/content/src/models/temporal_head.py')
 
 _ipython.run_line_magic('run', '/content/src/cl/ewc.py')
 _ipython.run_line_magic('run', '/content/src/cl/rehearsal.py')
