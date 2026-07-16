@@ -84,9 +84,10 @@ class SmartReplayBuffer:
         print(f"SmartReplayBuffer — {len(self.s_store)} classes, "
               f"max_per_class={self.max_per_class}")
         for k, v in sorted(self.s_store.items()):
-            name = class_names[k] if class_names else str(k)
+            name  = class_names[k] if class_names else str(k)
+            kb    = v.element_size() * v.nelement() / 1e3
             print(f"  [{k:2d}] {name:<22}: {v.shape[0]} samples  "
-                  f"(dim={v.shape[1]})")
+                  f"shape={tuple(v.shape[1:])}  {kb:.0f} KB")
 
 
 # ── Standalone training loop with smart replay ────────────────────────────────
