@@ -65,6 +65,35 @@ def extract_class_features(model, root, class_list, global_class_to_label, devic
 
     return {c: torch.stack(v) for c, v in feat_store.items() if v}
 
+@torch.no_grad()
+def extract_frame_features(backbone, loader, device, backbone_dim=2048, dtype=torch.float16):
+    """
+    Run a frozen CNN backbone over every clip and return per-frame features.
+
+    This is the freeze boundary for the ULAL pipeline: cache (T, backbone_dim) per clip
+    once, then train LSTM+head on the cache. 150x smaller than caching raw clips
+    (16x2048 fp16 = 64 KB vs 16x3x224x224 fp32 = 9.6 MB), so the LSTM stays trainable
+    without ever touching video again.
+
+    Args:
+        backbone : frozen feature extractor, e.g. teacher.backbone -> (B*T, C, 1, 1)
+        loader   : yields (clips (B,T,C,H,W), labels)
+        dtype    : storage dtype. fp16 halves the file; cast back to fp32 before
+                   feeding an fp32 LSTM.
+
+    Returns:
+        (feats (N, T, backbone_dim), labels (N,))
+    """
+    backbone.eval()
+    feats, labs = [], []
+    for x, y in tqdm(loader, desc="  Frame features"):
+        B, T, C, H, W = x.shape
+        f = backbone(x.to(device).view(B * T, C, H, W)).view(B, T, backbone_dim)
+        feats.append(f.to(dtype).cpu())
+        labs.append(y)
+    return torch.cat(feats), torch.cat(labs)
+
+
 def evaluate_model(model, dataloader, device):
     """
     Evaluate model on a dataloader.
