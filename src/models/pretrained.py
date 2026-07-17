@@ -7,9 +7,15 @@ from torchvision.models import (
     ResNet50_Weights,
     DenseNet121_Weights,
     VGG19_BN_Weights,
+    
 )
 from config.config import SELECTED_CLASSES
 from config.config import DROPOUT_P
+
+from torch.nn import LSTM
+import torch
+from torchvision import models
+
 
 num_classes = len(SELECTED_CLASSES)
 
@@ -186,3 +192,39 @@ class VGG19BNLSTM(nn.Module):
         features = features.view(B, T, -1)      # [B, T, 512]
         out, _   = self.lstm(features)
         return self.fc(out[:, -1, :])
+
+
+class vit_lstm(torch.nn.Module):
+    def __init__(self, classes=2):
+        super().__init__()
+        self.classes = classes  # Number of output classes
+
+        self.vit = models.vit_b_16(weights=models.ViT_B_16_Weights.IMAGENET1K_V1)
+        self.vit.heads = torch.nn.Identity()  # Remove the classification head
+        self.lstm = LSTM(input_size=768, hidden_size=256, num_layers=2, batch_first=True)
+
+        self.classifier = torch.nn.Linear(256, self.classes)  # Classification layer
+
+    def forward(self, x):
+        # x: [B, T, 3, 224, 224]
+        B, T, C, H, W = x.shape
+
+        # Merge batch and time
+        x = x.view(B*T, C, H, W)   # [B*T, 3, 224, 224]
+
+        # Pass through ViT
+        x = self.vit(x)            # [B*T, 768]
+
+        # Reshape back to sequence
+        x = x.view(B, T, -1)       # [B, T, 768]
+
+        # LSTM
+        x, _ = self.lstm(x)        # [B, T, 256]
+
+        # Take last time step
+        x = x[:, -1, :]            # [B, 256]
+
+        # Classifier
+        x = self.classifier(x)     # [B, classes]
+
+        return x
