@@ -194,16 +194,32 @@ class VGG19BNLSTM(nn.Module):
         return self.fc(out[:, -1, :])
 
 
-class vit_lstm(torch.nn.Module):
-    def __init__(self, classes=2):
+#  ViT 16 + LSTM
+class ViTLSTM(torch.nn.Module):
+    def __init__(self, num_classes=int):
         super().__init__()
-        self.classes = classes  # Number of output classes
+
+
+        self.classes = num_classes  # Number of output classes
 
         self.vit = models.vit_b_16(weights=models.ViT_B_16_Weights.IMAGENET1K_V1)
         self.vit.heads = torch.nn.Identity()  # Remove the classification head
-        self.lstm = LSTM(input_size=768, hidden_size=256, num_layers=2, batch_first=True)
+        self.lstm = torch.nn.LSTM(input_size=768, hidden_size=256, num_layers=2, batch_first=True)
 
-        self.classifier = torch.nn.Linear(256, self.classes)  # Classification layer
+        self.fc = torch.nn.Linear(256, self.classes)  # Classification layer
+
+
+        # Freeze all ViT parameters except the last 2 encoder layers
+        for param in self.vit.parameters():
+            param.requires_grad = False
+
+        for i, block in enumerate(self.vit.encoder.layers):
+            if i >= 10: 
+                for param in block.parameters(): param.requires_grad = True
+    
+        for param in self.lstm.parameters(): param.requires_grad = True
+        
+        for param in self.fc.parameters(): param.requires_grad = True
 
     def forward(self, x):
         # x: [B, T, 3, 224, 224]
@@ -225,6 +241,6 @@ class vit_lstm(torch.nn.Module):
         x = x[:, -1, :]            # [B, 256]
 
         # Classifier
-        x = self.classifier(x)     # [B, classes]
+        x = self.fc(x)     # [B, classes]
 
         return x

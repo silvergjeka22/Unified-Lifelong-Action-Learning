@@ -87,6 +87,7 @@ get_ipython().run_line_magic('run', '/content/src/models/pretrained.py')
 get_ipython().run_line_magic('run', '/content/src/models/baselines.py')
 get_ipython().run_line_magic('run', '/content/src/cl_strategies/reharsal.py')
 get_ipython().run_line_magic('run', '/content/src/cl_strategies/ewc.py')
+get_ipython().run_line_magic('run', '/content/src/knowledge_distillation/kd_methods.py')
 
 # meta-learning
 get_ipython().run_line_magic('run', '/content/src/meta_learning/models.py')

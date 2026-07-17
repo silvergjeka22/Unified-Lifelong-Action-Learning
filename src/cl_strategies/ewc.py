@@ -1,7 +1,8 @@
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
-
+from fine_tune.trainer import evaluate_model
+from tqdm import tqdm
 
 # global EWC
 EWC_LAMBDA  = 5000.0
@@ -184,15 +185,173 @@ def ewc_report(model, fisher_dict, optpar_dict):
             for n in names
         ]
         total_p = sum(penalty)
-        print(
-            f"  Task {tid} | Mean Fisher: {sum(f_mag)/len(f_mag):.6f} | "
-            f"Mean Drift: {sum(drift)/len(drift):.6f} | Total Penalty: {total_p:.4f}"
-        )
-        for rank, i in enumerate(
-            sorted(range(len(penalty)), key=lambda i: penalty[i], reverse=True)[:5], 1
-        ):
-            print(
-                f"    {rank}. {names[i][-45:]:<45}  "
-                f"{100 * penalty[i] / (total_p + 1e-12):5.1f}%"
-            )
+        print(f"  Task {tid} | Mean Fisher: {sum(f_mag)/len(f_mag):.4f} | "
+              f"Mean Drift: {sum(drift)/len(drift):.6f} | Total Penalty: {total_p:.4f}")
+        for rank, i in enumerate(sorted(range(len(penalty)), key=lambda i: penalty[i], reverse=True)[:5], 1):
+            print(f"    {rank}. {names[i][-45:]:<45}  {100*penalty[i]/(total_p+1e-12):5.1f}%")
     print("=" * 60)
+
+
+
+def theta_star(model):
+    "Where si the model."
+
+    theta_star = {
+        n: p.clone().detach()
+        for n, p in model.named_parameters()
+        if p.requires_grad
+    }
+
+    return theta_star
+
+
+def getFisherDiagonal(train_loader, model, fishermax=1e6, device='cuda'):
+
+    fisher = {
+        n: torch.zeros_like(p, device=device)
+        for n, p in model.named_parameters()
+        if p.requires_grad
+    }
+
+    model.train()
+    model.to(device)
+
+
+    for module in model.modules():
+        if isinstance(module, torch.nn.Dropout):
+            module.eval()
+
+
+    for inputs, targets in tqdm(train_loader, desc="Computing Fisher", leave=False):
+        inputs = inputs.to(device)
+        targets = targets.to(device)
+
+        model.zero_grad(set_to_none=True)
+
+        logits = model(inputs)
+        loss = torch.nn.functional.cross_entropy(logits, targets)
+
+        loss.backward()
+
+        for n, p in model.named_parameters():
+            if p.grad is not None:
+                fisher[n] += p.grad.pow(2)
+
+    # average over batches (standard)
+    for n in fisher:
+        fisher[n] /= len(train_loader.dataset)
+        fisher[n] = torch.clamp(fisher[n], min=0.0, max=1.0)
+
+    print(f"Fisher diagonal computed ")
+
+    return fisher
+
+
+
+def compute_ewc_loss(model, theta_star, fisher, lambda_ewc=5000, device='cuda'):
+    ewc_loss = 0.0
+
+    for n, p in model.named_parameters():
+        if p.requires_grad and n in theta_star and n in fisher:
+            old = theta_star[n].to(device)
+            f = fisher[n].to(device)
+
+            # SAFE handling
+            if p.shape == old.shape:
+                ewc_loss += (f * (p - old).pow(2)).sum()
+            else:
+                # handle classifier expansion
+                if len(p.shape) == 2:  # weight [C, D]
+                    c_old = old.shape[0]
+                    ewc_loss += (f[:c_old] *
+                                 (p[:c_old] - old).pow(2)).sum()
+
+                elif len(p.shape) == 1:  # bias [C]
+                    c_old = old.shape[0]
+                    ewc_loss += (f[:c_old] *
+                                 (p[:c_old] - old).pow(2)).sum()
+
+    return lambda_ewc * ewc_loss
+
+
+
+def train_one_epoch_EWC(model, train_loader, criterion, optimizer, device, theta_star, fisher):
+    """
+    Handles the training loop for a single epoch.
+    """
+    model.train()
+
+    for module in model.modules():
+        if isinstance(module, torch.nn.Dropout):
+            module.eval()
+
+    running_loss, correct, total = 0.0, 0, 0
+
+    for clips, labels in tqdm(train_loader, desc="  Training", leave=False):
+
+        clips, labels = clips.to(device), labels.to(device)
+
+        optimizer.zero_grad()
+        outputs = model(clips)
+        loss = criterion(outputs, labels) + compute_ewc_loss(model, theta_star, fisher)
+        loss.backward()
+        optimizer.step()
+
+        running_loss += loss.item() * labels.size(0)
+        preds = outputs.argmax(dim=1)
+        correct += (preds == labels).sum().item()
+        total += labels.size(0)
+
+    return correct / total, running_loss / total
+
+
+
+def train_cl_EWC(model, new_task_train_loader, new_task_val_loader, old_task_val_loader, device='cuda', num_epochs=10, lr=1e-5, theta_star=None, fisher=None):
+    """
+    
+        new_task_train_loader: DataLoader for the new task training set
+        new_task_val_loader: DataLoader for the new task validation set
+        old_task_val_loader: DataLoader for the old task validation set
+        device: Device to run the training on
+        num_epochs: Number of epochs to train for
+        lr: Learning rate
+        theta_star: Dictionary of optimal parameters
+        fisher: Dictionary of Fisher information matrices
+
+    """
+
+    model.to(device)
+
+    optimizer = torch.optim.Adam(filter(lambda p: p.requires_grad, model.parameters()), lr=lr)
+    criterion = torch.nn.CrossEntropyLoss()
+
+
+    history = {
+        'train_losses': [], 'val_losses': [],
+        'train_accs': [], 'val_accs': [],
+        'best_val_acc': 0.0
+    }
+
+
+    for epoch in range(num_epochs):
+        
+        train_acc, train_loss = train_one_epoch_EWC(model, new_task_train_loader, criterion, optimizer, device, theta_star,fisher)
+        # Validation on new task
+        
+        val_acc, val_loss = evaluate_model(model, new_task_val_loader, device)
+
+        old_task_acc, old_task_loss = evaluate_model(model, old_task_val_loader, device)
+
+        
+
+        print(f"Epoch [{epoch+1}/{num_epochs}] | "
+              f"Train Acc: {train_acc:.4f} Loss: {train_loss:.4f} | "
+              f"Val Acc: {val_acc:.4f} Loss: {val_loss:.4f} | "
+              f"Old task Acc: {old_task_acc:.4f} Oldtask Loss {old_task_loss:.4f} ")
+
+        history['train_losses'].append(train_loss)
+        history['train_accs'].append(train_acc)
+        history['val_losses'].append(val_loss)
+        history['val_accs'].append(val_acc)
+
+    return history
