@@ -7,9 +7,15 @@ from torchvision.models import (
     ResNet50_Weights,
     DenseNet121_Weights,
     VGG19_BN_Weights,
+    
 )
 from config.config import SELECTED_CLASSES
 from config.config import DROPOUT_P
+
+from torch.nn import LSTM
+import torch
+from torchvision import models
+
 
 num_classes = len(SELECTED_CLASSES)
 

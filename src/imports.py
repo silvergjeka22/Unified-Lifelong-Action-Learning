@@ -53,6 +53,10 @@ _SRC = _os.path.dirname(_os.path.abspath(__file__))
 if _SRC not in sys.path:
     sys.path.insert(0, _SRC)
 
+
+from plotly.offline import init_notebook_mode
+init_notebook_mode(connected=True)
+
 # config
 import config.config as cfg
 from config.config import (
@@ -84,3 +88,12 @@ get_ipython().run_line_magic('run', '/content/src/models/baselines.py')
 get_ipython().run_line_magic('run', '/content/src/cl_strategies/reharsal.py')
 get_ipython().run_line_magic('run', '/content/src/cl_strategies/ewc.py')
 get_ipython().run_line_magic('run', '/content/src/knowledge_distillation/kd_methods.py')
+
+# meta-learning
+get_ipython().run_line_magic('run', '/content/src/meta_learning/models.py')
+get_ipython().run_line_magic('run', '/content/src/meta_learning/sampler.py')
+get_ipython().run_line_magic('run', '/content/src/meta_learning/reptile.py')
+
+# kd
+get_ipython().run_line_magic('run', '/content/src/kd/utils.py')
+get_ipython().run_line_magic('run', '/content/src/kd/mseLoss.py')
