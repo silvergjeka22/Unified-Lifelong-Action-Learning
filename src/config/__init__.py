@@ -1,9 +1,6 @@
-from src.config.config import (
-    SELECTED_CLASSES, TASK_1, TASK_2, TASK_3, TASK_4,
-    CLASSES_20, CLASSES_30, CLASSES_40, CLASSES_50,
-    BATCH_SIZE, CLIP_LEN, CROP_SIZE, RESIZE_HEIGHT,
-    FRAME_RATE, TRAIN_SPLIT, SEED, DROPOUT_P,
-    DATASET_ROOT, OUTPUT_ROOT,
-    BASE_ROOT, TASK1_ROOT, TASK2_ROOT, TASK3_ROOT, TASK4_ROOT,
-    RESNET50_PATH, spatial_transform,
-)
+# Import config through the package path:
+#     import src.config.config as cfg
+#
+# This file used to re-export names from src.config.config, which recursed when
+# the same file was also reachable as top-level `config` (two sys.path roots).
+# imports.py now uses a single root, so no re-export is needed here.

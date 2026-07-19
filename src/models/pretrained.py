@@ -8,8 +8,8 @@ from torchvision.models import (
     DenseNet121_Weights,
     VGG19_BN_Weights,
 )
-from config.config import SELECTED_CLASSES
-from config.config import DROPOUT_P
+from src.config.config import SELECTED_CLASSES
+from src.config.config import DROPOUT_P
 
 num_classes = len(SELECTED_CLASSES)
 
@@ -115,14 +115,6 @@ def update_dropout(model, new_p):
             module.p = new_p
     print(f"Dropout updated to p={new_p}")
     return model
-
-
-def unfreeze_all(model):
-    """Make every parameter trainable (naive upper-bound baseline)."""
-    for param in model.parameters():
-        param.requires_grad = True
-    return model
-
 
 #  DenseNet121 + LSTM
 class DenseNet121LSTM(nn.Module):

@@ -1,9 +1,30 @@
-#  SHARED IMPORTS -> run with: %run /content/src/imports.py
-import sys
-sys.path.insert(0, '/content')
-sys.path.insert(0, '/content/src')
+#  SHARED IMPORTS -> run with: %run /content/ulal/src/imports.py
+#
+# Loads every project symbol into the notebook namespace via %run.
+#
+# Two bugs fixed in this refactor:
+#
+#  1. LOAD ORDER. src/meta_learning/ and src/fine_tune/{trainer,visualizer}.py
+#     were %run AFTER src/models/ and src/utils/, so the deprecated copies
+#     silently overwrote the real ones — 21 name collisions including
+#     ResNet50LSTMTeacher, EmbeddingHead, train_model, evaluate_model.
+#     Editing src/models/teacher.py had NO effect on any notebook.
+#     Those loads are gone; delete the folders when convenient.
+#
+#  2. DOUBLE CONFIG. `import config.config` (via /content/ulal/src on the path)
+#     and `from src.config.config import ...` (via /content/ulal) produced two
+#     distinct module objects holding two copies of every value, so mutating
+#     cfg.X through one path was invisible through the other. We now put only
+#     the repo root on sys.path and import through `src.` exclusively.
 
 import os
+import sys
+
+# Repo root = parent of this file's directory. Works wherever the repo is cloned.
+ULAL_ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+if ULAL_ROOT not in sys.path:
+    sys.path.insert(0, ULAL_ROOT)
+
 import cv2
 import copy
 import json
@@ -38,6 +59,7 @@ from torchvision.models import (
     ResNet18_Weights,
     DenseNet121_Weights,
     VGG19_BN_Weights,
+    MobileNet_V3_Small_Weights,
 )
 
 # sklearn
@@ -53,88 +75,68 @@ from sklearn.manifold import TSNE
 from sklearn.decomposition import PCA
 
 # torchinfo
-subprocess.run(["pip", "install", "torchinfo", "-q"], capture_output=True)
+subprocess.run([sys.executable, "-m", "pip", "install", "torchinfo", "-q"], capture_output=True)
 from torchinfo import summary
 
-# config
-import config.config as cfg
-from config.config import (
-    DATASET_ROOT,
-    OUTPUT_ROOT,
-    BASE_ROOT, TASK1_ROOT, TASK2_ROOT, TASK3_ROOT, TASK4_ROOT,
-    SELECTED_CLASSES, TASK_1, TASK_2, TASK_3, TASK_4,
-    CLASSES_20, CLASSES_30, CLASSES_40, CLASSES_50,
-    BATCH_SIZE, NUM_WORKERS,
-    FRAME_RATE, CLIP_LEN, RESIZE_HEIGHT, CROP_SIZE,
-    TRAIN_SPLIT, SEED,
-    DROPOUT_P,
-    spatial_transform,
-    RESNET50_PATH,
-    DRIVE_PROJECT, CKPT_DIR, RESULTS_DIR, GIL_CKPT_DIR,
-    EXEMPLAR_ROOT, SUBSET1_ROOT, LIMITED_SUBSET1_ROOT, SUBSET2_ROOT,
-    EXEMPLAR_LIMIT,
-    TEACHER_HIDDEN, STUDENT_HIDDEN, HEAD_DROPOUT, STUDENT_DROPOUT,
-    EWC_LAMBDA, EWC_LR, EWC_WD, EWC_EPOCHS,
-    LAMBDA_DISTILL, REPLAY_EPOCHS, REPLAY_LR,
-    CE_WEIGHT, MSE_WEIGHT,
-    K_SHOT, K_QUERY, K_SUPPORT,
-    INNER_LR, INNER_STEPS, SRC_EPSILON,
-    REPTILE_EPOCHS, EPISODES_PER_EPOCH, REPTILE_PATIENCE,
-    FINETUNE_EPOCHS, FINETUNE_LR, FINETUNE_WD, FINETUNE_BATCH,
-    FINETUNE_PATIENCE, LABEL_SMOOTHING,
-    AL_BUDGET_PER_CLASS, AL_STRATEGY,
-    ADAPT_INNER_LR, ADAPT_INNER_STEPS, ADAPT_EPSILON, ADAPT_EPISODES,
-    CLIPS_PER_VID, YT_RAW_DIR, YT_CLIPS_DIR, YOUTUBE_CLIPS,
-    FEAT_DIM, LATENT_DIM, NOISE_DIM, SEM_DIM,
-    GAN_EPOCHS, GAN_LR, LAM1, LAM2, ALPHA_GP, N_CRITIC,
-    FT_EPOCHS, FT_LR, BATCH_SIZE_GAN, J_SYNTH,
-    CVAE_LR, CVAE_EPOCHS, CVAE_INIT_EPOCHS,
-)
+# ── config — ONE import root ─────────────────────────────────────────────────
+import src.config.config as cfg
+from src.config.config import *          # noqa: F403  (paths, class splits, hyperparams)
 
 # device
 device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
-print("Using device:", device)
 
-# project modules (executed via %run so all symbols land in notebook namespace)
+# ── project modules (%run so all symbols land in the notebook namespace) ─────
 _ipython = get_ipython()
 
-_ipython.run_line_magic('run', '/content/src/data/study_dataset.py')
-_ipython.run_line_magic('run', '/content/src/data/preprocessing.py')
-_ipython.run_line_magic('run', '/content/src/data/dataset.py')
-_ipython.run_line_magic('run', '/content/src/data/youtube.py')
+def _run(rel):
+    _ipython.run_line_magic("run", os.path.join(ULAL_ROOT, rel))
 
-_ipython.run_line_magic('run', '/content/src/fine_tune/trainer.py')
-_ipython.run_line_magic('run', '/content/src/fine_tune/visualizer.py')
+# data
+_run("src/data/study_dataset.py")
+_run("src/data/preprocessing.py")
+_run("src/data/dataset.py")
+_run("src/data/cache.py")           # feature cache + label space
+_run("src/data/youtube.py")
 
-_ipython.run_line_magic('run', '/content/src/models/pretrained.py')
-_ipython.run_line_magic('run', '/content/src/models/baselines.py')
-_ipython.run_line_magic('run', '/content/src/models/teacher.py')
-_ipython.run_line_magic('run', '/content/src/models/student.py')
-_ipython.run_line_magic('run', '/content/src/models/head.py')
-_ipython.run_line_magic('run', '/content/src/models/temporal_head.py')
+# models
+_run("src/models/pretrained.py")
+_run("src/models/baselines.py")
+_run("src/models/teacher.py")
+_run("src/models/student.py")
+_run("src/models/head.py")
+_run("src/models/temporal_head.py")      # TemporalHead + weight_align
 
-_ipython.run_line_magic('run', '/content/src/cl/ewc.py')
-_ipython.run_line_magic('run', '/content/src/cl/rehearsal.py')
-_ipython.run_line_magic('run', '/content/src/cl/smart_replay.py')
-_ipython.run_line_magic('run', '/content/src/cl/naive.py')
+# continual learning
+_run("src/cl/ewc.py")
+_run("src/cl/rehearsal.py")
+_run("src/cl/smart_replay.py")
+_run("src/cl/trainer.py")        # train_cl_arm — one loop for every CL arm
 
-_ipython.run_line_magic('run', '/content/src/meta/reptile.py')
-_ipython.run_line_magic('run', '/content/src/meta/sampler.py')
+# meta-learning  (src/meta/, NOT the deprecated src/meta_learning/)
+_run("src/meta/reptile.py")
+_run("src/meta/sampler.py")
 
-_ipython.run_line_magic('run', '/content/src/meta_learning/models.py')
-_ipython.run_line_magic('run', '/content/src/meta_learning/sampler.py')
-_ipython.run_line_magic('run', '/content/src/meta_learning/reptile.py')
+# knowledge distillation
+_run("src/kd/utils.py")
+_run("src/kd/trainer.py")
 
-_ipython.run_line_magic('run', '/content/src/kd/utils.py')
-_ipython.run_line_magic('run', '/content/src/kd/trainer.py')
-_ipython.run_line_magic('run', '/content/src/kd/mseLoss.py')
+# active domain adaptation
+_run("src/active/acquisition.py")
+_run("src/active/domain_shift.py")
 
-_ipython.run_line_magic('run', '/content/src/active/acquisition.py')
-_ipython.run_line_magic('run', '/content/src/active/domain_shift.py')
+# GIL GAN
+_run("src/gil/gil_gan.py")
 
-_ipython.run_line_magic('run', '/content/src/fine_tune/gil_gan.py')
+# utils  (loaded last so these definitions win)
+_run("src/utils/metrics.py")
+_run("src/utils/visualize.py")
+_run("src/utils/save.py")
+_run("src/utils/train.py")
 
-_ipython.run_line_magic('run', '/content/src/utils/metrics.py')
-_ipython.run_line_magic('run', '/content/src/utils/visualize.py')
-_ipython.run_line_magic('run', '/content/src/utils/save.py')
-_ipython.run_line_magic('run', '/content/src/utils/train.py')
+print(f"ULAL_ROOT : {ULAL_ROOT}")
+print(f"Device    : {device}")
+if torch.cuda.is_available():
+    _p = torch.cuda.get_device_properties(0)
+    print(f"GPU       : {_p.name} ({_p.total_memory / 1e9:.1f} GB)")
+print(f"Classes   : base={len(cfg.SELECTED_CLASSES)} t1={len(cfg.TASK_1)} "
+      f"t2={len(cfg.TASK_2)} t3={len(cfg.TASK_3)} t4={len(cfg.TASK_4)}")

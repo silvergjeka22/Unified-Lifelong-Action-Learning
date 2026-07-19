@@ -508,7 +508,7 @@ def run_incremental_baseline(
     strategy: 'none' | 'random' | 'gil'
     Returns list of base-class accuracies per iteration.
     """
-    import config.config as _cfg
+    import src.config.config as _cfg
     from src.utils.train import chunks as _chunks
 
     num_base    = len(_cfg.SELECTED_CLASSES)

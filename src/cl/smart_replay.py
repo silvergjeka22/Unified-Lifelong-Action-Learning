@@ -32,7 +32,10 @@ class SmartReplayBuffer:
 
     # ── Adding / updating a class ─────────────────────────────────────────────
     def add_class(self, class_idx: int, s_embs: torch.Tensor,
-                  t_embs: torch.Tensor, strategy: str = "hard"):
+                  t_embs: torch.Tensor = None, strategy: str = "hard"):
+        """t_embs may be None before the KD stage — no teacher target exists yet."""
+        if t_embs is None:
+            t_embs = torch.zeros(s_embs.shape[0], 0)
         # flatten(1) keeps this shape-agnostic: works for (N, D) latents and for
         # (N, T, D) frame-feature sequences alike.
         flat  = s_embs.flatten(1).float()

@@ -3,22 +3,6 @@ import random
 from torch.utils.data import DataLoader, TensorDataset
 import numpy as np
 
-
-def limit_to_k_per_class(s_embs, t_embs, labels, k_per_class=5, seed=42):
-    """
-    Subsample at most k_per_class examples per class, keeping s/t/label aligned.
-    Returns (s_subset, t_subset, label_subset).
-    """
-    rng = random.Random(seed)
-    selected = []
-    for cls in labels.unique().tolist():
-        idxs = (labels == cls).nonzero(as_tuple=True)[0].tolist()
-        rng.shuffle(idxs)
-        selected.extend(idxs[:k_per_class])
-    selected = torch.tensor(selected)
-    return s_embs[selected], t_embs[selected], labels[selected]
-
-
 @torch.no_grad()
 def extract_embeddings(model, loader, device):
     model.eval()
@@ -122,19 +106,3 @@ def process_dataloader(dataloader, model, features_file, labels_file, device=Non
     print(f"Saved features to {features_file}")
     print(f"Saved labels to {labels_file}")
     return all_features, all_labels
-
-
-@torch.no_grad()
-def compare_head_vs_student_on_same_batch(student, head, loader, device, max_batches=1):
-    student.eval()
-    head.eval()
-    checked = 0
-    for x, _ in loader:
-        x = x.to(device)
-        slogits, semb = student(x)
-        hlogits, _ = head(semb, training=False)
-        diff = (slogits - hlogits).abs().max().item()
-        print(f"  max|student_logits - head_logits| = {diff:.6e}")
-        checked += 1
-        if checked >= max_batches:
-            break
