@@ -4,7 +4,7 @@ import os
 import cv2, torch, random
 from PIL import Image
 from tqdm import tqdm
-import config.config as cfg
+import src.config.config as cfg
 
 
 def extract_frames(video_path, target_fps=cfg.FRAME_RATE):

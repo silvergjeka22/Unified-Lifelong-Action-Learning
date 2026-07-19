@@ -65,6 +65,53 @@ class TemporalHead(nn.Module):
         return sum(p.numel() for p in self.parameters() if p.requires_grad)
 
 
+def make_temporal_head(num_classes: int, freeze_lstm: bool, lstm_state: dict = None,
+                       device=None, backbone_dim: int = None, hidden_size: int = None,
+                       teacher_hidden: int = None, dropout_p: float = None):
+    """
+    Build a TemporalHead using project config defaults, optionally seeded with the
+    Task-0 LSTM weights.
+
+    Seeding matters for the freeze-boundary study: probes A and B must start from an
+    identical initialisation so the ONLY variable is whether the LSTM may move.
+    """
+    import src.config.config as cfg
+
+    head = TemporalHead(
+        backbone_dim   = backbone_dim   if backbone_dim   is not None else cfg.BACKBONE_DIM,
+        hidden_size    = hidden_size    if hidden_size    is not None else cfg.TEACHER_HIDDEN,
+        teacher_hidden = teacher_hidden if teacher_hidden is not None else cfg.TEACHER_HIDDEN,
+        num_classes    = num_classes,
+        dropout_p      = dropout_p      if dropout_p      is not None else cfg.HEAD_DROPOUT,
+        freeze_lstm    = freeze_lstm,
+    )
+    if lstm_state is not None:
+        head.load_lstm_state(lstm_state)
+    return head.to(device) if device is not None else head
+
+
+def expand_head(head, new_num_classes: int):
+    """
+    Grow head.classifier to cover new classes, preserving old-class rows.
+
+    Mutates in place (rather than returning a fresh module) so that any ModelWrapper
+    already wrapping this head picks up the new layer automatically — EWC's Fisher
+    bookkeeping depends on that.
+
+    Note src/models/pretrained.py has expand_classifier(), but it targets `model.fc`;
+    TemporalHead and EmbeddingHead both use `.classifier`.
+    """
+    old = head.classifier
+    if new_num_classes <= old.out_features:
+        return head
+    new = nn.Linear(old.in_features, new_num_classes)
+    with torch.no_grad():
+        new.weight[:old.out_features] = old.weight
+        new.bias[:old.out_features]   = old.bias
+    head.classifier = new.to(next(head.parameters()).device)
+    return head
+
+
 def weight_align(head, n_old: int):
     """
     Weight Aligning (Zhao et al., CVPR 2020) — rescale new-class classifier rows so

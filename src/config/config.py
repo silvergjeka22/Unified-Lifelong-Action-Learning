@@ -3,25 +3,35 @@ import os
 from torchvision import transforms
 
 # DATASET PATHS
-# Auto-updated by setup_colab.sh do not edit manually
-DATASET_ROOT = "/root/.cache/kagglehub/datasets/matthewjansen/ucf101-action-recognition/versions/4/"
-OUTPUT_ROOT  = "/content/ucf101-processed/"
+# Driven by environment variables — set them before importing, or accept the
+# defaults. bootstrap.setup_dataset() sets them automatically on Colab.
+#
+# Nothing rewrites this file at runtime any more: the old setup_colab.sh used
+# sed to patch DATASET_ROOT/OUTPUT_ROOT in place and then forced a kernel
+# restart. That made the file differ from git, and a re-clone silently reverted
+# your paths. Env vars keep the file immutable.
+DATASET_ROOT = os.environ.get(
+    "ULAL_DATASET_ROOT",
+    "/root/.cache/kagglehub/datasets/matthewjansen/ucf101-action-recognition/versions/4/",
+)
+OUTPUT_ROOT  = os.environ.get("ULAL_OUTPUT_ROOT", "/content/ucf101-processed/")
 
-# processed data paths
-BASE_ROOT  = "./UCF101/processed_data_base"
-TASK1_ROOT = "./UCF101/processed_data_task1"
-TASK2_ROOT = "./UCF101/processed_data_task2"
-TASK3_ROOT = "./UCF101/processed_data_task3"
-TASK4_ROOT = "./UCF101/processed_data_task4"
-
-# resnet50 path
-RESNET50_PATH = "/content/drive/MyDrive/apai/resnet50/models/ResNet50_10C.pth"
+# processed data paths — kept under DATA_ROOT so they survive a repo re-clone
+DATA_ROOT  = os.environ.get("ULAL_DATA_ROOT", "/content/UCF101")
+BASE_ROOT  = f"{DATA_ROOT}/processed_data_base"
+TASK1_ROOT = f"{DATA_ROOT}/processed_data_task1"
+TASK2_ROOT = f"{DATA_ROOT}/processed_data_task2"
+TASK3_ROOT = f"{DATA_ROOT}/processed_data_task3"
+TASK4_ROOT = f"{DATA_ROOT}/processed_data_task4"
 
 # ── Drive paths ───────────────────────────────────────────────────────────────
-DRIVE_PROJECT = "/content/drive/MyDrive/apai"
-CKPT_DIR      = f"{DRIVE_PROJECT}/checkpoints"
-RESULTS_DIR   = f"{DRIVE_PROJECT}/results"
-GIL_CKPT_DIR  = f"{DRIVE_PROJECT}/gil"
+DRIVE_PROJECT = os.environ.get("ULAL_DRIVE_PROJECT", "/content/drive/MyDrive/apai")
+
+# resnet50 path (Section 1 output)
+RESNET50_PATH = os.environ.get(
+    "ULAL_RESNET50_PATH", f"{DRIVE_PROJECT}/resnet50/models/ResNet50_10C.pth"
+)
+# (CKPT_DIR / RESULTS_DIR / CACHE_DIR / GIL_CKPT_DIR defined below, after DATA_ROOT)
 
 # CLASSES
 SELECTED_CLASSES = [
@@ -112,11 +122,22 @@ DROPOUT_P = 0.4
 random.seed(SEED)
 
 # ── CL experiment paths ───────────────────────────────────────────────────────
-EXEMPLAR_ROOT        = "./UCF101/processed_exemplars"
-SUBSET1_ROOT         = "./UCF101/processed_subset1"
-LIMITED_SUBSET1_ROOT = "./UCF101/processed_limited_subset1"
-SUBSET2_ROOT         = "./UCF101/processed_subset2"
+EXEMPLAR_ROOT        = f"{DATA_ROOT}/processed_exemplars"
+SUBSET1_ROOT         = f"{DATA_ROOT}/processed_subset1"
+LIMITED_SUBSET1_ROOT = f"{DATA_ROOT}/processed_limited_subset1"
+SUBSET2_ROOT         = f"{DATA_ROOT}/processed_subset2"
 EXEMPLAR_LIMIT       = 5     # max train samples per class for exemplar sets
+
+# ── Derived Drive paths (Section outputs) ────────────────────────────────────
+CKPT_DIR     = f"{DRIVE_PROJECT}/checkpoints"
+RESULTS_DIR  = f"{DRIVE_PROJECT}/results"
+CACHE_DIR    = f"{DRIVE_PROJECT}/cache"
+GIL_CKPT_DIR = f"{DRIVE_PROJECT}/gil"
+FEAT_CACHE   = f"{CACHE_DIR}/ulal_frame_features.pt"
+
+# ── Frame-feature caching (Section 2) ────────────────────────────────────────
+BACKBONE_DIM = 2048          # ResNet50 pooled output per frame
+STORE_DTYPE  = "float16"     # on-disk dtype for cached features
 
 # ── Teacher / Student architecture ───────────────────────────────────────────
 TEACHER_HIDDEN  = 256

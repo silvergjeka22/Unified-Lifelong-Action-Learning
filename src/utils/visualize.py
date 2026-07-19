@@ -70,15 +70,6 @@ def plot_training_results(results, task_name="", save_path=None):
 
 
 # Backward-compatible alias (accepts flat lists instead of the history dict)
-def plot_train_val_results(train_acc, val_acc, train_loss, val_loss,
-                          task_index=1, save_path=None):
-    plot_training_results(
-        {"train_accs": train_acc, "val_accs": val_acc,
-         "train_losses": train_loss, "val_losses": val_loss},
-        task_name=f"Task {task_index}",
-        save_path=save_path,
-    )
-
 
 # CONFUSION MATRIX
 def plot_confusion_matrix(all_labels, all_preds,
@@ -176,65 +167,8 @@ def _draw_cm(data, fmt, cmap, title, tick_labels, save_path=None, suffix=""):
 
 
 # Convenience alias — infers num_classes from data if classes not provided
-def plot_confusion_matrix_from_preds(all_labels, all_preds,
-                                     name="task", classes=None,
-                                     save_path=None):
-    """
-    Same as plot_confusion_matrix() but infers class names automatically
-    when classes is None. Useful for quick inspection in notebooks.
-
-    Usage:
-        plot_confusion_matrix_from_preds(labels, preds, name="Task 1")
-    """
-    all_labels = np.array(all_labels)
-    all_preds  = np.array(all_preds)
-
-    if classes is None:
-        n = int(max(all_labels.max(), all_preds.max()) + 1)
-        classes = [str(i) for i in range(n)]
-
-    plot_confusion_matrix(
-        all_labels, all_preds,
-        num_classes=len(classes),
-        classes_list=classes,
-        name=name,
-        save_path=save_path,
-    )
-
 
 # COLLECT PREDICTIONS
-def collect_predictions(loader, model, device, task_offset=0):
-    """
-    Run inference on a DataLoader and return labels + predictions as numpy
-    arrays. Global labels are produced by applying task_offset.
-
-    Args:
-        loader       : DataLoader
-        model        : PyTorch model
-        device       : "cuda" or "cpu"
-        task_offset  : global label offset for CL (default 0 = no shift)
-
-    Returns:
-        (all_labels, all_preds) — both np.ndarray
-
-    Usage:
-        labels, preds = collect_predictions(test_loader, model, device)
-        labels, preds = collect_predictions(t1_loader, model, device, task_offset=10)
-    """
-    model.to(device)
-    model.eval()
-    all_labels, all_preds = [], []
-
-    with torch.no_grad():
-        for x, y in loader:
-            x      = x.to(device)
-            y      = (y + task_offset).to(device).long()
-            preds  = torch.argmax(model(x), dim=1)
-            all_labels.extend(y.cpu().numpy())
-            all_preds.extend(preds.cpu().numpy())
-
-    return np.array(all_labels), np.array(all_preds)
-
 
 # CONTINUAL LEARNING — FORGETTING PLOT
 def plot_cl_forgetting(snapshots, save_path=None):
