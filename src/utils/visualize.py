@@ -243,3 +243,122 @@ def plot_cl_forgetting(snapshots, save_path=None):
     if save_path:
         plt.savefig(save_path, bbox_inches="tight", dpi=150)
     plt.show()
+
+
+# ══════════════════════════════════════════════════════════════════════════════
+# Embedding-space diagnostics (Section 2) — see src/utils/probe.py
+# ══════════════════════════════════════════════════════════════════════════════
+
+def plot_probe_bars(report: dict, ax=None, save=None):
+    """
+    Probe accuracy per task group vs chance.
+
+    The gap between the bar and its chance line is the real signal: a 3-way task at
+    90% is far less impressive than a 16-way joint probe at 70%.
+    """
+    import matplotlib.pyplot as plt
+    import numpy as np
+
+    own = ax is None
+    if own:
+        _, ax = plt.subplots(figsize=(8, 4))
+
+    names  = list(report)
+    linear = [report[n]["linear"] for n in names]
+    knn    = [report[n]["knn"] for n in names]
+    chance = [report[n]["chance"] for n in names]
+
+    x, w = np.arange(len(names)), 0.36
+    ax.bar(x - w / 2, linear, w, label="linear probe", color="#2563EB")
+    ax.bar(x + w / 2, knn,    w, label="1-NN",         color="#93C5FD")
+    for i, c in enumerate(chance):
+        ax.plot([i - 0.45, i + 0.45], [c, c], color="#DC2626", lw=2,
+                label="chance" if i == 0 else None)
+    for i, v in enumerate(linear):
+        ax.text(i - w / 2, v + 0.02, f"{v:.0%}", ha="center", fontsize=8, fontweight="bold")
+
+    ax.set_xticks(x); ax.set_xticklabels(names)
+    ax.set_ylim(0, 1.12); ax.set_ylabel("Accuracy on held-out test split")
+    ax.set_title("Can the FROZEN features separate each group?", fontsize=11)
+    ax.legend(fontsize=8); ax.grid(alpha=0.3, axis="y")
+
+    if own:
+        plt.tight_layout()
+        if save:
+            plt.savefig(save, dpi=150, bbox_inches="tight")
+        plt.show()
+    return ax
+
+
+def plot_latent_space(xy, labels, class_names, title="Latent space", ax=None,
+                      save=None, task_of=None, legend=True):
+    """
+    2-D scatter of the embedding space, one colour per class.
+
+    task_of: optional {label: task_index}. When given, classes are coloured by TASK
+    rather than individually — which is how you see whether the tasks occupy separate
+    regions or sit on top of each other.
+    """
+    import matplotlib.pyplot as plt
+    import numpy as np
+
+    own = ax is None
+    if own:
+        _, ax = plt.subplots(figsize=(7, 6))
+
+    if task_of is not None:
+        tcol = ["#2563EB", "#DC2626", "#16A34A", "#D97706", "#7C3AED"]
+        for t in sorted(set(task_of.values())):
+            mask = np.array([task_of.get(int(l), -1) == t for l in labels])
+            if mask.sum():
+                ax.scatter(xy[mask, 0], xy[mask, 1], s=14, alpha=0.6,
+                           color=tcol[t % len(tcol)], label=f"Task {t}")
+    else:
+        uniq = sorted(set(int(l) for l in labels))
+        cmap = plt.cm.tab20(np.linspace(0, 1, max(len(uniq), 2)))
+        for i, c in enumerate(uniq):
+            mask = labels == c
+            ax.scatter(xy[mask, 0], xy[mask, 1], s=14, alpha=0.7, color=cmap[i],
+                       label=class_names[c] if c < len(class_names) else str(c))
+
+    ax.set_title(title, fontsize=11)
+    ax.set_xticks([]); ax.set_yticks([])
+    if legend:
+        ax.legend(fontsize=6, loc="best", markerscale=1.6, ncol=2)
+
+    if own:
+        plt.tight_layout()
+        if save:
+            plt.savefig(save, dpi=150, bbox_inches="tight")
+        plt.show()
+    return ax
+
+
+def plot_centroid_heatmap(labels, dist, class_names, ax=None, save=None):
+    """
+    Pairwise distance between class centroids.
+
+    Dark off-diagonal cells = classes that live in the same region. Those are the pairs
+    that will fight during continual learning — this plot predicts your confusions
+    before you train anything.
+    """
+    import matplotlib.pyplot as plt
+
+    own = ax is None
+    if own:
+        _, ax = plt.subplots(figsize=(9, 7.5))
+
+    names = [class_names[l] if l < len(class_names) else str(l) for l in labels]
+    im = ax.imshow(dist, cmap="viridis")
+    ax.set_xticks(range(len(names))); ax.set_xticklabels(names, rotation=90, fontsize=7)
+    ax.set_yticks(range(len(names))); ax.set_yticklabels(names, fontsize=7)
+    ax.set_title("Distance between class centroids\n(dark = similar = will compete)",
+                 fontsize=11)
+    plt.colorbar(im, ax=ax, fraction=0.046, label="L2 distance")
+
+    if own:
+        plt.tight_layout()
+        if save:
+            plt.savefig(save, dpi=150, bbox_inches="tight")
+        plt.show()
+    return ax

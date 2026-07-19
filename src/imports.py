@@ -129,6 +129,7 @@ _run("src/gil/gil_gan.py")
 
 # utils  (loaded last so these definitions win)
 _run("src/utils/metrics.py")
+_run("src/utils/probe.py")          # embedding-quality probes
 _run("src/utils/visualize.py")
 _run("src/utils/save.py")
 _run("src/utils/train.py")
