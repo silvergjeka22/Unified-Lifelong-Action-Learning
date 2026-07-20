@@ -46,13 +46,13 @@ TASK_1 = [
     "ApplyEyeMakeup",
     "ApplyLipstick",
     "Archery",
-    #"BabyCrawling",
-    #"BalanceBeam",
-    #"BandMarching",
-    #"BlowDryHair",
-    #"BlowingCandles",
-    #"BodyWeightSquats",
-    #"Bowling",
+    "BabyCrawling",
+    "BalanceBeam",
+    "BandMarching",
+    "BlowDryHair",
+    "BlowingCandles",
+    "BodyWeightSquats",
+    "Bowling",
 ]
 
 CLASSES_20 = SELECTED_CLASSES + TASK_1
@@ -61,13 +61,13 @@ TASK_2 = [
     "BoxingPunchingBag",
     "BoxingSpeedBag",
     "BrushingTeeth",
-    #"CliffDiving",
-    #"CricketBowling",
-    #"CricketShot",
-    #"CuttingInKitchen",
-    #"FieldHockeyPenalty",
-    #"Haircut",
-    #"SoccerPenalty",
+    "CliffDiving",
+    "CricketBowling",
+    "CricketShot",
+    "CuttingInKitchen",
+    "FieldHockeyPenalty",
+    "Haircut",
+    "SoccerPenalty",
 ]
 
 CLASSES_30 = CLASSES_20 + TASK_2

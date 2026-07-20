@@ -1,46 +1,3 @@
-"""
-ULAL bootstrap — repo checkout, dataset download, path setup.
-
-Replaces bash/fetch_src.sh and bash/setup_colab.sh.
-
-What was wrong with the old scripts:
-
-  fetch_src.sh
-    - had to already exist on Drive before you could run it (chicken-and-egg)
-    - downloaded every file individually through the GitHub API (hundreds of
-      requests, slow, rate-limitable)
-    - `BRANCH="GAN&ActiveLearning"` unquoted in shell -> the `&` backgrounds
-      the command
-
-  setup_colab.sh
-    - rewrote src/config/config.py in place with sed, so the working tree
-      differed from git and a re-clone silently reverted your paths
-    - forced a kernel restart in the middle of a notebook run
-
-Now: one `git clone --depth 1` (a single request), and paths travel through
-environment variables so config.py is never modified.
-
-Usage in a notebook — one self-contained cell, no Drive dependency:
-
-    import os, sys, subprocess
-    from getpass import getpass
-    BRANCH, REPO, ROOT = "GAN&ActiveLearning", "silvergjeka22/Unified-Lifelong-Action-Learning", "/content/ulal"
-    tok = os.environ.get("GITHUB_TOKEN") or getpass("GitHub token: ")
-    if os.path.isdir(ROOT + "/.git"):
-        subprocess.run(["git","-C",ROOT,"fetch","--depth","1","origin",BRANCH], check=True)
-        subprocess.run(["git","-C",ROOT,"reset","--hard","FETCH_HEAD"], check=True)
-    else:
-        subprocess.run(["git","clone","--depth","1","--branch",BRANCH,
-                        f"https://{tok}@github.com/{REPO}.git", ROOT], check=True)
-    sys.path.insert(0, ROOT)
-
-Then:
-
-    from src.bootstrap import setup
-    setup(drive=True, dataset=True)
-    %run /content/ulal/src/imports.py
-"""
-
 import os
 import subprocess
 import sys
@@ -48,7 +5,7 @@ import sys
 DEFAULT_ROOT = "/content/ulal"
 
 
-# ── Repo checkout ─────────────────────────────────────────────────────────────
+# Repo checkout
 def clone_or_pull(repo: str, branch: str, root: str = DEFAULT_ROOT, token: str = None):
     """
     Shallow-clone the repo, or fast-forward it if already present.
@@ -87,7 +44,7 @@ def clone_or_pull(repo: str, branch: str, root: str = DEFAULT_ROOT, token: str =
     return root
 
 
-# ── Drive ─────────────────────────────────────────────────────────────────────
+# Drive
 def mount_drive():
     try:
         from google.colab import drive
@@ -100,7 +57,7 @@ def mount_drive():
     return True
 
 
-# ── Dataset ───────────────────────────────────────────────────────────────────
+# Dataset
 def setup_dataset(kaggle_version: str = "4"):
     """
     Download UCF101 via kagglehub and export the paths as env vars.
@@ -131,7 +88,7 @@ def setup_dataset(kaggle_version: str = "4"):
     return dataset_root, output_root
 
 
-# ── One-call setup ────────────────────────────────────────────────────────────
+# One-call setup
 def setup(drive: bool = True, dataset: bool = True, data_root: str = "/content/UCF101",
           drive_project: str = "/content/drive/MyDrive/apai", kaggle_version: str = "4"):
     """Mount Drive, download the dataset, export every path config.py reads."""
