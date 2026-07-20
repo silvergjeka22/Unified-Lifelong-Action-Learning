@@ -92,6 +92,124 @@ def check_group_leakage(target_classes=None, input_root=None, splits=None):
     return leaking
 
 
+def build_group_split(target_classes=None, input_root=None, splits=None,
+                      train_groups=18, val_groups=3):
+    """
+    Group-disjoint split. Returns {split: {class: [video paths]}}.
+
+    Pools every video regardless of which folder the dataset shipped it in, groups them
+    by their v_Class_gXX key, and assigns WHOLE groups to one split. Because one group
+    is one source video, no frame of a test video can appear in training.
+
+    Groups are ordered by name and cut by index, so the split is deterministic and needs
+    no seed. UCF101 has 25 groups per class: 18/3/4 gives roughly 72/12/16 percent.
+    """
+    target_classes = target_classes or cfg.SELECTED_CLASSES
+    splits         = splits or ["train", "val", "test"]
+    input_root     = input_root or cfg.DATASET_ROOT
+
+    split_map = {"train": {}, "val": {}, "test": {}}
+
+    for cls in target_classes:
+        by_group = {}
+        for split in splits:
+            class_path = os.path.join(input_root, split, cls)
+            if not os.path.isdir(class_path):
+                continue
+            for vid in os.listdir(class_path):
+                if not vid.endswith(".avi"):
+                    continue
+                key = "_".join(vid.split("_")[:3])
+                by_group.setdefault(key, []).append(os.path.join(class_path, vid))
+
+        keys = sorted(by_group)
+        train_keys = keys[:train_groups]
+        val_keys   = keys[train_groups:train_groups + val_groups]
+        test_keys  = keys[train_groups + val_groups:]
+
+        split_map["train"][cls] = [p for k in train_keys for p in sorted(by_group[k])]
+        split_map["val"][cls]   = [p for k in val_keys   for p in sorted(by_group[k])]
+        split_map["test"][cls]  = [p for k in test_keys  for p in sorted(by_group[k])]
+
+    return split_map
+
+
+def describe_group_split(split_map, target_classes=None):
+    """Print clip counts per split and confirm the group assignment is disjoint."""
+    target_classes = target_classes or sorted(split_map["train"])
+
+    totals = {}
+    for split in ["train", "val", "test"]:
+        totals[split] = sum(len(split_map[split].get(c, [])) for c in target_classes)
+    grand = sum(totals.values())
+
+    print(f"{'split':<8}{'clips':>8}{'percent':>10}{'clips/class':>13}")
+    print("-" * 39)
+    for split in ["train", "val", "test"]:
+        pct = 100.0 * totals[split] / max(grand, 1)
+        per = totals[split] / max(len(target_classes), 1)
+        print(f"{split:<8}{totals[split]:>8}{pct:>9.1f}%{per:>13.1f}")
+    print("-" * 39)
+    print(f"{'TOTAL':<8}{grand:>8}{'':>10}{grand / max(len(target_classes), 1):>13.1f}")
+
+    seen = {}
+    clashes = 0
+    for split in ["train", "val", "test"]:
+        for cls in target_classes:
+            for path in split_map[split].get(cls, []):
+                key = "_".join(os.path.basename(path).split("_")[:3])
+                if key in seen and seen[key] != split:
+                    clashes += 1
+                seen[key] = split
+
+    print(f"\ngroups: {len(seen)}   groups in >1 split: {clashes}")
+    print("OK - group-disjoint." if clashes == 0 else "STILL LEAKING - do not proceed.")
+    return clashes
+
+
+def preprocess_group_split(split_map, target_classes=None, output_root=None):
+    """Write .pt clips for a group-disjoint split map built by build_group_split."""
+    target_classes = target_classes or sorted(split_map["train"])
+    output_root    = output_root or cfg.OUTPUT_ROOT
+
+    print(f"\n--- Preprocessing (group-disjoint) ---")
+    print(f"To  : {output_root}")
+    print(f"Classes: {len(target_classes)}")
+
+    os.makedirs(output_root, exist_ok=True)
+
+    for split in ["train", "val", "test"]:
+        split_output_path = os.path.join(output_root, split)
+        os.makedirs(split_output_path, exist_ok=True)
+        print(f"\nProcessing split: {split}")
+
+        for cls in target_classes:
+            paths = split_map[split].get(cls, [])
+            if not paths:
+                continue
+            class_output_path = os.path.join(split_output_path, cls)
+            os.makedirs(class_output_path, exist_ok=True)
+
+            for vid_path in tqdm(paths, desc=f"  {cls} [{split}]", leave=False):
+                vid_name = os.path.basename(vid_path)
+                output_filename = os.path.splitext(vid_name)[0] + ".pt"
+                output_path = os.path.join(class_output_path, output_filename)
+
+                if os.path.exists(output_path):
+                    continue
+
+                try:
+                    frames = extract_frames(vid_path)
+                    if not frames:
+                        continue
+                    sampled_frames = temporal_sample(frames)
+                    save_clip_tensor(sampled_frames, output_path)
+                except Exception as e:
+                    print(f"\n  Error processing {vid_name}: {e}")
+
+    print(f"\nDone! Dataset ready at: {output_root}")
+
+
 def preprocess_dataset(
     target_classes=None,
     splits=None,
