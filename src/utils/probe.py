@@ -42,7 +42,7 @@ def pool_features(feats: torch.Tensor) -> np.ndarray:
     """(N, T, D) -> (N, D) by averaging over time. Also accepts (N, D)."""
     if feats.ndim == 3:
         feats = feats.mean(dim=1)
-    return _to_numpy(feats)
+    return to_numpy(feats)
 
 
 def _xy(cache, task_ids, split):
@@ -52,7 +52,7 @@ def _xy(cache, task_ids, split):
         if k in cache:
             f, y = cache[k]
             xs.append(pool_features(f))
-            ys.append(_to_numpy(y).astype(int))
+            ys.append(to_numpy(y).astype(int))
     if not xs:
         return None, None
     return np.concatenate(xs), np.concatenate(ys)
