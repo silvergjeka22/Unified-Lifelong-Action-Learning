@@ -135,7 +135,16 @@ _run("src/utils/visualize.py")
 _run("src/utils/save.py")
 _run("src/utils/train.py")
 
-set_seed(cfg.SEED)
+# Seed everything before any training happens.
+#
+# A plain import, not the %run-ed copy above: %run executes each file in its own
+# namespace and only copies the resulting symbols into the NOTEBOOK namespace after
+# it finishes. So symbols from _run() are not visible inside imports.py itself while
+# it is still executing — calling set_seed() here without this import raises
+# NameError. The notebooks still get set_seed from the _run above.
+from src.utils.seed import set_seed as _set_seed
+
+_set_seed(cfg.SEED)
 
 print(f"ULAL_ROOT : {ULAL_ROOT}")
 print(f"Device    : {device}")
