@@ -88,6 +88,21 @@ def emb_loader(s, y, batch_size=32, shuffle=False):
     return DataLoader(TensorDataset(s, y), batch_size=batch_size, shuffle=shuffle)
 
 
+@torch.no_grad()
+def eval_head_ce(head, s, y, device, batch_size=128):
+    """(accuracy, cross-entropy) of a head on cached features."""
+    head.eval()
+    correct = total = 0
+    loss_sum = 0.0
+    for sb, yb in DataLoader(TensorDataset(s, y), batch_size=batch_size):
+        sb, yb = sb.to(device), yb.to(device)
+        logits, _ = head(sb, training=False)
+        loss_sum += F.cross_entropy(logits, yb, reduction="sum").item()
+        correct  += (logits.argmax(1) == yb).sum().item()
+        total    += yb.size(0)
+    return correct / max(total, 1), loss_sum / max(total, 1)
+
+
 # ── The loop ──────────────────────────────────────────────────────────────────
 def snapshot_teacher(head):
     """
@@ -108,7 +123,8 @@ def train_cl_arm(head, new_s, new_y, device, epochs, lr, wd, batch_size,
                  label_smoothing=0.1, tag="arm", buffer=None,
                  fisher=None, optpar=None, ewc_lambda=0.0,
                  teacher=None, kd_lambda=0.0, kd_T=5.0, num_old_classes=None,
-                 cache=None, monitor_t=None, task_names=None, log_every=5):
+                 cache=None, monitor_t=None, task_names=None, log_every=5,
+                 val_s=None, val_y=None, history=None):
     """
     Train one CL arm on the current task's cached features.
 
@@ -135,6 +151,9 @@ def train_cl_arm(head, new_s, new_y, device, epochs, lr, wd, batch_size,
         teacher         : frozen pre-task snapshot (see snapshot_teacher)
         kd_lambda, kd_T : distillation weight and temperature
         num_old_classes : head width before this task's expansion
+        val_s, val_y    : optional held-out features, evaluated once per epoch
+        history         : optional dict filled with per-epoch losses and accuracies,
+                          in the shape plot_training_results expects
 
     Returns the head after a fixed number of epochs. No best-epoch selection.
     """
@@ -162,6 +181,7 @@ def train_cl_arm(head, new_s, new_y, device, epochs, lr, wd, batch_size,
         loader = DataLoader(TensorDataset(s_ep, y_ep), batch_size=batch_size, shuffle=True)
         head.train()
         tot_ce = tot_pen = tot_kd = 0.0
+        correct = total = 0
 
         for sb, yb in loader:
             sb, yb = sb.to(device), yb.to(device)
@@ -187,9 +207,24 @@ def train_cl_arm(head, new_s, new_y, device, epochs, lr, wd, batch_size,
             loss.backward()
             nn.utils.clip_grad_norm_(params, 1.0)
             opt.step()
-            tot_ce += ce.item()
+            tot_ce  += ce.item()
+            correct += (logits.argmax(1) == yb).sum().item()
+            total   += yb.size(0)
 
         sched.step()
+
+        if history is not None:
+            nb = max(len(loader), 1)
+            train_acc = correct / max(total, 1)
+            val_acc, val_loss = eval_head_ce(head, val_s, val_y, device)
+            history["train_losses"].append(tot_ce / nb)
+            history["val_losses"].append(val_loss)
+            history["train_accs"].append(train_acc)
+            history["val_accs"].append(val_acc)
+            history["best_val_acc"] = max(history["best_val_acc"], val_acc)
+            print(f"Epoch [{ep}/{epochs}] | Train Acc: {train_acc:.4f} "
+                  f"Loss: {tot_ce/nb:.4f} | Val Acc: {val_acc:.4f} Loss: {val_loss:.4f}")
+            head.train()
 
         if ep % log_every == 0 or ep == 1 or ep == epochs:
             nb  = max(len(loader), 1)
@@ -206,6 +241,52 @@ def train_cl_arm(head, new_s, new_y, device, epochs, lr, wd, batch_size,
             print(msg)
 
     head.eval()
+    return head
+
+
+# ── The shared starting point ─────────────────────────────────────────────────
+def train_base_head(cache, lstm_state, num_classes, device,
+                    epochs=15, lr=5e-4, wd=0.03, batch_size=32, label_smoothing=0.1):
+    """Train a fresh TemporalHead on task 0's cached features. Returns the head."""
+    from src.models.temporal_head import make_temporal_head
+
+    head = make_temporal_head(num_classes, lstm_state=lstm_state, device=device)
+    train_s, train_y = cache["t0_train"]
+    val_s,   val_y   = cache["t0_val"]
+    head, _ = train_task(head, train_s, train_y, val_s, val_y, device,
+                         epochs=epochs, lr=lr, wd=wd, batch_size=batch_size,
+                         label_smoothing=label_smoothing, tag="base")
+    return head
+
+
+def load_or_train_base_head(path, cache, lstm_state, num_classes, device,
+                            epochs=15, lr=5e-4, wd=0.03, batch_size=32,
+                            label_smoothing=0.1):
+    """
+    The base head from `path`, training and saving it first if it is not there yet.
+
+    Every arm must start from IDENTICAL weights or the comparison is meaningless, so
+    the first notebook to run writes the checkpoint and the rest load it. Delete the
+    file after changing the class configuration.
+    """
+    import os
+
+    from src.models.temporal_head import make_temporal_head
+
+    if os.path.exists(path):
+        head = make_temporal_head(num_classes, lstm_state=lstm_state, device=device)
+        head.load_state_dict(torch.load(path, map_location=device))
+        head.eval()
+        print(f"Loaded base head <- {path}")
+        return head
+
+    print(f"No base head at {path} — training it on task 0 now.")
+    head = train_base_head(cache, lstm_state, num_classes, device, epochs, lr, wd,
+                           batch_size, label_smoothing)
+    os.makedirs(os.path.dirname(path), exist_ok=True)
+    torch.save(head.state_dict(), path)
+    head.eval()
+    print(f"Saved base head -> {path}")
     return head
 
 
@@ -363,26 +444,20 @@ def train_task(head, train_s, train_y, val_s, val_y, device,
 
     Same role and return shape as train_model in src/utils/train.py, so notebook
     cells look the same and plot_training_results works unchanged.
+
+    All epochs run inside ONE train_cl_arm call. Calling it once per epoch instead
+    rebuilds AdamW every epoch (throwing away the momentum estimates) and restarts
+    the cosine schedule, so the learning rate never actually decays.
     """
     hist = {"train_losses": [], "val_losses": [], "train_accs": [], "val_accs": [],
             "best_val_acc": 0.0}
 
-    for ep in range(1, epochs + 1):
-        head = train_cl_arm(head, train_s, train_y, device=device, epochs=1, lr=lr,
-                            wd=wd, batch_size=batch_size,
-                            label_smoothing=label_smoothing, tag=tag, buffer=buffer,
-                            fisher=fisher, optpar=optpar, ewc_lambda=ewc_lambda,
-                            teacher=teacher, kd_lambda=kd_lambda, kd_T=kd_T,
-                            num_old_classes=num_old_classes, log_every=10**9)
-
-        train_acc = eval_head(head, train_s, train_y, device)
-        val_acc   = eval_head(head, val_s, val_y, device)
-        hist["train_accs"].append(train_acc)
-        hist["val_accs"].append(val_acc)
-        hist["train_losses"].append(0.0)
-        hist["val_losses"].append(0.0)
-        hist["best_val_acc"] = max(hist["best_val_acc"], val_acc)
-
-        print(f"Epoch [{ep}/{epochs}] | Train Acc: {train_acc:.4f} | Val Acc: {val_acc:.4f}")
+    head = train_cl_arm(head, train_s, train_y, device=device, epochs=epochs, lr=lr,
+                        wd=wd, batch_size=batch_size,
+                        label_smoothing=label_smoothing, tag=tag, buffer=buffer,
+                        fisher=fisher, optpar=optpar, ewc_lambda=ewc_lambda,
+                        teacher=teacher, kd_lambda=kd_lambda, kd_T=kd_T,
+                        num_old_classes=num_old_classes, log_every=10**9,
+                        val_s=val_s, val_y=val_y, history=hist)
 
     return head, hist
