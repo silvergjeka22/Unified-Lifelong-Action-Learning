@@ -189,6 +189,42 @@ def closest_pairs(centroids: dict, class_names: list, top=10):
     return pairs[:top]
 
 
+def print_closest_pairs(centroids: dict, class_names: list, task_classes: list,
+                        task_names: list, top=10):
+    """Print the most-confusable class pairs, flagging the ones that cross tasks."""
+    task_of = {}
+    for t, group in enumerate(task_classes):
+        for c in group:
+            task_of[c] = t
+
+    print(f"{'dist':>8}  {'class A':<22} {'class B':<22} tasks")
+    print("-" * 68)
+    for d, a, b in closest_pairs(centroids, class_names, top):
+        ta = task_of.get(a, -1)
+        tb = task_of.get(b, -1)
+        na = task_names[ta] if ta >= 0 else "?"
+        nb = task_names[tb] if tb >= 0 else "?"
+        flag = "  <- different tasks" if ta != tb else ""
+        print(f"{d:8.2f}  {a:<22} {b:<22} [{na}/{nb}]{flag}")
+
+
+def print_cache_summary(cache: dict, task_names: list):
+    """Print clips, shape and size for every task/split in the cache."""
+    print(f"{'key':<12}{'clips':>7}{'shape':>16}{'classes':>9}{'MB':>8}")
+    print("-" * 52)
+    total_clips = 0
+    total_mb = 0.0
+    for k in sorted(cache):
+        f, y = cache[k]
+        mb = f.element_size() * f.nelement() / 1e6
+        total_clips += f.shape[0]
+        total_mb += mb
+        shape = f"({f.shape[1]}, {f.shape[2]})"
+        print(f"{k:<12}{f.shape[0]:>7}{shape:>16}{len(set(y.tolist())):>9}{mb:>8.1f}")
+    print("-" * 52)
+    print(f"{'TOTAL':<12}{total_clips:>7}{'':>16}{'':>9}{total_mb:>8.1f}")
+
+
 def separability(cache, task_ids, split="train", seed=42, max_n=3000):
     """
     Silhouette score in [-1, 1] — how tight and well-separated the class clusters are.
