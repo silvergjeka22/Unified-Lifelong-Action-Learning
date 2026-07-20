@@ -26,7 +26,7 @@ from sklearn.neighbors import KNeighborsClassifier
 
 
 # ── Pooling ───────────────────────────────────────────────────────────────────
-def _to_numpy(t: torch.Tensor) -> np.ndarray:
+def to_numpy(t: torch.Tensor) -> np.ndarray:
     """
     Tensor -> ndarray, tolerating environments where .numpy() is unavailable
     (a torch/numpy ABI mismatch, or an unsupported dtype such as bfloat16).

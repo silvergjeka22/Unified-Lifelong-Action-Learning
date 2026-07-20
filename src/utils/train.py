@@ -10,6 +10,7 @@ from sklearn.metrics import (
     recall_score, classification_report
 )
 from src.config.config import SELECTED_CLASSES
+from src.utils.probe import to_numpy
 
 def chunks(lst, n):
     for i in range(0, len(lst), n):
@@ -81,8 +82,8 @@ def evaluate_model(model, dataloader, device):
             output = model(data)
             loss   = criterion(output, target)
             pred   = output.argmax(dim=1)
-            all_preds.extend(pred.cpu().numpy())
-            all_labels.extend(target.cpu().numpy())
+            all_preds.extend(to_numpy(pred).astype(int))
+            all_labels.extend(to_numpy(target).astype(int))
             total_loss    += loss.item() * data.size(0)
             total_samples += data.size(0)
 
@@ -190,8 +191,8 @@ def test_model(model, test_loader, device='cuda'):
             outputs = model(clips)
             preds   = outputs.argmax(dim=1)
             
-            all_preds.extend(preds.cpu().numpy())
-            all_labels.extend(labels.cpu().numpy())
+            all_preds.extend(to_numpy(preds).astype(int))
+            all_labels.extend(to_numpy(labels).astype(int))
 
     test_acc = accuracy_score(all_labels, all_preds)
     print(f"Test Accuracy: {test_acc:.4f}")
