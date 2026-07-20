@@ -131,6 +131,7 @@ _run("src/gil/gil_gan.py")
 _run("src/utils/seed.py")
 _run("src/utils/metrics.py")
 _run("src/utils/probe.py")          # embedding-quality probes
+_run("src/utils/evaluate.py")       # per-task + real-image evaluation
 _run("src/utils/visualize.py")
 _run("src/utils/save.py")
 _run("src/utils/train.py")

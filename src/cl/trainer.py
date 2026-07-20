@@ -350,3 +350,39 @@ def save_arm_result(path, arm, rows, task_names, bytes_per_class, config, ceilin
           f"base={metrics['base_acc_final']:.2%}  mem={bytes_per_class/1e3:.0f} KB/class")
     print(f"Saved -> {path}")
     return R, metrics
+
+
+# ── Notebook-facing wrapper ───────────────────────────────────────────────────
+def train_task(head, train_s, train_y, val_s, val_y, device,
+               epochs=15, lr=5e-4, wd=0.03, batch_size=32, label_smoothing=0.1,
+               buffer=None, fisher=None, optpar=None, ewc_lambda=0.0,
+               teacher=None, kd_lambda=0.0, kd_T=5.0, num_old_classes=None,
+               tag="task"):
+    """
+    Train one task and return (head, history).
+
+    Same role and return shape as train_model in src/utils/train.py, so notebook
+    cells look the same and plot_training_results works unchanged.
+    """
+    hist = {"train_losses": [], "val_losses": [], "train_accs": [], "val_accs": [],
+            "best_val_acc": 0.0}
+
+    for ep in range(1, epochs + 1):
+        head = train_cl_arm(head, train_s, train_y, device=device, epochs=1, lr=lr,
+                            wd=wd, batch_size=batch_size,
+                            label_smoothing=label_smoothing, tag=tag, buffer=buffer,
+                            fisher=fisher, optpar=optpar, ewc_lambda=ewc_lambda,
+                            teacher=teacher, kd_lambda=kd_lambda, kd_T=kd_T,
+                            num_old_classes=num_old_classes, log_every=10**9)
+
+        train_acc = eval_head(head, train_s, train_y, device)
+        val_acc   = eval_head(head, val_s, val_y, device)
+        hist["train_accs"].append(train_acc)
+        hist["val_accs"].append(val_acc)
+        hist["train_losses"].append(0.0)
+        hist["val_losses"].append(0.0)
+        hist["best_val_acc"] = max(hist["best_val_acc"], val_acc)
+
+        print(f"Epoch [{ep}/{epochs}] | Train Acc: {train_acc:.4f} | Val Acc: {val_acc:.4f}")
+
+    return head, hist
