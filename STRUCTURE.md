@@ -310,14 +310,22 @@ Not optional. If a number is computed, it is shown.
 `src/config/config.py` is the only place class lists and paths are defined.
 
 ```python
-SELECTED_CLASSES  # base classes,  currently 10
-TASK_1            # first increment,  currently 3
-TASK_2            # second increment, currently 3
-TASK_3, TASK_4    # reserved for later
+SELECTED_CLASSES  # base classes,     10
+TASK_1            # first increment,  10
+TASK_2            # second increment, 10
+TASK_3, TASK_4    # reserved for later, 10 each
 ```
 
-To scale from `10 / 3 / 3` to `30 / 10 / 10`, edit the lists here and re-run notebook
-2.0. Nothing else changes.
+The CL stream is `10 -> 20 -> 30`. Equal class counts per task are not cosmetic: the
+metrics in `utils/metrics.py` average over **tasks**, not classes, so a 3-class task
+would carry the same weight in AA as a 10-class one while having a third of the test
+clips. Under the old `10 / 3 / 3` split one Task1 test clip moved AA by 0.63%, against
+0.20% for a Base clip — the small tasks dominated the noise and nothing under about 2%
+was measurable.
+
+To change the split, edit the lists here, delete the cache, and re-run notebook 2.0.
+`check_cache_labels` refuses a cache whose label space no longer matches, so a stale
+cache fails loudly instead of mislabelling.
 
 Paths come from environment variables with sensible defaults, so `config.py` is never
 edited at runtime:
