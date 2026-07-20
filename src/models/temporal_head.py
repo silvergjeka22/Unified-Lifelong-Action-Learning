@@ -65,15 +65,17 @@ class TemporalHead(nn.Module):
         return sum(p.numel() for p in self.parameters() if p.requires_grad)
 
 
-def make_temporal_head(num_classes: int, freeze_lstm: bool, lstm_state: dict = None,
+def make_temporal_head(num_classes: int, freeze_lstm: bool = False, lstm_state: dict = None,
                        device=None, backbone_dim: int = None, hidden_size: int = None,
                        teacher_hidden: int = None, dropout_p: float = None):
     """
-    Build a TemporalHead using project config defaults, optionally seeded with the
-    Task-0 LSTM weights.
+    Build a TemporalHead using project config defaults, seeded with the Task-0 LSTM
+    weights when given.
 
-    Seeding matters for the freeze-boundary study: probes A and B must start from an
-    identical initialisation so the ONLY variable is whether the LSTM may move.
+    The LSTM is trainable by default. A frozen LSTM (72,986 params) cannot reshape the
+    feature space, so it cannot separate classes that overlap in the frozen 256-d
+    representation, and it underfits the current task: on this data it reached only
+    81.8% on the task it had just trained on, versus 98.2% with the LSTM trainable.
     """
     import src.config.config as cfg
 
