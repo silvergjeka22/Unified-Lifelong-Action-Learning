@@ -12,6 +12,7 @@ from src.utils.probe     import (
     pool_features, knn_probe, linear_probe, probe_task, probe_joint, probe_report,
     class_centroids, centroid_distances, closest_pairs, separability, project_2d,
 )
+from src.utils.seed      import set_seed, seed_worker, loader_generator
 from src.utils.metrics   import (
     build_accuracy_matrix, average_accuracy, forgetting_measure,
     backward_transfer, forward_transfer, cl_report, forgetting, avg_intra_dist,
@@ -27,6 +28,7 @@ __all__ = [
     "pool_features", "knn_probe", "linear_probe", "probe_task", "probe_joint",
     "probe_report", "class_centroids", "centroid_distances", "closest_pairs",
     "separability", "project_2d",
+    "set_seed", "seed_worker", "loader_generator",
     "build_accuracy_matrix", "average_accuracy", "forgetting_measure",
     "backward_transfer", "forward_transfer", "cl_report", "forgetting", "avg_intra_dist",
 ]
