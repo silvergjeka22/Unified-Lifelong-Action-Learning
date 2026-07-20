@@ -17,12 +17,20 @@ DATASET_ROOT = os.environ.get(
 OUTPUT_ROOT  = os.environ.get("ULAL_OUTPUT_ROOT", "/content/ucf101-processed/")
 
 # processed data paths — kept under DATA_ROOT so they survive a repo re-clone
+#
+# These point at GROUP-DISJOINT splits built by build_group_split(). The train/val/test
+# folders the dataset ships with are split randomly per clip: 78% of UCF101 groups
+# (v_Class_gXX = one source video) have clips in more than one split, so frames of a
+# test video also sit in training. Every accuracy measured that way is inflated.
+#
+# The roots are renamed rather than reused so the old leaky .pt clips cannot be picked
+# up by accident — preprocessing skips files that already exist.
 DATA_ROOT  = os.environ.get("ULAL_DATA_ROOT", "/content/UCF101")
-BASE_ROOT  = f"{DATA_ROOT}/processed_data_base"
-TASK1_ROOT = f"{DATA_ROOT}/processed_data_task1"
-TASK2_ROOT = f"{DATA_ROOT}/processed_data_task2"
-TASK3_ROOT = f"{DATA_ROOT}/processed_data_task3"
-TASK4_ROOT = f"{DATA_ROOT}/processed_data_task4"
+BASE_ROOT  = f"{DATA_ROOT}/grouped_base"
+TASK1_ROOT = f"{DATA_ROOT}/grouped_task1"
+TASK2_ROOT = f"{DATA_ROOT}/grouped_task2"
+TASK3_ROOT = f"{DATA_ROOT}/grouped_task3"
+TASK4_ROOT = f"{DATA_ROOT}/grouped_task4"
 
 # ── Drive paths ───────────────────────────────────────────────────────────────
 DRIVE_PROJECT = os.environ.get("ULAL_DRIVE_PROJECT", "/content/drive/MyDrive/apai")
