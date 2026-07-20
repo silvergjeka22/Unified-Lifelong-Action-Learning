@@ -72,7 +72,8 @@ def linear_probe(tr_x, tr_y, te_x, te_y, max_iter=2000, seed=42):
     information is in these features' measure.
     """
     mu, sd = tr_x.mean(0, keepdims=True), tr_x.std(0, keepdims=True) + 1e-6
-    m = LogisticRegression(max_iter=max_iter, multi_class="auto", random_state=seed)
+    # multi_class= was deprecated in sklearn 1.5; the default is multinomial anyway.
+    m = LogisticRegression(max_iter=max_iter, random_state=seed)
     m.fit((tr_x - mu) / sd, tr_y)
     return float(m.score((te_x - mu) / sd, te_y))
 
