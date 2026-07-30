@@ -1,4 +1,5 @@
 import os
+import time
 import torch
 import torch.nn as nn
 import torch.optim as optim
@@ -196,8 +197,42 @@ def test_model(model, test_loader, device='cuda'):
 
     test_acc = accuracy_score(all_labels, all_preds)
     print(f"Test Accuracy: {test_acc:.4f}")
-    
+
     return test_acc, all_preds, all_labels
+
+
+@torch.no_grad()
+def measure_latency(model, loader, device, n_batches=10, warmup=2):
+    """Median forward-pass latency. Returns {ms_per_clip, clips_per_sec}."""
+    model.eval()
+    use_cuda = torch.cuda.is_available() and "cuda" in str(device)
+
+    batches = []
+    for x, _ in loader:
+        batches.append(x)
+        if len(batches) >= warmup + n_batches:
+            break
+
+    for x in batches[:warmup]:
+        model(x.to(device))
+    if use_cuda:
+        torch.cuda.synchronize()
+
+    per_clip = []
+    for x in batches[warmup:]:
+        b = x.shape[0]
+        if use_cuda:
+            torch.cuda.synchronize()
+        t0 = time.perf_counter()
+        model(x.to(device))
+        if use_cuda:
+            torch.cuda.synchronize()
+        t1 = time.perf_counter()
+        per_clip.append((t1 - t0) / b)
+
+    ms = 1000.0 * float(np.median(per_clip)) if per_clip else 0.0
+    cps = (1000.0 / ms) if ms > 0 else 0.0
+    return {"ms_per_clip": ms, "clips_per_sec": cps}
 
 
 # METRICS  (print)
