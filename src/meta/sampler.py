@@ -26,11 +26,15 @@ def sample(s_embs, t_embs, labels, n_way, k_sup, k_qry, device):
         for i in sel[k_sup:]:
             qry_s.append(s_embs[i]); qry_y.append(l)
 
+    # k_qry can be 0 (Reptile discards the query set), so stack safely.
+    empty_q = torch.empty((0,) + tuple(s_embs.shape[1:]), dtype=s_embs.dtype)
+    qry_s_t = torch.stack(qry_s) if qry_s else empty_q
+
     return (
         torch.stack(sup_s).to(device),
         torch.stack(sup_t).to(device),
         torch.tensor(sup_y, dtype=torch.long).to(device),
-        torch.stack(qry_s).to(device),
+        qry_s_t.to(device),
         torch.tensor(qry_y, dtype=torch.long).to(device),
     )
 
