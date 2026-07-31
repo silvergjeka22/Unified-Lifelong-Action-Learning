@@ -83,39 +83,6 @@ class ResNet50LSTM(nn.Module):
         out, _   = self.lstm(features)                   # [B, T, hidden]
         return self.fc(self.dropout(out[:, -1, :]))       # last hidden state only
 
-
-def expand_classifier(model, new_num_classes):
-    """
-    Grow model.fc to new_num_classes, preserving weights from old classes.
-    Dropout layer is carried over unchanged — update cfg.DROPOUT_P before
-    calling this if you want a lower rate for the new task.
-    """
-    old_fc = model.fc
-    new_fc = nn.Linear(old_fc.in_features, new_num_classes)
-
-    # copy existing weights and biases; new rows keep random init
-    with torch.no_grad():
-        new_fc.weight[:old_fc.out_features] = old_fc.weight
-        new_fc.bias[:old_fc.out_features]   = old_fc.bias
-
-    model.fc = new_fc
-    return model
-
-
-def update_dropout(model, new_p):
-    """
-    Update the dropout probability in-place without rebuilding the model.
-    Call this before fine-tuning each new task.
-
-    Usage:
-        update_dropout(model, new_p=0.3)   # before Task 2 / 3 / 4
-    """
-    for module in model.modules():
-        if isinstance(module, nn.Dropout):
-            module.p = new_p
-    print(f"Dropout updated to p={new_p}")
-    return model
-
 #  DenseNet121 + LSTM
 class DenseNet121LSTM(nn.Module):
     """

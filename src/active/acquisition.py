@@ -2,7 +2,7 @@
 Active Learning acquisition functions for domain adaptation.
 
 All functions operate on pre-extracted student embeddings and a trained
-EmbeddingHead — no raw video frames needed.
+TemporalHead — no raw video frames needed.
 
 Functions:
     entropy_score    — higher = more uncertain (preferred for AL)
@@ -75,7 +75,7 @@ def select_top_k(
         embs_by_class : {class_name: (N, D) tensor of student embeddings}
         strategy      : "entropy" | "margin" | "coreset" | "random"
         k             : number of samples to select per class
-        head          : EmbeddingHead (required for entropy/margin)
+        head          : TemporalHead (required for entropy/margin)
         device        : torch.device (required for entropy/margin)
 
     Returns:

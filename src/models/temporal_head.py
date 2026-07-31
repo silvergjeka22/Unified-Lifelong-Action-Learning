@@ -7,9 +7,8 @@ class TemporalHead(nn.Module):
     LSTM + classifier over cached frame features from a frozen CNN backbone.
 
     Input : (B, T, backbone_dim) — per-frame features, e.g. (B, 16, 2048)
-    Output: (logits, proj)       — same contract as EmbeddingHead, so it drops
-                                   straight into finetune_head, train_reptile,
-                                   train_with_smart_replay and eval_head.
+    Output: (logits, proj)       — the contract finetune_head, train_reptile,
+                                   train_student and eval_head expect.
 
     The freeze boundary is set by `freeze_lstm`:
 
@@ -100,8 +99,7 @@ def expand_head(head, new_num_classes: int):
     already wrapping this head picks up the new layer automatically — EWC's Fisher
     bookkeeping depends on that.
 
-    Note src/models/pretrained.py has expand_classifier(), but it targets `model.fc`;
-    TemporalHead and EmbeddingHead both use `.classifier`.
+    TemporalHead exposes the growable layer as `.classifier`.
     """
     old = head.classifier
     if new_num_classes <= old.out_features:

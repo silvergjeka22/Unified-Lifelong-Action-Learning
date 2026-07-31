@@ -5,45 +5,6 @@ import sys
 DEFAULT_ROOT = "/content/ulal"
 
 
-# Repo checkout
-def clone_or_pull(repo: str, branch: str, root: str = DEFAULT_ROOT, token: str = None):
-    """
-    Shallow-clone the repo, or fast-forward it if already present.
-
-    subprocess is called with a LIST, never a shell string — that is what makes
-    a branch name containing '&' safe. The old bash script interpolated the
-    branch into a shell command, where 'GAN&ActiveLearning' splits into
-    'GAN' backgrounded plus a bogus 'ActiveLearning' command.
-    """
-    token = token or os.environ.get("GITHUB_TOKEN", "")
-    if not token:
-        raise RuntimeError(
-            "No GitHub token. The repo is private.\n"
-            "  os.environ['GITHUB_TOKEN'] = '...'   or use getpass in the bootstrap cell."
-        )
-
-    if os.path.isdir(os.path.join(root, ".git")):
-        subprocess.run(["git", "-C", root, "fetch", "--depth", "1", "origin", branch], check=True)
-        subprocess.run(["git", "-C", root, "reset", "--hard", "FETCH_HEAD"], check=True)
-        action = "updated"
-    else:
-        url = f"https://{token}@github.com/{repo}.git"
-        subprocess.run(
-            ["git", "clone", "--depth", "1", "--branch", branch, url, root], check=True
-        )
-        action = "cloned"
-
-    if root not in sys.path:
-        sys.path.insert(0, root)
-
-    sha = subprocess.run(
-        ["git", "-C", root, "rev-parse", "--short", "HEAD"],
-        capture_output=True, text=True,
-    ).stdout.strip()
-    print(f"Repo {action}: {repo}@{branch} ({sha}) -> {root}")
-    return root
-
-
 # Drive
 def mount_drive():
     try:

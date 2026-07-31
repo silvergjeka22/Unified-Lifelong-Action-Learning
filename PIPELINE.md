@@ -87,22 +87,24 @@ Label space: `Base(0–9) → Task1 → Task2 → Task4`. `TASK_3` never gets a 
 
 ```
 notebooks/
-  ULAL.ipynb                      ← principal: winners only, written LAST
+  ULAL.ipynb                       [built] principal: unified capstone, reads every section
   study/
-    1_choose_model/      ✅ done   1.0_backbone_transfer.ipynb
-    2_extract_features/  ✅ built  2.0_cache_frame_features.ipynb
-    3_freeze_study/      ✅ built  3.0_freeze_boundary.ipynb
-    4_continual_learning/✅ built  4.0_cl_comparison.ipynb
-    5_memory_ablation/
-    6_gan_replay/
-    7_meta_learning/
-    8_distillation/
-    9_domain_adapt/
-    10_results/
-    _archive/                     ← superseded notebooks, kept for history
+    1_choose_model/       [done]   1.0_backbone_transfer.ipynb  (group-disjoint bake-off)
+    2_extract_features/   [done]   2.0_extract_embeddings.ipynb (cache + ceiling probe)
+    4_continual_learning/ [built]  4.1_naive ... 4.6_replay_lwf  (one per method)
+    5_memory_ablation/    [built]  5.0_memory_ablation.ipynb
+    6_gan_replay/         [built]  6.0_gil.ipynb
+    7_meta_learning/      [built]  7.0_meta_learning.ipynb
+    8_distillation/       [built]  8.0_distillation.ipynb
+    9_domain_adapt/       [built]  9.0_domain_adapt.ipynb
+    10_results/           [built]  10.0_results.ipynb
 ```
 
-Study notebooks **compare options**. The principal notebook assembles only the winners.
+The freeze-boundary study (old Section 3) is folded into notebook 2.0: the joint linear
+probe there is the ceiling. The 4.x notebooks each run one method explicitly; 10.0 and
+ULAL only aggregate the saved JSONs.
+
+Study notebooks **compare options**. The principal notebook assembles the results.
 
 ---
 
@@ -343,25 +345,29 @@ backbone acts as a regulariser. Freezing is a design choice, not a shortcut.
 | best-val epoch selection in CL | arms not comparable; val over old classes **is** memory | `train_cl_arm`, fixed epochs |
 | `finetune_head` MSE at `mse_weight=0` | shape crash on sequences | `zeros_t()` helper |
 
+### Fixed since
+
+| Issue | Was | Now |
+|---|---|---|
+| data leakage | shipped split scattered a video's clips across train/test (80% of groups); every accuracy inflated (teacher 98%, ceiling 97%) | group-disjoint split in 1.0 + 2.0; honest teacher 93%, ceiling 82% |
+| `TASK_1`/`TASK_2` classes commented out | 16 classes | now a real 30-class stream (10 -> 20 -> 30) |
+| GIL discriminator sees `mu_b` as "real" | generator collapses to `x = mu` | `train_gan_real` feeds real per-clip features (Section 6) |
+| Student LSTM never trained | KD distilled nothing | 8.0 trains a real student head on cached MobileNet features |
+
 ### Still open
 
 | Issue | Impact | Fix in |
 |---|---|---|
-| `TASK_1`/`TASK_2` 7/10 classes commented out | 16 classes, not 50 | `config.py` |
-| GIL discriminator sees `mu_b` as "real" | generator collapses | Section 6 |
-| `cfg.GIL_cfg.GIL_CKPT_DIR` (old GAN nb) | `AttributeError` | Section 6 |
-| `avg_intra_dist(numpy, numpy)` | `AttributeError` | Section 6 |
-| `TSNE(n_iter=)` | removed in sklearn 1.7 | Section 6 |
-| Student LSTM never trained | KD distils nothing | Section 8 |
-| `extract_class_features` mixes splits | superseded | use `extract_frame_features` |
+| WeightAlign kept vs dropped | docs disagreed on leaky data | re-decide from 10.0 on clean 30-class results |
+| Sections 7/8/9 not yet run on Colab | API wiring unverified end-to-end | first run may need a small fixup |
+| `TASK_3`/`TASK_4` extend the stream to 50 | 30 classes today, 50 available | uncomment nothing needed; just extend the task list |
 
 ---
 
 ## Order of work
 
-1. Uncomment the 14 classes in `config.py` → 50 classes
-2. **Section 2** — cache features (once, slow)
-3. **Section 3** — freeze study ← decides everything downstream
-4. **Section 4** — CL comparison
-5. Then 5 → 6 → 7 → 8 → 9 → 10
-6. **Principal notebook last** — winners only
+1. **1.0** — bake-off on the group-disjoint split, save the teacher
+2. **2.0** — cache features (once, slow); read the ceiling before continuing
+3. **4.1 - 4.6** — CL comparison (4.1 creates `head_base.pt`)
+4. Then **5 -> 6 -> 7 -> 8 -> 9 -> 10**
+5. **ULAL** last — the unified capstone that reads every section
