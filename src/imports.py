@@ -103,7 +103,6 @@ _run("src/models/pretrained.py")
 _run("src/models/baselines.py")
 _run("src/models/teacher.py")
 _run("src/models/student.py")
-_run("src/models/head.py")
 _run("src/models/temporal_head.py")      # TemporalHead + weight_align
 
 # continual learning
@@ -115,6 +114,7 @@ _run("src/cl/trainer.py")        # train_cl_arm — one loop for every CL arm
 # meta-learning  (src/meta/, NOT the deprecated src/meta_learning/)
 _run("src/meta/reptile.py")
 _run("src/meta/sampler.py")
+_run("src/meta/protonet.py")      # Prototypical Networks (metric-based few-shot)
 
 # knowledge distillation
 _run("src/kd/utils.py")

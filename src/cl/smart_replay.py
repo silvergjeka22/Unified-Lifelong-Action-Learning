@@ -1,6 +1,5 @@
 import torch
 import torch.nn.functional as F
-from torch.utils.data import DataLoader, TensorDataset
 
 
 class SmartReplayBuffer:
@@ -91,87 +90,3 @@ class SmartReplayBuffer:
             kb    = v.element_size() * v.nelement() / 1e3
             print(f"  [{k:2d}] {name:<22}: {v.shape[0]} samples  "
                   f"shape={tuple(v.shape[1:])}  {kb:.0f} KB")
-
-
-# ── Standalone training loop with smart replay ────────────────────────────────
-def train_with_smart_replay(
-    head,
-    buffer: SmartReplayBuffer,
-    new_s: torch.Tensor,
-    new_t: torch.Tensor,
-    new_y: torch.Tensor,
-    val_s: torch.Tensor,
-    val_y: torch.Tensor,
-    device,
-    epochs: int = 10,
-    lr: float = 5e-4,
-    wd: float = 0.03,
-    batch_size: int = 32,
-    ce_weight: float = 1.0,
-    mse_weight: float = 0.5,
-    label_smoothing: float = 0.1,
-):
-    """
-    Fine-tune an EmbeddingHead on new-task embeddings mixed with buffer replay.
-    Returns the best head (by val accuracy).
-    """
-    import copy
-    import torch.nn as nn
-    import torch.optim as optim
-
-    mse_fn    = nn.MSELoss()
-    optimizer = optim.AdamW(head.parameters(), lr=lr, weight_decay=wd)
-    scheduler = optim.lr_scheduler.CosineAnnealingLR(optimizer, T_max=epochs, eta_min=lr / 20)
-    head.to(device)
-
-    best_acc, best_state = 0.0, copy.deepcopy(head.state_dict())
-
-    for epoch in range(1, epochs + 1):
-        head.train()
-        # Mix new samples with buffer samples
-        buf_s, buf_t, buf_y = buffer.sample_batch(len(new_s))
-        if buf_s is not None:
-            s = torch.cat([new_s, buf_s])
-            t = torch.cat([new_t, buf_t])
-            y = torch.cat([new_y, buf_y])
-        else:
-            s, t, y = new_s, new_t, new_y
-
-        loader = DataLoader(TensorDataset(s, t, y), batch_size=batch_size, shuffle=True)
-        total_loss = 0.0
-
-        for sb, tb, yb in loader:
-            sb, tb, yb = sb.to(device), tb.to(device), yb.to(device)
-            optimizer.zero_grad(set_to_none=True)
-            logits, proj = head(sb, training=True)
-            loss = (
-                ce_weight  * F.cross_entropy(logits, yb, label_smoothing=label_smoothing)
-                + mse_weight * mse_fn(proj, tb)
-            )
-            loss.backward()
-            torch.nn.utils.clip_grad_norm_(head.parameters(), 1.0)
-            optimizer.step()
-            total_loss += loss.item()
-
-        scheduler.step()
-
-        # Validation
-        head.eval()
-        with torch.no_grad():
-            loader_v = DataLoader(TensorDataset(val_s, val_y), batch_size=128)
-            correct = total = 0
-            for sv, yv in loader_v:
-                logits, _ = head(sv.to(device), training=False)
-                correct += (logits.argmax(1) == yv.to(device)).sum().item()
-                total   += yv.size(0)
-            val_acc = correct / max(total, 1)
-
-        print(f"[SmartReplay] Epoch {epoch:02d}/{epochs} | "
-              f"Loss {total_loss/len(loader):.4f} | Val {val_acc:.2%}")
-
-        if val_acc > best_acc:
-            best_acc, best_state = val_acc, copy.deepcopy(head.state_dict())
-
-    head.load_state_dict(best_state)
-    print(f"  -> Best val acc: {best_acc:.2%}")
-    return head

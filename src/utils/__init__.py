@@ -22,7 +22,7 @@ from src.utils.probe     import (
 from src.utils.seed      import set_seed, seed_worker, loader_generator
 from src.utils.metrics   import (
     build_accuracy_matrix, average_accuracy, forgetting_measure,
-    backward_transfer, forward_transfer, cl_report, forgetting, avg_intra_dist,
+    backward_transfer, forward_transfer, cl_report, forgetting,
 )
 
 __all__ = [
@@ -41,5 +41,5 @@ __all__ = [
     "separability", "project_2d", "print_closest_pairs", "print_cache_summary",
     "set_seed", "seed_worker", "loader_generator",
     "build_accuracy_matrix", "average_accuracy", "forgetting_measure",
-    "backward_transfer", "forward_transfer", "cl_report", "forgetting", "avg_intra_dist",
+    "backward_transfer", "forward_transfer", "cl_report", "forgetting",
 ]

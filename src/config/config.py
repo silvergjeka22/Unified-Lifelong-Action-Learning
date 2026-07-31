@@ -220,9 +220,6 @@ FT_EPOCHS        = 5
 FT_LR            = 1e-4
 BATCH_SIZE_GAN   = 64
 J_SYNTH          = 50
-CVAE_LR          = 1e-4
-CVAE_EPOCHS      = 5
-CVAE_INIT_EPOCHS = 50
 
 # TRANSFORMS
 spatial_transform = transforms.Compose([

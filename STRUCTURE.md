@@ -38,19 +38,30 @@ freeze the LSTM permanently and it could never learn the new classes.
 ```
 notebooks/
   study/
-    1_backbone/
-      1.0_choose_backbone.ipynb        [done]  picks ResNet50, saves ResNet50_10C.pth
-    2_embeddings/
-      2.0_extract_embeddings.ipynb     [todo]  video -> cache, and check the cache is good
-    3_continual/
-      3.1_naive.ipynb                  [todo]  no protection
-      3.2_ewc.ipynb                    [todo]  Fisher penalty
-      3.3_lwf.ipynb                    [todo]  self-distillation
-      3.4_replay.ipynb                 [todo]  stored exemplars
-      3.5_replay_lwf.ipynb             [todo]  both (iCaRL)
-    4_final/
-      4.0_final_evaluation.ipynb       [todo]  all heads on real video + comparison
-  ULAL.ipynb                           [later] one clean end-to-end run, winners only
+    1_choose_model/
+      1.0_backbone_transfer.ipynb      [done]  group-disjoint bake-off, saves ResNet50_10C_groupsplit.pth
+    2_extract_features/
+      2.0_extract_embeddings.ipynb     [done]  video -> cache, probe the ceiling
+    4_continual_learning/
+      4.1_naive.ipynb                  [built] no protection (creates head_base.pt)
+      4.2_weight_align.ipynb           [built] rescale new-class logit norms
+      4.3_ewc.ipynb                    [built] Fisher penalty
+      4.4_lwf.ipynb                    [built] self-distillation
+      4.5_smart_replay.ipynb           [built] stored exemplars
+      4.6_replay_lwf.ipynb             [built] both (iCaRL)
+    5_memory_ablation/
+      5.0_memory_ablation.ipynb        [built] accuracy vs bytes sweep
+    6_gan_replay/
+      6.0_gil.ipynb                    [built] 2 KB/class generative replay
+    7_meta_learning/
+      7.0_meta_learning.ipynb          [built] Reptile vs standard, few-shot on TASK_4
+    8_distillation/
+      8.0_distillation.ipynb           [built] MobileNet student, CE + MSE
+    9_domain_adapt/
+      9.0_domain_adapt.ipynb           [built] YouTube AL + Reptile adaptation
+    10_results/
+      10.0_results.ipynb               [built] all CL arms, accuracy vs memory
+  ULAL.ipynb                           [built] unified capstone: reads every section, master figure
 
 src/
   __init__.py
@@ -96,18 +107,18 @@ Each one was checked for real call sites first, not just grepped for the name.
 
 | What | Why | Also clean up |
 |---|---|---|
-| `notebooks/study/4_continual_learning/4.2_weight_align.ipynb` | measured nothing, see section 3 | — |
-| `weight_align` in `models/temporal_head.py` | only its notebook called it | `imports.py`, `models/__init__.py`, `cl/trainer.py` |
-| `run_cl_stream` in `cl/trainer.py` | notebooks write task sections out explicitly now | `cl/__init__.py`, the example in `src/__init__.py` |
 | `src/models/head.py` (`EmbeddingHead`) | replaced by `TemporalHead`; remaining mentions are **docstrings only**, no imports | fix the docstrings in `cl/smart_replay.py`, `active/domain_shift.py`, `active/acquisition.py` to say `TemporalHead` |
-| old `notebooks/study/2_extract_features/`, `4_continual_learning/` | replaced by the tree above | — |
 
 ### Keep these, despite appearances
 
 | What | Why |
 |---|---|
-| `bash/fetch_src.sh`, `bash/setup_colab.sh` | **notebook 1.0 still calls them** (cells 3 and 5). They can only go once notebook 1 is migrated to `src/bootstrap.py`. |
-| `meta/`, `gil/`, `active/`, `data/youtube.py`, `models/student.py` | later sections: Reptile, GAN replay, YouTube adaptation, KD |
+| `run_cl_stream` in `cl/trainer.py` | **notebook 5.0 needs it** for the 13-config memory sweep — writing task sections out 13 times is not an option. The per-method notebooks (4.x) still use `train_task` explicitly. |
+| `4.2_weight_align.ipynb` + `weight_align` in `temporal_head.py` | kept as a baseline. The old "measured nothing" verdict came from leaky 16-class data; re-decide on the clean 30-class results. |
+| `bash/fetch_src.sh`, `bash/setup_colab.sh` | superseded by `src/bootstrap.py`; every notebook now uses the git-clone + `setup()` cells. Safe to delete once you confirm nothing local still calls them. |
+| `meta/`, `gil/`, `active/`, `data/youtube.py`, `models/student.py` | used by sections 7 (Reptile), 6 (GAN replay), 9 (YouTube adaptation), 8 (KD). |
+| `train_gan_real` in `gil/gil_gan.py` | corrected GAN loop used by 6.0 — the discriminator sees real per-clip features (the old `train_gan` used the class mean and collapsed). |
+| `measure_latency` in `utils/train.py` | used by the 1.0 backbone bake-off to compare inference speed. |
 | `models/pretrained.py`, `models/baselines.py`, `data/study_dataset.py` | notebook 1 uses them |
 
 ---
@@ -343,47 +354,61 @@ ULAL_DRIVE_PROJECT  Drive folder for cache, checkpoints, results
 ```
 Drive/apai/
   cache/
-    ulal_frame_features.pt        the embeddings, plus the Task-0 LSTM weights
+    ulal_frame_features.pt              the embeddings, plus the Task-0 LSTM weights
+  resnet50/models/
+    ResNet50_10C_groupsplit.pth         notebook 1.0 (the frozen teacher)
   checkpoints/
-    ResNet50_10C.pth              notebook 1
-    head_base.pt                  notebook 3.1 (the others load it)
-    head_naive.pt
-    head_ewc.pt
-    head_lwf.pt
-    head_replay.pt
-    head_replay_lwf.pt
+    head_base.pt                        notebook 4.1 (the others load it)
+    head_naive.pt ... head_replay_lwf.pt one per CL arm (4.1 - 4.6)
+    student_head.pt, student_ucf101.pt  notebook 8.0
+    head_adapted_yt.pt                  notebook 9.0
+  gil/generator.pth                     notebook 6.0
   results/
-    embeddings_quality.json       notebook 2.0
-    arm_naive.json                per-method matrices and metrics
-    arm_ewc.json
-    arm_lwf.json
-    arm_replay.json
-    arm_replay_lwf.json
-    final_comparison.json         notebook 4.0
-    *.png                         every plot
+    stage1_choose_backbone.json         notebook 1.0
+    stage2_embedding_diagnostics.json   notebook 2.0 (holds the ceiling)
+    stage1_arm_*.json                   per-CL-arm matrices and metrics (4.1 - 4.6)
+    stage5_memory_ablation.json         notebook 5.0
+    stage6_gil.json                     notebook 6.0
+    stage7_fewshot.json                 notebook 7.0
+    stage8_kd.json                      notebook 8.0
+    stage9_da.json                      notebook 9.0
+    final_comparison.json               notebook 10.0
+    ulal_unified_summary.json           ULAL.ipynb
+    *.png                               every plot
 ```
 
-`head_base.pt` is trained once by notebook 3.1 and loaded by 3.2 - 3.5, so every method
-starts from identical weights. Delete it if the class configuration changes.
+`head_base.pt` is trained once by notebook 4.1 and loaded by 4.2 - 4.6, 5.0 and 6.0, so
+every method starts from identical weights. Delete it if the class configuration or the
+teacher checkpoint changes.
 
 ---
 
 ## 9. Run order
 
 ```
-1.0  choose backbone        once, already done
+1.0  choose backbone        group-disjoint bake-off, saves the teacher
 2.0  extract embeddings     once, ~30 min. Check the probe before continuing.
-3.1  naive                  run first, it creates head_base.pt
-3.2  ewc                    any order after 3.1
-3.3  lwf
-3.4  replay
-3.5  replay + lwf
-4.0  final evaluation       after all five
+4.1  naive                  run first, it creates head_base.pt
+4.2  weight align           any order after 4.1
+4.3  ewc
+4.4  lwf
+4.5  smart replay
+4.6  replay + lwf
+5.0  memory ablation        needs head_base.pt (from 4.1)
+6.0  gan replay             needs head_base.pt; pip installs sentence-transformers
+7.0  meta learning          extracts TASK_4 features (dataset needed)
+8.0  distillation           needs a CL head (default head_replay_lwf.pt from 4.6)
+9.0  domain adapt           needs a CL head; live YouTube downloads
+10.0 results                reads stage1_arm_*.json, accuracy vs memory
+ULAL unified capstone       reads every stage JSON, master figure
 ```
 
+Sections 5/6 branch off after 4.1; 8/9 need a trained CL arm; 10 and ULAL only read
+JSONs. Delete a stale `head_base.pt` before re-running so 4.1 retrains it on the current
+cache.
+
 Always push before running. The notebooks clone `src/` from GitHub, so uncommitted
-changes are invisible to Colab. The bootstrap cell checks for the key files and tells
-you to push if they are missing.
+changes are invisible to Colab.
 
 ---
 

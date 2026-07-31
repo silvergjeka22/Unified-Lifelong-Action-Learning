@@ -7,26 +7,35 @@
 
 ---
 
-## Notebook Index
+## Notebook Index (embeddings branch)
+
+Every notebook trains on the cached `(16, 2048)` features. `[done]` = run with outputs,
+`[built]` = written and validated, not yet run on Colab.
 
 | # | File | Purpose | Status |
 |---|------|---------|--------|
-| 01 | `APAI_cnn_backbone.ipynb`   | Backbone + Transfer Learning on Task 0 | [x] |
-| 02 | `EWC_CL.ipynb`              | EWC continual learning experiments | [x] |
-| 03 | `CL_Replay_buffer.ipynb`    | Rehearsal buffer + LwF experiments | [x] |
-| 04 | `APAI_NAIVE_CL.ipynb`       | Naive sequential fine-tuning baseline | [/] |
-| 05 | `kd_mse&mamal.ipynb`        | KD + Reptile meta-learning (working) | [x] |
-| 06 | `06_active_domain_adapt.ipynb` | **YouTube AL + Smart Replay + Reptile adaptation** | [ ] |
-| 07 | *(to create)* `07_evaluation.ipynb` | Full comparison table + plots | [ ] |
+| 1.0  | `study/1_choose_model/1.0_backbone_transfer.ipynb`     | group-disjoint backbone bake-off, save teacher | [done] |
+| 2.0  | `study/2_extract_features/2.0_extract_embeddings.ipynb`| video -> cache, probe the ceiling (82%) | [done] |
+| 4.1  | `study/4_continual_learning/4.1_naive.ipynb`           | naive baseline, creates `head_base.pt` | [built] |
+| 4.2  | `study/4_continual_learning/4.2_weight_align.ipynb`    | weight aligning (0 bytes) | [built] |
+| 4.3  | `study/4_continual_learning/4.3_ewc.ipynb`             | EWC Fisher penalty | [built] |
+| 4.4  | `study/4_continual_learning/4.4_lwf.ipynb`             | learning without forgetting | [built] |
+| 4.5  | `study/4_continual_learning/4.5_smart_replay.ipynb`    | stored exemplars | [built] |
+| 4.6  | `study/4_continual_learning/4.6_replay_lwf.ipynb`      | replay + LwF (iCaRL) | [built] |
+| 5.0  | `study/5_memory_ablation/5.0_memory_ablation.ipynb`    | accuracy vs bytes sweep | [built] |
+| 6.0  | `study/6_gan_replay/6.0_gil.ipynb`                     | GAN generative replay (2 KB/class) | [built] |
+| 7.0  | `study/7_meta_learning/7.0_meta_learning.ipynb`        | Reptile vs standard, few-shot on TASK_4 | [built] |
+| 8.0  | `study/8_distillation/8.0_distillation.ipynb`          | MobileNet student distillation | [built] |
+| 9.0  | `study/9_domain_adapt/9.0_domain_adapt.ipynb`          | YouTube AL + Reptile adaptation | [built] |
+| 10.0 | `study/10_results/10.0_results.ipynb`                  | all CL arms, accuracy vs memory | [built] |
+| ULAL | `ULAL.ipynb`                                           | unified capstone, master figure | [built] |
 
 ---
 
-## Scripts
+## Setup
 
-| File | Purpose |
-|------|---------|
-| `bash/fetch_src.sh`   | Fetch `/src` from any branch → local + Drive. **Change branch at top of file or set `BRANCH` env var in Colab.** |
-| `bash/setup_colab.sh` | Download UCF101 from Kaggle, update `config.py` paths |
+Each notebook opens with the git-clone cell + `src.bootstrap.setup()` — no bash scripts.
+`bash/fetch_src.sh` and `bash/setup_colab.sh` are superseded and can be removed.
 
 ---
 

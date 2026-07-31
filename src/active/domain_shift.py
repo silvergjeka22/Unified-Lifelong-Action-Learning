@@ -83,7 +83,7 @@ def reptile_adapt(
       3. Reptile update: θ ← θ + ε * (θ' - θ)
 
     Args:
-        head        : EmbeddingHead to adapt (modified in-place, also returned)
+        head        : TemporalHead to adapt (modified in-place, also returned)
         al_s / al_t : AL-selected student/teacher embeddings
         al_y        : labels for AL samples
         buffer      : SmartReplayBuffer (can be None)

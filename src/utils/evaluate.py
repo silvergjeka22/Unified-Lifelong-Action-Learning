@@ -221,6 +221,23 @@ def head_embeddings(head, cache: dict, task_ids: list, device, split: str = "tes
     return torch.cat(E), torch.cat(Y)
 
 
+@torch.no_grad()
+def head_logits(head, cache: dict, task_ids: list, device, split: str = "test", batch_size: int = 256):
+    """The head's raw class logits over the given tasks. Returns (logits, labels)."""
+    head.eval()
+    L, Y = [], []
+    for t in task_ids:
+        k = f"t{t}_{split}"
+        if k not in cache:
+            continue
+        f, y = cache[k]
+        for i in range(0, len(f), batch_size):
+            logits, _ = head(f[i:i + batch_size].to(device), training=False)
+            L.append(logits.cpu())
+        Y.append(y)
+    return torch.cat(L), torch.cat(Y)
+
+
 # ── Raw clip loaders (real-image evaluation) ──────────────────────────────────
 def clips_available(task_roots: list, split: str = "test"):
     """Colab wipes /content between sessions, so the raw clips may be gone."""
