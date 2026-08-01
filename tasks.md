@@ -23,8 +23,6 @@ Every notebook trains on the cached `(16, 2048)` features. `[done]` = run with o
 | 4.5  | `study/4_continual_learning/4.5_smart_replay.ipynb`    | stored exemplars | [built] |
 | 4.6  | `study/4_continual_learning/4.6_replay_lwf.ipynb`      | replay + LwF (iCaRL) | [built] |
 | 5.0  | `study/5_memory_ablation/5.0_memory_ablation.ipynb`    | accuracy vs bytes sweep | [built] |
-| 6.0  | `study/6_gan_replay/6.0_gil.ipynb`                     | GAN generative replay (2 KB/class) | [built] |
-| 7.0  | `study/7_meta_learning/7.0_meta_learning.ipynb`        | Reptile vs standard, few-shot on TASK_4 | [built] |
 | 8.0  | `study/8_distillation/8.0_distillation.ipynb`          | MobileNet student distillation | [built] |
 | 9.0  | `study/9_domain_adapt/9.0_domain_adapt.ipynb`          | YouTube AL + Reptile adaptation | [built] |
 | 10.0 | `study/10_results/10.0_results.ipynb`                  | all CL arms, accuracy vs memory | [built] |
