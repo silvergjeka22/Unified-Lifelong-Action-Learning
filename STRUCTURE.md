@@ -51,14 +51,10 @@ notebooks/
       4.6_replay_lwf.ipynb             [built] both (iCaRL)
     5_memory_ablation/
       5.0_memory_ablation.ipynb        [built] accuracy vs bytes sweep
-    6_gan_replay/
-      6.0_gil.ipynb                    [built] 2 KB/class generative replay
-    7_meta_learning/
-      7.0_meta_learning.ipynb          [built] Reptile vs standard, few-shot on TASK_4
     8_distillation/
       8.0_distillation.ipynb           [built] MobileNet student, CE + MSE
     9_domain_adapt/
-      9.0_domain_adapt.ipynb           [built] YouTube AL + Reptile adaptation
+      9.0_domain_adapt.ipynb           [built] active learning + Reptile on synthetic shift
     10_results/
       10.0_results.ipynb               [built] all CL arms, accuracy vs memory
   ULAL.ipynb                           [built] unified capstone: reads every section, master figure
@@ -96,9 +92,7 @@ src/
     metrics.py            cl_report, build_accuracy_matrix, average_accuracy, BWT
     seed.py               set_seed
     save.py               remap_teacher_checkpoint, save_arm_result
-  meta/                   [later] Reptile
-  gil/                    [later] GAN generative replay
-  active/                 [later] YouTube domain adaptation
+  active/                 domain adaptation: acquisition + domain_shift (Reptile adapt)
 ```
 
 ### Delete these
@@ -116,8 +110,7 @@ Each one was checked for real call sites first, not just grepped for the name.
 | `run_cl_stream` in `cl/trainer.py` | **notebook 5.0 needs it** for the 13-config memory sweep — writing task sections out 13 times is not an option. The per-method notebooks (4.x) still use `train_task` explicitly. |
 | `4.2_weight_align.ipynb` + `weight_align` in `temporal_head.py` | kept as a baseline. The old "measured nothing" verdict came from leaky 16-class data; re-decide on the clean 30-class results. |
 | `bash/fetch_src.sh`, `bash/setup_colab.sh` | superseded by `src/bootstrap.py`; every notebook now uses the git-clone + `setup()` cells. Safe to delete once you confirm nothing local still calls them. |
-| `meta/`, `gil/`, `active/`, `data/youtube.py`, `models/student.py` | used by sections 7 (Reptile), 6 (GAN replay), 9 (YouTube adaptation), 8 (KD). |
-| `train_gan_real` in `gil/gil_gan.py` | corrected GAN loop used by 6.0 — the discriminator sees real per-clip features (the old `train_gan` used the class mean and collapsed). |
+| `active/`, `data/youtube.py`, `models/student.py` | used by section 9 (domain adaptation) and section 8 (KD). |
 | `measure_latency` in `utils/train.py` | used by the 1.0 backbone bake-off to compare inference speed. |
 | `models/pretrained.py`, `models/baselines.py`, `data/study_dataset.py` | notebook 1 uses them |
 
@@ -362,14 +355,11 @@ Drive/apai/
     head_naive.pt ... head_replay_lwf.pt one per CL arm (4.1 - 4.6)
     student_head.pt, student_ucf101.pt  notebook 8.0
     head_adapted_yt.pt                  notebook 9.0
-  gil/generator.pth                     notebook 6.0
   results/
     stage1_choose_backbone.json         notebook 1.0
     stage2_embedding_diagnostics.json   notebook 2.0 (holds the ceiling)
     stage1_arm_*.json                   per-CL-arm matrices and metrics (4.1 - 4.6)
     stage5_memory_ablation.json         notebook 5.0
-    stage6_gil.json                     notebook 6.0
-    stage7_fewshot.json                 notebook 7.0
     stage8_kd.json                      notebook 8.0
     stage9_da.json                      notebook 9.0
     final_comparison.json               notebook 10.0
@@ -395,15 +385,13 @@ teacher checkpoint changes.
 4.5  smart replay
 4.6  replay + lwf
 5.0  memory ablation        needs head_base.pt (from 4.1)
-6.0  gan replay             needs head_base.pt; pip installs sentence-transformers
-7.0  meta learning          extracts TASK_4 features (dataset needed)
 8.0  distillation           needs a CL head (default head_replay_lwf.pt from 4.6)
-9.0  domain adapt           needs a CL head; live YouTube downloads
+9.0  domain adapt           active learning + Reptile on a synthetic domain shift
 10.0 results                reads stage1_arm_*.json, accuracy vs memory
 ULAL unified capstone       reads every stage JSON, master figure
 ```
 
-Sections 5/6 branch off after 4.1; 8/9 need a trained CL arm; 10 and ULAL only read
+Section 5 branches off after 4.1; 8/9 need a trained CL arm; 10 and ULAL only read
 JSONs. Delete a stale `head_base.pt` before re-running so 4.1 retrains it on the current
 cache.
 

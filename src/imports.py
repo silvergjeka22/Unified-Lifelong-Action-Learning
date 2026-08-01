@@ -111,21 +111,13 @@ _run("src/cl/rehearsal.py")
 _run("src/cl/smart_replay.py")
 _run("src/cl/trainer.py")        # train_cl_arm — one loop for every CL arm
 
-# meta-learning  (src/meta/, NOT the deprecated src/meta_learning/)
-_run("src/meta/reptile.py")
-_run("src/meta/sampler.py")
-_run("src/meta/protonet.py")      # Prototypical Networks (metric-based few-shot)
-
 # knowledge distillation
 _run("src/kd/utils.py")
 _run("src/kd/trainer.py")
 
-# active domain adaptation
+# active domain adaptation  (Reptile adapt lives here, self-contained)
 _run("src/active/acquisition.py")
 _run("src/active/domain_shift.py")
-
-# GIL GAN
-_run("src/gil/gil_gan.py")
 
 # utils  (loaded last so these definitions win)
 _run("src/utils/seed.py")

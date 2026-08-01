@@ -7,8 +7,8 @@ class TemporalHead(nn.Module):
     LSTM + classifier over cached frame features from a frozen CNN backbone.
 
     Input : (B, T, backbone_dim) — per-frame features, e.g. (B, 16, 2048)
-    Output: (logits, proj)       — the contract finetune_head, train_reptile,
-                                   train_student and eval_head expect.
+    Output: (logits, proj)       — the contract finetune_head, train_student
+                                   and eval_head expect.
 
     The freeze boundary is set by `freeze_lstm`:
 

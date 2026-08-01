@@ -93,8 +93,6 @@ notebooks/
     2_extract_features/   [done]   2.0_extract_embeddings.ipynb (cache + ceiling probe)
     4_continual_learning/ [built]  4.1_naive ... 4.6_replay_lwf  (one per method)
     5_memory_ablation/    [built]  5.0_memory_ablation.ipynb
-    6_gan_replay/         [built]  6.0_gil.ipynb
-    7_meta_learning/      [built]  7.0_meta_learning.ipynb
     8_distillation/       [built]  8.0_distillation.ipynb
     9_domain_adapt/       [built]  9.0_domain_adapt.ipynb
     10_results/           [built]  10.0_results.ipynb
@@ -255,7 +253,7 @@ Sweep {1, 5, 15, 50} per class × {random, hard, diverse}.
 Also tests the Task1-collapse hypothesis: Task2 gets ~100 samples/class while replayed
 Task1 gets 15, a 6.7× vote imbalance.
 
-## Section 6 — GIL generative replay
+## Section 6 — GIL generative replay  [DEFERRED — moved to FUTURE_WORK.md]
 
 Store only (μ, σ); a frozen generator synthesises features.
 `ResNet 🔒 → LSTM 🔒 → head ✏️` — GIL assumes a static feature space, so this arm runs at
@@ -272,7 +270,7 @@ boundary A. That's the point: it's the far-left end of the curve, **2 KB/class**
 > The t-SNE claim "lower intra-class distance = better" is backwards — with bug #1 it's
 > guaranteed true and measures **mode collapse**.
 
-## Section 7 — Meta-learning (Reptile)
+## Section 7 — Meta-learning (Reptile)  [DEFERRED as a standalone study; Reptile itself is used by Section 9]
 
 Two heads from Section 4's winner — standard vs Reptile. Probe both on **TASK_4** with
 K ∈ {1, 5, 10} shots, same inner loop and lr.
@@ -369,5 +367,6 @@ backbone acts as a regulariser. Freezing is a design choice, not a shortcut.
 1. **1.0** — bake-off on the group-disjoint split, save the teacher
 2. **2.0** — cache features (once, slow); read the ceiling before continuing
 3. **4.1 - 4.6** — CL comparison (4.1 creates `head_base.pt`)
-4. Then **5 -> 6 -> 7 -> 8 -> 9 -> 10**
+4. Then **5 -> 8 -> 9 -> 10**  (GAN section 6 and the standalone meta-learning
+   section 7 are deferred — see `FUTURE_WORK.md`)
 5. **ULAL** last — the unified capstone that reads every section
