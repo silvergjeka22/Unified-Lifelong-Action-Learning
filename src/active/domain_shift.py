@@ -12,8 +12,48 @@ import torch.nn as nn
 import torch.nn.functional as F
 import torch.optim as optim
 import numpy as np
+from torchvision.transforms.functional import gaussian_blur
 
 from src.kd.utils import eval_head
+
+
+# ── Synthetic domain shift ───────────────────────────────────────────────────
+_IMAGENET_MEAN = torch.tensor([0.485, 0.456, 0.406]).view(1, 3, 1, 1)
+_IMAGENET_STD  = torch.tensor([0.229, 0.224, 0.225]).view(1, 3, 1, 1)
+
+
+def domain_corrupt(frames, blur_sigma=1.2, brightness=0.75, contrast=0.8, downscale=0.5):
+    """
+    Simulate a real-world domain shift on ImageNet-normalised frames (N, 3, H, W):
+    brightness/contrast change, resolution loss (down- then up-sample) and blur. Returns
+    the corrupted frames, re-normalised. Deterministic — no live downloads needed.
+    """
+    mean = _IMAGENET_MEAN.to(frames.device)
+    std  = _IMAGENET_STD.to(frames.device)
+    x = (frames * std + mean).clamp(0, 1)
+    x = (((x - 0.5) * contrast + 0.5) * brightness).clamp(0, 1)
+    _, _, H, W = x.shape
+    small = F.interpolate(x, scale_factor=downscale, mode="bilinear", align_corners=False)
+    x = F.interpolate(small, size=(H, W), mode="bilinear", align_corners=False)
+    k = max(3, int(2 * round(blur_sigma) + 1))
+    x = gaussian_blur(x, kernel_size=[k, k], sigma=[blur_sigma, blur_sigma])
+    return (x.clamp(0, 1) - mean) / std
+
+
+@torch.no_grad()
+def extract_shifted_features(backbone, loader, device, backbone_dim=2048, dtype=torch.float32,
+                             blur_sigma=1.2, brightness=0.75, contrast=0.8, downscale=0.5):
+    """Domain-corrupt every clip, then run the frozen backbone. Returns (feats, labels)."""
+    backbone.eval()
+    feats, labs = [], []
+    for x, y in loader:
+        B, T, C, H, W = x.shape
+        xc = domain_corrupt(x.view(B * T, C, H, W).to(device),
+                            blur_sigma, brightness, contrast, downscale)
+        f = backbone(xc).view(B, T, backbone_dim)
+        feats.append(f.to(dtype).cpu())
+        labs.append(y)
+    return torch.cat(feats), torch.cat(labs)
 
 
 # ── Distribution shift measurement ───────────────────────────────────────────
