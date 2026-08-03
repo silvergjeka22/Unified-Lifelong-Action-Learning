@@ -45,7 +45,7 @@ def pool_features(feats: torch.Tensor) -> np.ndarray:
     return to_numpy(feats)
 
 
-def _xy(cache, task_ids, split):
+def cache_xy(cache, task_ids, split):
     xs, ys = [], []
     for t in task_ids:
         k = f"t{t}_{split}"
@@ -80,8 +80,8 @@ def linear_probe(tr_x, tr_y, te_x, te_y, max_iter=2000, seed=42):
 
 def probe_task(cache, task_id, k=1):
     """Probe one task in isolation (N-way within that task)."""
-    tr_x, tr_y = _xy(cache, [task_id], "train")
-    te_x, te_y = _xy(cache, [task_id], "test")
+    tr_x, tr_y = cache_xy(cache, [task_id], "train")
+    te_x, te_y = cache_xy(cache, [task_id], "test")
     if tr_x is None or te_x is None:
         return None
     n_cls = len(set(tr_y.tolist()))
@@ -97,8 +97,8 @@ def probe_task(cache, task_id, k=1):
 
 def probe_joint(cache, task_ids, k=1):
     """Probe every task together — the hard, meaningful number."""
-    tr_x, tr_y = _xy(cache, task_ids, "train")
-    te_x, te_y = _xy(cache, task_ids, "test")
+    tr_x, tr_y = cache_xy(cache, task_ids, "train")
+    te_x, te_y = cache_xy(cache, task_ids, "test")
     if tr_x is None or te_x is None:
         return None
     n_cls = len(set(tr_y.tolist()))
@@ -162,7 +162,7 @@ def probe_report(cache, task_names, k=1, verbose=True):
 # ── Geometry ──────────────────────────────────────────────────────────────────
 def class_centroids(cache, task_ids, split="train"):
     """{label: mean feature vector}."""
-    x, y = _xy(cache, task_ids, split)
+    x, y = cache_xy(cache, task_ids, split)
     return {int(c): x[y == c].mean(0) for c in np.unique(y)}
 
 
@@ -231,7 +231,7 @@ def separability(cache, task_ids, split="train", seed=42, max_n=3000):
     Silhouette score in [-1, 1] — how tight and well-separated the class clusters are.
     Higher is better; near 0 means clusters overlap heavily.
     """
-    x, y = _xy(cache, task_ids, split)
+    x, y = cache_xy(cache, task_ids, split)
     if x is None or len(np.unique(y)) < 2:
         return None
     if len(x) > max_n:
@@ -252,7 +252,7 @@ def project_2d(cache, task_ids, split="train", method="tsne", seed=42,
     """
     from sklearn.manifold import TSNE
 
-    x, y = _xy(cache, task_ids, split)
+    x, y = cache_xy(cache, task_ids, split)
     if x is None:
         return None, None
 

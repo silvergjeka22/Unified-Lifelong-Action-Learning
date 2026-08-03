@@ -30,9 +30,9 @@ class DatasetStudy:
         self.dataset_root = dataset_root
         self.df           = None
         self.class_counts = None
-        self._load()
+        self.load_index()
 
-    def _load(self):
+    def load_index(self):
         splits = {}
         for split in ["train", "val", "test"]:
             path = os.path.join(self.dataset_root, f"{split}.csv")

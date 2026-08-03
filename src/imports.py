@@ -1,21 +1,6 @@
-#  SHARED IMPORTS -> run with: %run /content/ulal/src/imports.py
-#
-# Loads every project symbol into the notebook namespace via %run.
-#
-# Two bugs fixed in this refactor:
-#
-#  1. LOAD ORDER. src/meta_learning/ and src/fine_tune/{trainer,visualizer}.py
-#     were %run AFTER src/models/ and src/utils/, so the deprecated copies
-#     silently overwrote the real ones — 21 name collisions including
-#     ResNet50LSTMTeacher, EmbeddingHead, train_model, evaluate_model.
-#     Editing src/models/teacher.py had NO effect on any notebook.
-#     Those loads are gone; delete the folders when convenient.
-#
-#  2. DOUBLE CONFIG. `import config.config` (via /content/ulal/src on the path)
-#     and `from src.config.config import ...` (via /content/ulal) produced two
-#     distinct module objects holding two copies of every value, so mutating
-#     cfg.X through one path was invisible through the other. We now put only
-#     the repo root on sys.path and import through `src.` exclusively.
+# SHARED IMPORTS -> %run /content/ulal/src/imports.py
+# Loads every project symbol into the notebook namespace. Repo root goes on
+# sys.path and config is imported through src. only, so there is one cfg object.
 
 import os
 import sys
@@ -86,63 +71,61 @@ from src.config.config import *          # noqa: F403  (paths, class splits, hyp
 device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 
 # ── project modules (%run so all symbols land in the notebook namespace) ─────
-_ipython = get_ipython()
+ipython = get_ipython()
 
-def _run(rel):
-    _ipython.run_line_magic("run", os.path.join(ULAL_ROOT, rel))
+def run_module(rel):
+    ipython.run_line_magic("run", os.path.join(ULAL_ROOT, rel))
 
 # data
-_run("src/data/study_dataset.py")
-_run("src/data/preprocessing.py")
-_run("src/data/dataset.py")
-_run("src/data/cache.py")           # feature cache + label space
-_run("src/data/youtube.py")
+run_module("src/data/study_dataset.py")
+run_module("src/data/preprocessing.py")
+run_module("src/data/dataset.py")
+run_module("src/data/cache.py")           # feature cache + label space
+run_module("src/data/youtube.py")
 
 # models
-_run("src/models/pretrained.py")
-_run("src/models/baselines.py")
-_run("src/models/teacher.py")
-_run("src/models/student.py")
-_run("src/models/temporal_head.py")      # TemporalHead + weight_align
+run_module("src/models/pretrained.py")
+run_module("src/models/baselines.py")
+run_module("src/models/teacher.py")
+run_module("src/models/student.py")
+run_module("src/models/temporal_head.py")      # TemporalHead + weight_align
 
 # continual learning
-_run("src/cl/ewc.py")
-_run("src/cl/rehearsal.py")
-_run("src/cl/smart_replay.py")
-_run("src/cl/trainer.py")        # train_cl_arm — one loop for every CL arm
+run_module("src/cl/ewc.py")
+run_module("src/cl/rehearsal.py")
+run_module("src/cl/smart_replay.py")
+run_module("src/cl/trainer.py")        # train_cl_arm — one loop for every CL arm
 
 # knowledge distillation
-_run("src/kd/utils.py")
-_run("src/kd/trainer.py")
+run_module("src/kd/utils.py")
+run_module("src/kd/trainer.py")
 
 # active domain adaptation  (Reptile adapt lives here, self-contained)
-_run("src/active/acquisition.py")
-_run("src/active/domain_shift.py")
+run_module("src/active/acquisition.py")
+run_module("src/active/domain_shift.py")
+
+# meta-learning  (Reptile vs first-order MAML)
+run_module("src/meta/metalearn.py")
 
 # utils  (loaded last so these definitions win)
-_run("src/utils/seed.py")
-_run("src/utils/metrics.py")
-_run("src/utils/probe.py")          # embedding-quality probes
-_run("src/utils/evaluate.py")       # per-task + real-image evaluation
-_run("src/utils/visualize.py")
-_run("src/utils/save.py")
-_run("src/utils/train.py")
+run_module("src/utils/seed.py")
+run_module("src/utils/metrics.py")
+run_module("src/utils/probe.py")          # embedding-quality probes
+run_module("src/utils/evaluate.py")       # per-task + real-image evaluation
+run_module("src/utils/visualize.py")
+run_module("src/utils/save.py")
+run_module("src/utils/train.py")
 
-# Seed everything before any training happens.
-#
-# A plain import, not the %run-ed copy above: %run executes each file in its own
-# namespace and only copies the resulting symbols into the NOTEBOOK namespace after
-# it finishes. So symbols from _run() are not visible inside imports.py itself while
-# it is still executing — calling set_seed() here without this import raises
-# NameError. The notebooks still get set_seed from the _run above.
-from src.utils.seed import set_seed as _set_seed
+# Imported directly (not the run_module copy): run_module symbols are not visible
+# inside this file until it finishes, so set_seed would be undefined here otherwise.
+from src.utils.seed import set_seed as seed_all
 
-_set_seed(cfg.SEED)
+seed_all(cfg.SEED)
 
 print(f"ULAL_ROOT : {ULAL_ROOT}")
 print(f"Device    : {device}")
 if torch.cuda.is_available():
-    _p = torch.cuda.get_device_properties(0)
-    print(f"GPU       : {_p.name} ({_p.total_memory / 1e9:.1f} GB)")
+    gpu_props = torch.cuda.get_device_properties(0)
+    print(f"GPU       : {gpu_props.name} ({gpu_props.total_memory / 1e9:.1f} GB)")
 print(f"Classes   : base={len(cfg.SELECTED_CLASSES)} t1={len(cfg.TASK_1)} "
       f"t2={len(cfg.TASK_2)} t3={len(cfg.TASK_3)} t4={len(cfg.TASK_4)}")

@@ -26,28 +26,19 @@ YT_TRANSFORM = transforms.Compose([
 ])
 
 
-def download_video(url: str, out_path: str, max_height: int = 480) -> bool:
-    """
-    Download a single YouTube video using yt-dlp.
-
-    Args:
-        url        : YouTube URL
-        out_path   : full output path including filename (.mp4)
-        max_height : cap resolution for speed (default 480p)
-
-    Returns:
-        True if successful, False otherwise.
-    """
+def download_video(url: str, out_path: str, max_height: int = 480, cookies: str = None) -> bool:
+    """Download one video with yt-dlp. cookies = path to a cookies.txt to beat the bot-check. Returns True on success."""
     if os.path.exists(out_path):
         print(f"  [skip] {os.path.basename(out_path)} already exists")
         return True
 
-    fmt    = f"bestvideo[ext=mp4][height<={max_height}]+bestaudio[ext=m4a]/best[ext=mp4]"
-    result = subprocess.run(
-        ["yt-dlp", "--format", fmt, "--merge-output-format", "mp4",
-         "--output", out_path, "--quiet", "--no-warnings", url],
-        capture_output=True, text=True,
-    )
+    fmt = f"bestvideo[ext=mp4][height<={max_height}]+bestaudio[ext=m4a]/best[ext=mp4]/best"
+    cmd = ["yt-dlp", "--format", fmt, "--merge-output-format", "mp4",
+           "--output", out_path, "--quiet", "--no-warnings"]
+    if cookies:
+        cmd += ["--cookies", cookies]
+    cmd.append(url)
+    result = subprocess.run(cmd, capture_output=True, text=True)
     if result.returncode != 0:
         print(f"  [!] Download failed: {result.stderr[:200]}")
         return False
@@ -111,6 +102,7 @@ def download_and_extract(
     class_to_idx: dict,
     clip_len: int = 16,
     n_clips: int = 8,
+    cookies: str = None,
 ) -> tuple:
     """
     Download and extract clips for multiple classes.
@@ -137,7 +129,7 @@ def download_and_extract(
             continue
 
         out_path = os.path.join(raw_dir, f"{cls_name}.mp4")
-        ok       = download_video(url, out_path)
+        ok       = download_video(url, out_path, cookies=cookies)
         if not ok:
             skipped_classes.append(cls_name)
             continue

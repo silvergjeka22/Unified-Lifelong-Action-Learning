@@ -108,11 +108,11 @@ def plot_confusion_matrix(all_labels, all_preds,
     tick_labels = list(classes_list[:num_classes])
     tag = f" ({name})" if name else f" ({num_classes} classes)"
 
-    _draw_cm(cm,      "d",    "Blues",  f"Confusion Matrix — Counts{tag}",     tick_labels, save_path, "_counts")
-    _draw_cm(cm_norm, ".2f", "YlOrRd", f"Confusion Matrix — Normalised{tag}", tick_labels, save_path, "_norm")
+    draw_cm(cm,      "d",    "Blues",  f"Confusion Matrix — Counts{tag}",     tick_labels, save_path, "_counts")
+    draw_cm(cm_norm, ".2f", "YlOrRd", f"Confusion Matrix — Normalised{tag}", tick_labels, save_path, "_norm")
 
 
-def _draw_cm(data, fmt, cmap, title, tick_labels, save_path=None, suffix=""):
+def draw_cm(data, fmt, cmap, title, tick_labels, save_path=None, suffix=""):
     """
     Internal: draw a single heatmap.
     Font sizes and cell dimensions are computed from n = num_classes.
