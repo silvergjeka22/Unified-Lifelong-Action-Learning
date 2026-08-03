@@ -198,11 +198,16 @@ CLIPS_PER_VID       = 8
 YT_RAW_DIR          = "/content/yt_raw"
 YT_CLIPS_DIR        = "/content/yt_clips"
 
-# YouTube videos {class_name: url} — edit to change which classes are tested
+# Domain-adaptation videos {class_name: url}. These are archive.org clips that
+# download on Colab without cookies (no YouTube bot-block). Direct file URLs are
+# used so yt-dlp fetches one specific small file (a details URL can pull a huge HD
+# copy). yt-dlp also accepts YouTube URLs, but Colab needs a cookies.txt for those
+# (see notebook 5.1). Add more base classes with archive.org movie items.
 YOUTUBE_CLIPS = {
-    "Diving":      "https://www.youtube.com/watch?v=sM4w7GgJjNs",
-    "HorseRiding": "https://www.youtube.com/watch?v=dMoWGWA_sFk",
-    "PushUps":     "https://www.youtube.com/watch?v=IODxDxX7oi4",
+    "HorseRiding": "https://archive.org/download/horse-riding_202411/horse%20riding.mp4",
+    "Drumming":    "https://archive.org/download/Davidleeking-drumming798/Davidleeking-drumming798_512kb.mp4",
+    "Diving":      "https://archive.org/download/cabeurfm_000005/cabeurfm_000005_access.mp4",
+    "PushUps":     "https://archive.org/download/in-shot-20200102-195128/InShot_20200102_195128.mp4",
 }
 
 # ── GAN / GIL ────────────────────────────────────────────────────────────────

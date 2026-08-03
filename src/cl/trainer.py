@@ -1,30 +1,6 @@
-"""
-Unified continual-learning training loop.
-
-ONE function trains every arm — naive, replay, EWC, and any combination:
-
-    buffer only   -> replay
-    fisher only   -> EWC
-    both          -> replay + EWC
-    neither       -> naive
-
-Why one loop matters
---------------------
-An earlier version ran naive/replay through train_with_smart_replay (which selects the
-best epoch by validation accuracy) and EWC through train_ewc (which does not). Two
-consequences, both invalidating:
-
-  1. Best-val selection stopped naive at epoch ~2 — before it had forgotten anything OR
-     learned the new task (Base=97%, Task1=43%) — while EWC trained all 15 epochs. The
-     arms were measuring different things.
-
-  2. Selecting on a validation set that spans OLD classes is itself a form of memory. A
-     "0 bytes" naive baseline that quietly consults base-class validation data is not a
-     0-byte baseline.
-
-So: fixed epochs, no selection, report the final model. Per-epoch validation is printed
-for monitoring only and never touches the weights.
-"""
+"""One continual-learning loop for every arm: buffer -> replay, fisher -> EWC,
+teacher -> LwF, none -> naive. Fixed epochs, no best-val selection (selecting on a
+val set that spans old classes is itself memory); the final model is reported."""
 
 import copy
 

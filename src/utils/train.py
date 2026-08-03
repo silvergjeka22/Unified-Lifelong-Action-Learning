@@ -293,7 +293,7 @@ def print_detailed_metrics(
     ))
 
     # Old / New class breakdown (CL-specific, optional)
-    def _group_metrics(mask, label_range, group_name):
+    def group_metrics(mask, label_range, group_name):
         if mask.sum() == 0:
             print(f"  (no samples for {group_name})")
             return
@@ -315,11 +315,11 @@ def print_detailed_metrics(
 
     if split_old is not None:
         old_mask = (all_labels >= split_old[0]) & (all_labels < split_old[1])
-        _group_metrics(old_mask, split_old, "OLD CLASSES")
+        group_metrics(old_mask, split_old, "OLD CLASSES")
 
     if split_new is not None:
         new_mask = (all_labels >= split_new[0]) & (all_labels < split_new[1])
-        _group_metrics(new_mask, split_new, "NEW CLASSES")
+        group_metrics(new_mask, split_new, "NEW CLASSES")
 
     # Top / worst 5 by F1
     f1_per = f1_score(all_labels, all_preds, average=None,
