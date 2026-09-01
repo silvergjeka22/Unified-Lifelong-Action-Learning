@@ -92,6 +92,40 @@ def check_group_leakage(target_classes=None, input_root=None, splits=None):
     return leaking
 
 
+def leakage_example(class_name, input_root=None, splits=None):
+    """
+    One class's group -> split table from the shipped split. Returns a DataFrame with
+    columns (group, clip, split, group_leaks), leaking groups first.
+
+    Makes the leakage concrete: rows where group_leaks is True are clips cut from the
+    SAME source video that the shipped split scattered across train / val / test.
+    """
+    import pandas as pd
+
+    splits     = splits or ["train", "val", "test"]
+    input_root = input_root or cfg.DATASET_ROOT
+
+    rows = []
+    for split in splits:
+        class_path = os.path.join(input_root, split, class_name)
+        if not os.path.isdir(class_path):
+            continue
+        for vid in sorted(os.listdir(class_path)):
+            if not vid.endswith(".avi"):
+                continue
+            key = "_".join(vid.split("_")[:3])
+            rows.append({"group": key, "clip": vid, "split": split})
+
+    df = pd.DataFrame(rows)
+    if df.empty:
+        return df
+
+    n_splits = df.groupby("group")["split"].transform("nunique")
+    df["group_leaks"] = n_splits > 1
+    return df.sort_values(["group_leaks", "group", "split"],
+                          ascending=[False, True, True]).reset_index(drop=True)
+
+
 def build_group_split(target_classes=None, input_root=None, splits=None,
                       train_groups=18, val_groups=3):
     """
@@ -198,86 +232,9 @@ def preprocess_group_split(split_map, target_classes=None, output_root=None):
                 if os.path.exists(output_path):
                     continue
 
-                try:
-                    frames = extract_frames(vid_path)
-                    if not frames:
-                        continue
-                    sampled_frames = temporal_sample(frames)
-                    save_clip_tensor(sampled_frames, output_path)
-                except Exception as e:
-                    print(f"\n  Error processing {vid_name}: {e}")
-
-    print(f"\nDone! Dataset ready at: {output_root}")
-
-
-def preprocess_dataset(
-    target_classes=None,
-    splits=None,
-    input_root=None,
-    output_root=None,
-    max_samples=None
-):
-    """
-    Unified preprocessing for UCF101. 
-    Defaults to global cfg values but allows flexible overrides.
-    """
-    # 1. Setup Defaults from cfg
-    target_classes = target_classes or cfg.SELECTED_CLASSES
-    splits         = splits or ["train", "val", "test"]
-    input_root     = input_root or cfg.DATASET_ROOT
-    output_root    = output_root or cfg.OUTPUT_ROOT
-
-    print(f"\n--- Preprocessing UCF101 ---")
-    print(f"From: {input_root}")
-    print(f"To  : {output_root}")
-    print(f"Classes: {len(target_classes)} | Limit: {max_samples if max_samples else 'Full'}")
-
-    os.makedirs(output_root, exist_ok=True)
-
-    for split in splits:
-        split_input_path  = os.path.join(input_root, split)
-        split_output_path = os.path.join(output_root, split)
-        os.makedirs(split_output_path, exist_ok=True)
-
-        print(f"\nProcessing split: {split}")
-
-        for cls in target_classes:
-            class_input_path  = os.path.join(split_input_path, cls)
-            class_output_path = os.path.join(split_output_path, cls)
-
-            if not os.path.isdir(class_input_path):
-                print(f"  Warning: Class '{cls}' not found in {split}, skipping.")
-                continue
-
-            os.makedirs(class_output_path, exist_ok=True)
-
-            # Get and sort video files
-            videos = [v for v in os.listdir(class_input_path) if v.endswith(".avi")]
-            videos.sort()
-
-            # Apply memory saver limit (typically for training sets)
-            if max_samples is not None and split == "train":
-                videos = videos[:max_samples]
-
-            for vid_name in tqdm(videos, desc=f"  {cls} [{split}]", leave=False):
-                vid_path = os.path.join(class_input_path, vid_name)
-                output_filename = os.path.splitext(vid_name)[0] + ".pt"
-                output_path = os.path.join(class_output_path, output_filename)
-
-                # Skip if already exists (Resume capability)
-                if os.path.exists(output_path):
+                frames = extract_frames(vid_path)
+                if not frames:
                     continue
+                save_clip_tensor(temporal_sample(frames), output_path)
 
-                try:
-                    # Processing Pipeline
-                    frames = extract_frames(vid_path)
-                    if not frames:
-                        continue
-
-                    sampled_frames = temporal_sample(frames)
-                    save_clip_tensor(sampled_frames, output_path)
-
-                except Exception as e:
-                    print(f"\n  Error processing {vid_name}: {e}")
-
-    print(f"\nDone! Dataset ready at: {output_root}")
+    print(f"\nDone. Clips ready at: {output_root}")
