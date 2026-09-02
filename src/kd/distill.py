@@ -10,7 +10,8 @@ from src.cl.rehearsal import distillation_loss
 def train_student(student, teacher, train_loader, val_loader, device, mode="kd",
                   epochs=10, lr=1e-3, T=2.0, ce_weight=0.75, distill_weight=0.25):
     """
-    Distil a trained teacher into the student on real clips. Returns the best-val student.
+    Distil a trained teacher into the student on real clips. Returns (student, history)
+    with the best-val weights loaded.
 
         "ce"      cross-entropy only, no teacher
         "kd"      CE + KL on softened logits
@@ -21,10 +22,12 @@ def train_student(student, teacher, train_loader, val_loader, device, mode="kd",
     if teacher is not None:
         teacher.to(device).eval()
     optimizer = torch.optim.Adam(student.parameters(), lr=lr)
+    history = {"train_losses": [], "val_losses": [], "train_accs": [], "val_accs": []}
     best_acc, best_state = 0.0, copy.deepcopy(student.state_dict())
 
     for epoch in range(epochs):
         student.train()
+        run_loss, correct, total = 0.0, 0, 0
         for clips, y in train_loader:
             clips, y = clips.to(device), y.to(device)
             optimizer.zero_grad()
@@ -33,10 +36,7 @@ def train_student(student, teacher, train_loader, val_loader, device, mode="kd",
 
             if mode != "ce":
                 with torch.no_grad():
-                    if mode == "kd":
-                        t_out = teacher(clips)
-                    else:
-                        t_out = teacher.features(clips)
+                    t_out = teacher(clips) if mode == "kd" else teacher.features(clips)
                 if mode == "kd":
                     loss = loss + distill_weight * distillation_loss(logits, t_out, T)
                 elif mode == "cosine":
@@ -47,12 +47,21 @@ def train_student(student, teacher, train_loader, val_loader, device, mode="kd",
 
             loss.backward()
             optimizer.step()
+            run_loss += loss.item() * y.size(0)
+            correct  += (logits.argmax(1) == y).sum().item()
+            total    += y.size(0)
 
-        val_acc, _ = evaluate_model(student, val_loader, device)
-        print(f"[{mode:>6}] epoch {epoch+1:02d}/{epochs} | val {val_acc:.4f}")
+        train_acc, train_loss = correct / total, run_loss / total
+        val_acc, val_loss     = evaluate_model(student, val_loader, device)
+        history["train_accs"].append(train_acc)
+        history["train_losses"].append(train_loss)
+        history["val_accs"].append(val_acc)
+        history["val_losses"].append(val_loss)
+        print(f"[{mode:>6}] epoch {epoch+1:02d}/{epochs} | Train Acc: {train_acc:.4f} | Val Acc: {val_acc:.4f}")
+
         if val_acc > best_acc:
             best_acc, best_state = val_acc, copy.deepcopy(student.state_dict())
 
     student.load_state_dict(best_state)
     print(f"  best [{mode}] val {best_acc:.4f}")
-    return student
+    return student, history
