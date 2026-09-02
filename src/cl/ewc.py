@@ -59,10 +59,7 @@ def train_ewc(model, train_loader, val_loader, old_val_loader, star, fisher,
     history = {"train_losses": [], "val_losses": [], "train_accs": [], "val_accs": []}
 
     for epoch in range(num_epochs):
-        model.train()
-        for m in model.modules():
-            if isinstance(m, nn.Dropout):
-                m.eval()
+        model.train()   # dropout ON during training, same as every other arm
         correct, total, run_loss = 0, 0, 0.0
         for clips, y in tqdm(train_loader, desc="  train", leave=False):
             clips, y = clips.to(device), y.to(device)

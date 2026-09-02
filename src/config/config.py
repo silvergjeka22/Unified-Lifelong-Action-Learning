@@ -53,17 +53,17 @@ DROPOUT_P   = 0.4
 HIDDEN_SIZE = 256      # LSTM hidden size, shared by teacher and student
 TRAIN_SPLIT = 0.8
 
-# EWC
-EWC_LAMBDA = 5000.0
-EWC_LR     = 1e-5
-EWC_EPOCHS = 10
+# CONTINUAL LEARNING - shared training budget
+# Every CL arm (naive, EWC, LwF, replay, replay+LwF) trains with THIS lr and epoch
+# count, so the only difference between arms is the mechanism, not the step size.
+CL_LR     = 1e-4
+CL_EPOCHS = 5
 
-# REPLAY / LwF
-REPLAY_BUFFER_SIZE = 300
-LAMBDA_DISTILL     = 1.0
-REPLAY_LR          = 1e-4
-REPLAY_EPOCHS      = 5
-KD_TEMPERATURE     = 5.0
+# Per-method strength knobs - each arm keeps its own; these are what you tune.
+EWC_LAMBDA         = 20000.0   # re-tune at CL_LR: raise if base forgets, lower if the new task will not learn
+REPLAY_BUFFER_SIZE = 300       # replay buffer: ~15 clips per class
+LAMBDA_DISTILL     = 3.0       # LwF / replay+LwF distillation weight (raised from 1.0)
+KD_TEMPERATURE     = 5.0       # LwF distillation temperature
 
 # KNOWLEDGE DISTILLATION (teacher -> student)
 KD_T              = 2.0
@@ -72,14 +72,8 @@ KD_DISTILL_WEIGHT = 0.25
 KD_EPOCHS         = 10
 KD_LR             = 1e-3
 
-# DOMAIN ADAPTATION (+ meta-learning)
-AL_BUDGET_PER_CLASS = 10
-ADAPT_LR            = 5e-4
-ADAPT_STEPS         = 10
-ADAPT_EPISODES      = 30
-ADAPT_EPSILON       = 0.20
-YT_RAW_DIR          = "/content/yt_raw"
-YT_CLIPS_DIR        = "/content/yt_clips"
+# DOMAIN ADAPTATION - YouTube clips (meta-learning hyperparameters live in the notebook)
+YT_RAW_DIR = "/content/yt_raw"
 YOUTUBE_CLIPS = {
     "HorseRiding": "https://archive.org/download/horse-riding_202411/horse%20riding.mp4",
     "Drumming":    "https://archive.org/download/Davidleeking-drumming798/Davidleeking-drumming798_512kb.mp4",
