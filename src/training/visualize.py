@@ -52,23 +52,41 @@ def plot_confusion_matrix(all_labels, all_preds, num_classes=None, classes_list=
 
 def plot_cl_forgetting(snapshots):
     """
-    Plot per-split accuracy across CL stages. snapshots is a list of
-    evaluate_all_tasks() outputs, one per stage.
+    Grouped bar chart of per-task accuracy at each CL stage. snapshots is a list of
+    evaluate_all_tasks() outputs, one per stage. Within a task, bars shrinking from
+    stage to stage is forgetting.
     """
-    splits = []
+    def nice(k):
+        if k == "base":
+            return "Base"
+        return k.replace("_only", "").replace("task", "Task ")
+
+    def stage_name(s):
+        return "base" if s == 0 else f"after T{s}"
+
+    tasks = []
     for snap in snapshots:
         for k in snap:
-            if k not in splits:
-                splits.append(k)
-    stages = [f"stage {i}" for i in range(len(snapshots))]
+            if not k.startswith("combined") and k not in tasks:
+                tasks.append(k)
 
-    plt.figure(figsize=(9, 5))
-    for split in splits:
-        xs = [stages[i] for i, snap in enumerate(snapshots) if split in snap]
-        ys = [snap[split]["accuracy"] for snap in snapshots if split in snap]
-        style = "--" if "combined" in split else "-"
-        plt.plot(xs, ys, marker="o", linestyle=style, label=split)
+    n_stage = len(snapshots)
+    x = np.arange(len(tasks))
+    width = 0.8 / max(n_stage, 1)
 
-    plt.title("Accuracy per split across CL stages", fontweight="bold")
-    plt.xlabel("CL stage"); plt.ylabel("accuracy"); plt.ylim(0, 1.05)
-    plt.legend(); plt.tight_layout(); plt.show()
+    plt.figure(figsize=(1.8 * len(tasks) + 3, 5))
+    for s, snap in enumerate(snapshots):
+        vals = [snap[k]["accuracy"] if k in snap else np.nan for k in tasks]
+        pos  = x + (s - (n_stage - 1) / 2) * width
+        plt.bar(pos, vals, width, label=stage_name(s))
+        for p, v in zip(pos, vals):
+            if not np.isnan(v):
+                plt.text(p, v + 0.01, f"{v:.0%}", ha="center", va="bottom", fontsize=8)
+
+    plt.xticks(x, [nice(k) for k in tasks])
+    plt.ylim(0, 1.15)
+    plt.ylabel("accuracy")
+    plt.title("Per-task accuracy across CL stages (shrinking bars = forgetting)", fontweight="bold")
+    plt.legend(title="measured")
+    plt.tight_layout()
+    plt.show()
