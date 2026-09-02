@@ -1,3 +1,4 @@
+import copy
 import random
 import torch
 import torch.nn as nn
@@ -11,6 +12,15 @@ def distillation_loss(student_logits, teacher_logits, T=5.0):
     s = F.log_softmax(student_logits / T, dim=1)
     t = F.softmax(teacher_logits / T, dim=1)
     return F.kl_div(s, t, reduction="batchmean") * (T * T)
+
+
+def snapshot_teacher(model):
+    """A frozen deep copy of the model as it stands now - the LwF teacher for the next task."""
+    teacher = copy.deepcopy(model)
+    for p in teacher.parameters():
+        p.requires_grad_(False)
+    teacher.eval()
+    return teacher
 
 
 class ReplayBuffer:
