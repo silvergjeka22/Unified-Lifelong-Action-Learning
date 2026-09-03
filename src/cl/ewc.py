@@ -3,7 +3,7 @@ import torch.nn as nn
 import torch.nn.functional as F
 from tqdm import tqdm
 
-from src.training.train import evaluate_model
+from src.training.train import evaluate_model, task_accs
 
 
 def theta_star(model):
@@ -54,15 +54,21 @@ def ewc_loss(model, star, fisher, ewc_lambda, device):
 
 
 def train_ewc(model, train_loader, val_loader, old_val_loader, star, fisher,
-              device, num_epochs=10, lr=1e-5, ewc_lambda=5000.0):
+              device, num_epochs=10, lr=1e-5, ewc_lambda=5000.0,
+              track_loaders=None, track_history=None):
     """
     Train on a new task with the EWC penalty. Prints new-task and old-task validation
     accuracy each epoch so the protection is visible. Returns a history dict.
+
+    track_loaders / track_history: see train_model - fills a per-epoch forgetting timeline.
     """
     model.to(device)
     optimizer = torch.optim.Adam([p for p in model.parameters() if p.requires_grad], lr=lr)
     criterion = nn.CrossEntropyLoss()
     history = {"train_losses": [], "val_losses": [], "train_accs": [], "val_accs": []}
+
+    if track_loaders and track_history is not None and len(track_history) == 0:
+        track_history.append(task_accs(model, track_loaders, device))
 
     for epoch in range(num_epochs):
         model.train()   # dropout ON during training, same as every other arm
@@ -95,4 +101,6 @@ def train_ewc(model, train_loader, val_loader, old_val_loader, star, fisher,
         print(f"Epoch [{epoch+1}/{num_epochs}] | Train {train_acc:.4f} | "
               f"CE {ce_mean:.3f} | EWC {pen_mean:.3f} ({100*pen_mean/max(ce_mean,1e-9):.0f}% of CE) | "
               f"New Val {val_acc:.4f} | Old Val {old_acc:.4f}")
+        if track_loaders and track_history is not None:
+            track_history.append(task_accs(model, track_loaders, device))
     return history

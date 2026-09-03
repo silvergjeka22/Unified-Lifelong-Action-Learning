@@ -39,12 +39,27 @@ def train_one_epoch(model, loader, criterion, optimizer, device):
     return correct / total, total_loss / total
 
 
-def train_model(model, train_loader, val_loader, num_epochs=5, lr=1e-4, device="cuda"):
-    """Train a model, printing train/val accuracy each epoch. Returns a history dict."""
+def task_accs(model, loaders, device):
+    """Accuracy of the model on each named loader, as {name: acc}. Builds a forgetting timeline."""
+    return {name: evaluate_model(model, ldr, device)[0] for name, ldr in loaders.items()}
+
+
+def train_model(model, train_loader, val_loader, num_epochs=5, lr=1e-4, device="cuda",
+                track_loaders=None, track_history=None):
+    """
+    Train a model, printing train/val accuracy each epoch. Returns a history dict.
+
+    If track_loaders ({task_name: test_loader}) and track_history (a list) are given, one
+    {task_name: accuracy} snapshot is appended per epoch (plus a baseline before the first
+    epoch when the list is empty) so plot_forgetting_history can chart the whole stream.
+    """
     model.to(device)
     criterion = nn.CrossEntropyLoss()
     optimizer = optim.Adam(model.parameters(), lr=lr)
     history = {"train_losses": [], "val_losses": [], "train_accs": [], "val_accs": []}
+
+    if track_loaders and track_history is not None and len(track_history) == 0:
+        track_history.append(task_accs(model, track_loaders, device))
 
     for epoch in range(num_epochs):
         train_acc, train_loss = train_one_epoch(model, train_loader, criterion, optimizer, device)
@@ -56,6 +71,8 @@ def train_model(model, train_loader, val_loader, num_epochs=5, lr=1e-4, device="
         print(f"Epoch [{epoch+1}/{num_epochs}] | "
               f"Train Acc: {train_acc:.4f} Loss: {train_loss:.4f} | "
               f"Val Acc: {val_acc:.4f} Loss: {val_loss:.4f}")
+        if track_loaders and track_history is not None:
+            track_history.append(task_accs(model, track_loaders, device))
     return history
 
 
