@@ -13,8 +13,9 @@ def theta_star(model):
 
 def get_fisher(train_loader, model, device):
     """
-    Diagonal Fisher information: the average squared gradient per weight over the
-    task's data. Large values mark the weights that matter for the old task.
+    Diagonal Fisher information: the mean squared gradient per weight over the task's
+    data, then normalised per layer to [0, 1] so the most important weights sit near 1.
+    Without that normalisation the raw values are tiny and the EWC penalty is inert.
     """
     fisher = {n: torch.zeros_like(p) for n, p in model.named_parameters() if p.requires_grad}
     model.train().to(device)
@@ -31,7 +32,12 @@ def get_fisher(train_loader, model, device):
                 fisher[n] += p.grad.pow(2)
 
     for n in fisher:
-        fisher[n] = (fisher[n] / len(train_loader.dataset)).clamp(0.0, 1.0)
+        fisher[n] /= max(len(train_loader.dataset), 1)
+        peak = fisher[n].max()
+        if peak > 0 and not torch.isnan(peak):
+            fisher[n] /= peak                       # per-layer -> [0, 1]
+        if torch.isnan(fisher[n]).any():
+            fisher[n].zero_()
     return fisher
 
 
@@ -60,25 +66,33 @@ def train_ewc(model, train_loader, val_loader, old_val_loader, star, fisher,
 
     for epoch in range(num_epochs):
         model.train()   # dropout ON during training, same as every other arm
-        correct, total, run_loss = 0, 0, 0.0
+        correct, total = 0, 0
+        ce_sum, pen_sum, nb = 0.0, 0.0, 0
         for clips, y in tqdm(train_loader, desc="  train", leave=False):
             clips, y = clips.to(device), y.to(device)
             optimizer.zero_grad()
             out  = model(clips)
-            loss = criterion(out, y) + ewc_loss(model, star, fisher, ewc_lambda, device)
-            loss.backward()
+            ce   = criterion(out, y)
+            pen  = ewc_loss(model, star, fisher, ewc_lambda, device)   # already scaled by lambda
+            (ce + pen).backward()
             optimizer.step()
-            run_loss += loss.item() * y.size(0)
-            correct  += (out.argmax(1) == y).sum().item()
-            total    += y.size(0)
+            ce_sum  += ce.item()
+            pen_sum += pen.item()
+            nb      += 1
+            correct += (out.argmax(1) == y).sum().item()
+            total   += y.size(0)
 
-        train_acc, train_loss = correct / total, run_loss / total
-        val_acc, val_loss     = evaluate_model(model, val_loader, device)
-        old_acc, _            = evaluate_model(model, old_val_loader, device)
+        train_acc = correct / total
+        ce_mean, pen_mean = ce_sum / max(nb, 1), pen_sum / max(nb, 1)
+        val_acc, val_loss = evaluate_model(model, val_loader, device)
+        old_acc, _        = evaluate_model(model, old_val_loader, device)
         history["train_accs"].append(train_acc)
-        history["train_losses"].append(train_loss)
+        history["train_losses"].append(ce_mean)
         history["val_accs"].append(val_acc)
         history["val_losses"].append(val_loss)
-        print(f"Epoch [{epoch+1}/{num_epochs}] | Train Acc: {train_acc:.4f} | "
-              f"New Val: {val_acc:.4f} | Old Val: {old_acc:.4f}")
+        # EWC should be roughly 5-20% of CE: if it is far smaller, raise ewc_lambda;
+        # if the new task will not learn, lower it.
+        print(f"Epoch [{epoch+1}/{num_epochs}] | Train {train_acc:.4f} | "
+              f"CE {ce_mean:.3f} | EWC {pen_mean:.3f} ({100*pen_mean/max(ce_mean,1e-9):.0f}% of CE) | "
+              f"New Val {val_acc:.4f} | Old Val {old_acc:.4f}")
     return history
