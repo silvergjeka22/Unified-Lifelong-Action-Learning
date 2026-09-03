@@ -90,3 +90,40 @@ def plot_cl_forgetting(snapshots):
     plt.legend(title="measured")
     plt.tight_layout()
     plt.show()
+
+
+def plot_forgetting_history(history, epochs_per_task=5):
+    """
+    Line timeline of each task's test accuracy over the whole CL stream. `history` is a
+    list of {task_name: accuracy} dicts, one per epoch (index 0 = before any CL task),
+    as filled by the trainers' track_history. A line rising then falling is a task being
+    learned then forgotten; a line staying high is a task being retained.
+    """
+    tasks = []
+    for entry in history:
+        for k in entry:
+            if k not in tasks:
+                tasks.append(k)
+
+    x = np.arange(len(history))
+    n_task = max((len(history) - 1) // max(epochs_per_task, 1), 0)
+
+    plt.figure(figsize=(11, 5.5))
+    for name in tasks:
+        y = [entry.get(name, np.nan) for entry in history]
+        plt.plot(x, y, marker="o", linewidth=2, label=name)
+
+    for k in range(2, n_task + 1):                       # dividers between task phases
+        plt.axvline(0.5 + (k - 1) * epochs_per_task, color="gray", linestyle="--", linewidth=0.8)
+    for k in range(1, n_task + 1):                       # phase labels
+        center = 1 + (k - 1) * epochs_per_task + (epochs_per_task - 1) / 2
+        plt.text(center, 1.08, f"training Task {k}", ha="center", fontsize=9, color="#5F5E5A")
+
+    plt.xticks(x)
+    plt.ylim(0, 1.15)
+    plt.xlabel("training step  (0 = before any continual-learning task)")
+    plt.ylabel("test accuracy")
+    plt.title("Forgetting history: per-task accuracy over the CL stream", fontweight="bold")
+    plt.legend(loc="center left")
+    plt.tight_layout()
+    plt.show()

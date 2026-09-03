@@ -4,7 +4,7 @@ import torch
 import torch.nn as nn
 import torch.nn.functional as F
 
-from src.training.train import evaluate_model
+from src.training.train import evaluate_model, task_accs
 
 
 def distillation_loss(student_logits, teacher_logits, T=5.0):
@@ -62,7 +62,8 @@ def fill_buffer(buffer, loader, per_class=None):
 
 
 def train_continual(model, train_loader, val_loader, device, buffer=None, teacher=None,
-                    num_old_classes=10, lambda_distill=1.0, T=5.0, epochs=5, lr=1e-4):
+                    num_old_classes=10, lambda_distill=1.0, T=5.0, epochs=5, lr=1e-4,
+                    track_loaders=None, track_history=None):
     """
     Train on a new task with optional replay and optional LwF distillation.
 
@@ -71,6 +72,7 @@ def train_continual(model, train_loader, val_loader, device, buffer=None, teache
         buffer + teacher     -> replay + LwF
         neither              -> naive (use train_model instead)
 
+    track_loaders / track_history: see train_model - fills a per-epoch forgetting timeline.
     Returns a history dict.
     """
     model.to(device)
@@ -79,6 +81,9 @@ def train_continual(model, train_loader, val_loader, device, buffer=None, teache
     if teacher is not None:
         teacher.to(device).eval()
     history = {"train_losses": [], "val_losses": [], "train_accs": [], "val_accs": []}
+
+    if track_loaders and track_history is not None and len(track_history) == 0:
+        track_history.append(task_accs(model, track_loaders, device))
 
     for epoch in range(epochs):
         model.train()
@@ -114,4 +119,6 @@ def train_continual(model, train_loader, val_loader, device, buffer=None, teache
         history["val_losses"].append(val_loss)
         print(f"Epoch [{epoch+1}/{epochs}] | Train Acc: {train_acc:.4f} Loss: {train_loss:.4f} | "
               f"Val Acc: {val_acc:.4f} Loss: {val_loss:.4f}")
+        if track_loaders and track_history is not None:
+            track_history.append(task_accs(model, track_loaders, device))
     return history
