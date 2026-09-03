@@ -238,3 +238,64 @@ def preprocess_group_split(split_map, target_classes=None, output_root=None):
                 save_clip_tensor(temporal_sample(frames), output_path)
 
     print(f"\nDone. Clips ready at: {output_root}")
+
+
+def plot_split_leakage(target_classes=None, input_root=None, train_groups=18, val_groups=3):
+    """
+    Stacked bar chart comparing the two splits by how many groups (source videos) leak
+    across train/val/test: the shipped split vs the group-disjoint one. Returns a dict
+    of counts.
+    """
+    import matplotlib.pyplot as plt
+
+    target_classes = target_classes or cfg.SELECTED_CLASSES
+    input_root     = input_root or cfg.DATASET_ROOT
+    splits         = ["train", "val", "test"]
+
+    # shipped split: which splits each group's clips fall into
+    shipped = {}
+    for split in splits:
+        for cls in target_classes:
+            d = os.path.join(input_root, split, cls)
+            if not os.path.isdir(d):
+                continue
+            for vid in os.listdir(d):
+                if vid.endswith(".avi"):
+                    shipped.setdefault("_".join(vid.split("_")[:3]), set()).add(split)
+    total        = len(shipped)
+    shipped_leak = sum(1 for v in shipped.values() if len(v) > 1)
+
+    # group-disjoint split: assign whole groups, then recount
+    split_map = build_group_split(target_classes, input_root, splits, train_groups, val_groups)
+    seen = {}
+    for split in splits:
+        for cls in target_classes:
+            for path in split_map[split].get(cls, []):
+                seen.setdefault("_".join(os.path.basename(path).split("_")[:3]), set()).add(split)
+    dj_total = len(seen)
+    dj_leak  = sum(1 for v in seen.values() if len(v) > 1)
+
+    labels = ["Shipped split", "Group-disjoint split"]
+    clean  = [total - shipped_leak, dj_total - dj_leak]
+    leak   = [shipped_leak, dj_leak]
+    x      = range(len(labels))
+
+    plt.figure(figsize=(7, 5))
+    plt.bar(x, clean, 0.55, label="clean (one split)",       color="#1D9E75")
+    plt.bar(x, leak,  0.55, bottom=clean, label="leaking (multi-split)", color="#D85A30")
+    for i in x:
+        pct = 100 * leak[i] / max(total, 1)
+        plt.text(i, clean[i] + leak[i] + max(total, 1) * 0.01,
+                 f"{leak[i]} leak ({pct:.0f}%)", ha="center", fontsize=11)
+    plt.xticks(list(x), labels)
+    plt.ylabel("groups (source videos)")
+    plt.ylim(0, max(total, 1) * 1.15)
+    plt.title(f"Data leakage across splits\n{total} groups, {len(target_classes)} classes",
+              fontweight="bold")
+    plt.legend(loc="center right")
+    plt.tight_layout()
+    plt.show()
+
+    print(f"shipped split      : {shipped_leak}/{total} groups leak ({100*shipped_leak/max(total,1):.0f}%)")
+    print(f"group-disjoint split: {dj_leak}/{dj_total} groups leak ({100*dj_leak/max(dj_total,1):.0f}%)")
+    return {"total": total, "shipped_leaking": shipped_leak, "disjoint_leaking": dj_leak}
