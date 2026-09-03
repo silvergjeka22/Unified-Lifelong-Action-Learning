@@ -60,7 +60,7 @@ CL_LR     = 1e-4
 CL_EPOCHS = 5
 
 # Per-method strength knobs - each arm keeps its own; these are what you tune.
-EWC_LAMBDA         = 2000.0    # re-tune from the CE/EWC print: raise if base forgets, lower if the new task will not learn
+EWC_LAMBDA         = 3000.0    # re-tune from the CE/EWC print: raise if base forgets, lower if the new task will not learn
 REPLAY_BUFFER_SIZE = 300       # replay buffer: ~15 clips per class
 LAMBDA_DISTILL     = 3.0       # LwF / replay+LwF distillation weight (raised from 1.0)
 KD_TEMPERATURE     = 5.0       # LwF distillation temperature
