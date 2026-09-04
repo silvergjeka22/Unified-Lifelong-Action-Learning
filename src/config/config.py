@@ -47,7 +47,11 @@ RESIZE_HEIGHT = 256
 CROP_SIZE     = 224
 
 # TRAINING
-BATCH_SIZE  = 8
+# BATCH_SIZE is kept small so every study notebook fits the free-Colab T4 (16 GB).
+# Memory scales with BATCH_SIZE * CLIP_LEN images through the ResNet50 conv stack, and
+# the replay arms double the batch (new + replayed clips), so 4 is the safe shared value.
+# If you still hit CUDA OOM, this is the first knob to lower (3 or 2).
+BATCH_SIZE  = 4
 SEED        = 42
 DROPOUT_P   = 0.4
 HIDDEN_SIZE = 256      # LSTM hidden size, shared by teacher and student

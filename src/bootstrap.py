@@ -55,6 +55,8 @@ def setup(drive: bool = True, dataset: bool = True, data_root: str = "/content/U
     """Mount Drive, download the dataset, export every path config.py reads."""
     os.environ.setdefault("ULAL_DATA_ROOT", data_root)
     os.environ.setdefault("ULAL_DRIVE_PROJECT", drive_project)
+    # Free-Colab GPU: reduce allocator fragmentation (set before torch touches CUDA).
+    os.environ.setdefault("PYTORCH_CUDA_ALLOC_CONF", "expandable_segments:True")
 
     if drive:
         mount_drive()

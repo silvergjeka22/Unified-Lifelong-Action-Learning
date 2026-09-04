@@ -6,6 +6,12 @@ from tqdm import tqdm
 from sklearn.metrics import accuracy_score
 
 
+def free_gpu(device=None):
+    """Release cached CUDA blocks so the next task starts with room (called between tasks)."""
+    if torch.cuda.is_available():
+        torch.cuda.empty_cache()
+
+
 def evaluate_model(model, loader, device):
     """(accuracy, average loss) of a model on a loader."""
     model.eval()
@@ -54,6 +60,7 @@ def train_model(model, train_loader, val_loader, num_epochs=5, lr=1e-4, device="
     epoch when the list is empty) so plot_forgetting_history can chart the whole stream.
     """
     model.to(device)
+    free_gpu(device)
     criterion = nn.CrossEntropyLoss()
     optimizer = optim.Adam(model.parameters(), lr=lr)
     history = {"train_losses": [], "val_losses": [], "train_accs": [], "val_accs": []}

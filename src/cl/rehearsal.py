@@ -4,7 +4,7 @@ import torch
 import torch.nn as nn
 import torch.nn.functional as F
 
-from src.training.train import evaluate_model, task_accs
+from src.training.train import evaluate_model, task_accs, free_gpu
 
 
 def distillation_loss(student_logits, teacher_logits, T=5.0):
@@ -76,6 +76,7 @@ def train_continual(model, train_loader, val_loader, device, buffer=None, teache
     Returns a history dict.
     """
     model.to(device)
+    free_gpu(device)
     optimizer = torch.optim.Adam(model.parameters(), lr=lr)
     ce = nn.CrossEntropyLoss()
     if teacher is not None:
