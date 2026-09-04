@@ -9,6 +9,10 @@ ULAL_ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 if ULAL_ROOT not in sys.path:
     sys.path.insert(0, ULAL_ROOT)
 
+# Free-Colab GPU: let the CUDA allocator grow segments instead of fragmenting. Must be
+# set before torch initialises CUDA, so it goes above the torch import.
+os.environ.setdefault("PYTORCH_CUDA_ALLOC_CONF", "expandable_segments:True")
+
 import cv2
 import copy
 import json

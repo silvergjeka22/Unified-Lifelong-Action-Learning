@@ -3,7 +3,7 @@ import torch.nn as nn
 import torch.nn.functional as F
 from tqdm import tqdm
 
-from src.training.train import evaluate_model, task_accs
+from src.training.train import evaluate_model, task_accs, free_gpu
 
 
 def theta_star(model):
@@ -63,6 +63,7 @@ def train_ewc(model, train_loader, val_loader, old_val_loader, star, fisher,
     track_loaders / track_history: see train_model - fills a per-epoch forgetting timeline.
     """
     model.to(device)
+    free_gpu(device)
     optimizer = torch.optim.Adam([p for p in model.parameters() if p.requires_grad], lr=lr)
     criterion = nn.CrossEntropyLoss()
     history = {"train_losses": [], "val_losses": [], "train_accs": [], "val_accs": []}
