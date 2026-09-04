@@ -50,48 +50,6 @@ def plot_confusion_matrix(all_labels, all_preds, num_classes=None, classes_list=
     plt.show()
 
 
-def plot_cl_forgetting(snapshots):
-    """
-    Grouped bar chart of per-task accuracy at each CL stage. snapshots is a list of
-    evaluate_all_tasks() outputs, one per stage. Within a task, bars shrinking from
-    stage to stage is forgetting.
-    """
-    def nice(k):
-        if k == "base":
-            return "Base"
-        return k.replace("_only", "").replace("task", "Task ")
-
-    def stage_name(s):
-        return "base" if s == 0 else f"after T{s}"
-
-    tasks = []
-    for snap in snapshots:
-        for k in snap:
-            if not k.startswith("combined") and k not in tasks:
-                tasks.append(k)
-
-    n_stage = len(snapshots)
-    x = np.arange(len(tasks))
-    width = 0.8 / max(n_stage, 1)
-
-    plt.figure(figsize=(1.8 * len(tasks) + 3, 5))
-    for s, snap in enumerate(snapshots):
-        vals = [snap[k]["accuracy"] if k in snap else np.nan for k in tasks]
-        pos  = x + (s - (n_stage - 1) / 2) * width
-        plt.bar(pos, vals, width, label=stage_name(s))
-        for p, v in zip(pos, vals):
-            if not np.isnan(v):
-                plt.text(p, v + 0.01, f"{v:.0%}", ha="center", va="bottom", fontsize=8)
-
-    plt.xticks(x, [nice(k) for k in tasks])
-    plt.ylim(0, 1.15)
-    plt.ylabel("accuracy")
-    plt.title("Per-task accuracy across CL stages (shrinking bars = forgetting)", fontweight="bold")
-    plt.legend(title="measured")
-    plt.tight_layout()
-    plt.show()
-
-
 def plot_forgetting_history(history, epochs_per_task=5):
     """
     Line timeline of each task's test accuracy over the whole CL stream. `history` is a
