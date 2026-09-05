@@ -31,7 +31,8 @@ def train_student(student, teacher, train_loader, val_loader, device, mode="kd",
         for clips, y in train_loader:
             clips, y = clips.to(device), y.to(device)
             optimizer.zero_grad()
-            logits = student(clips)
+            s_feat = student.features(clips)                       # one student forward per batch
+            logits = student.fc(student.dropout(s_feat))
             loss = ce_weight * F.cross_entropy(logits, y)
 
             if mode != "ce":
@@ -41,9 +42,9 @@ def train_student(student, teacher, train_loader, val_loader, device, mode="kd",
                     loss = loss + distill_weight * distillation_loss(logits, t_out, T)
                 elif mode == "cosine":
                     target = torch.ones(clips.size(0), device=device)
-                    loss = loss + distill_weight * F.cosine_embedding_loss(student.features(clips), t_out, target)
+                    loss = loss + distill_weight * F.cosine_embedding_loss(s_feat, t_out, target)
                 elif mode == "mse":
-                    loss = loss + distill_weight * F.mse_loss(student.features(clips), t_out)
+                    loss = loss + distill_weight * F.mse_loss(s_feat, t_out)
 
             loss.backward()
             optimizer.step()

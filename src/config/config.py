@@ -70,6 +70,10 @@ LAMBDA_DISTILL     = 3.0       # LwF / replay+LwF distillation weight (raised fr
 KD_TEMPERATURE     = 5.0       # LwF distillation temperature
 
 # KNOWLEDGE DISTILLATION (teacher -> student)
+# The student trains few-shot (KD_SHOTS clips per class) so the continual teacher is the
+# real source of knowledge: with little data, CE alone cannot learn the classes and the
+# teacher's soft targets fill the gap. Test/val stay on the full sets.
+KD_SHOTS          = 5
 KD_T              = 2.0
 KD_CE_WEIGHT      = 0.75
 KD_DISTILL_WEIGHT = 0.25
