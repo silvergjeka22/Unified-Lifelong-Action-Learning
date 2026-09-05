@@ -17,11 +17,21 @@ def train_student(student, teacher, train_loader, val_loader, device, mode="kd",
         "kd"      CE + KL on softened logits
         "cosine"  CE + cosine distance between student and teacher features
         "mse"     CE + MSE between student and teacher features
+        "hint"    CE + KL on logits + MSE on features mapped through a learnable projector
+                  that translates the student's feature space into the teacher's, so the
+                  feature signal transfers across the two backbones. The projector is
+                  training-only and dropped at inference (the saved student is unchanged).
     """
     student.to(device)
     if teacher is not None:
         teacher.to(device).eval()
-    optimizer = torch.optim.Adam(student.parameters(), lr=lr)
+
+    projector = None
+    params = list(student.parameters())
+    if mode == "hint":
+        projector = nn.Linear(student.fc.in_features, teacher.fc.in_features).to(device)
+        params = params + list(projector.parameters())
+    optimizer = torch.optim.Adam(params, lr=lr)
     history = {"train_losses": [], "val_losses": [], "train_accs": [], "val_accs": []}
     best_acc, best_state = 0.0, copy.deepcopy(student.state_dict())
 
@@ -37,14 +47,23 @@ def train_student(student, teacher, train_loader, val_loader, device, mode="kd",
 
             if mode != "ce":
                 with torch.no_grad():
-                    t_out = teacher(clips) if mode == "kd" else teacher.features(clips)
+                    if mode == "kd":
+                        t_logits = teacher(clips)
+                    elif mode == "hint":
+                        t_feat   = teacher.features(clips)
+                        t_logits = teacher.fc(t_feat)          # teacher.eval() -> dropout is identity
+                    else:
+                        t_feat = teacher.features(clips)
                 if mode == "kd":
-                    loss = loss + distill_weight * distillation_loss(logits, t_out, T)
+                    loss = loss + distill_weight * distillation_loss(logits, t_logits, T)
                 elif mode == "cosine":
                     target = torch.ones(clips.size(0), device=device)
-                    loss = loss + distill_weight * F.cosine_embedding_loss(s_feat, t_out, target)
+                    loss = loss + distill_weight * F.cosine_embedding_loss(s_feat, t_feat, target)
                 elif mode == "mse":
-                    loss = loss + distill_weight * F.mse_loss(s_feat, t_out)
+                    loss = loss + distill_weight * F.mse_loss(s_feat, t_feat)
+                elif mode == "hint":
+                    loss = loss + distill_weight * distillation_loss(logits, t_logits, T)
+                    loss = loss + distill_weight * F.mse_loss(projector(s_feat), t_feat)
 
             loss.backward()
             optimizer.step()
