@@ -17,11 +17,13 @@ def train_student(student, teacher, train_loader, val_loader, device, mode="kd",
         "ce"      cross-entropy only, no teacher
         "kd"      CE + KL on softened logits
         "cosine"  CE + cosine distance between student and teacher features
-        "mse"     CE + MSE between student and teacher features
-        "hint"    CE + KL on logits + MSE on features mapped through a learnable projector
-                  that translates the student's feature space into the teacher's, so the
-                  feature signal transfers across the two backbones. The projector is
-                  training-only and dropped at inference (the saved student is unchanged).
+        "mse"     CE + MSE between a learnable regressor of the student features and the
+                  teacher features - the tutorial's RegressorMSE. The regressor translates
+                  the student space into the teacher's; it is training-only and dropped at
+                  inference (the saved student is unchanged).
+
+    These four are the methods compared in the PyTorch knowledge-distillation tutorial:
+    cross-entropy, soft-target KD, cosine hidden-representation loss, and regressor MSE.
 
     freeze_backbone: train only the LSTM + head (backbone frozen). Lighter and faster, and
     it isolates the small head so the teacher's contribution (KD vs CE) is clearly visible -
@@ -34,11 +36,11 @@ def train_student(student, teacher, train_loader, val_loader, device, mode="kd",
     if teacher is not None:
         teacher.to(device).eval()
 
-    projector = None
+    regressor = None
     params = [p for p in student.parameters() if p.requires_grad]
-    if mode == "hint":
-        projector = nn.Linear(student.fc.in_features, teacher.fc.in_features).to(device)
-        params = params + list(projector.parameters())
+    if mode == "mse":
+        regressor = nn.Linear(student.fc.in_features, teacher.fc.in_features).to(device)
+        params = params + list(regressor.parameters())
     optimizer = torch.optim.Adam(params, lr=lr)
     history = {"train_losses": [], "val_losses": [], "train_accs": [], "val_accs": []}
     best_acc, best_state = 0.0, copy.deepcopy(student.state_dict())
@@ -59,9 +61,6 @@ def train_student(student, teacher, train_loader, val_loader, device, mode="kd",
                 with torch.no_grad():
                     if mode == "kd":
                         t_logits = teacher(clips)
-                    elif mode == "hint":
-                        t_feat   = teacher.features(clips)
-                        t_logits = teacher.fc(t_feat)          # teacher.eval() -> dropout is identity
                     else:
                         t_feat = teacher.features(clips)
                 if mode == "kd":
@@ -70,10 +69,7 @@ def train_student(student, teacher, train_loader, val_loader, device, mode="kd",
                     target = torch.ones(clips.size(0), device=device)
                     loss = loss + distill_weight * F.cosine_embedding_loss(s_feat, t_feat, target)
                 elif mode == "mse":
-                    loss = loss + distill_weight * F.mse_loss(s_feat, t_feat)
-                elif mode == "hint":
-                    loss = loss + distill_weight * distillation_loss(logits, t_logits, T)
-                    loss = loss + distill_weight * F.mse_loss(projector(s_feat), t_feat)
+                    loss = loss + distill_weight * F.mse_loss(regressor(s_feat), t_feat)
 
             loss.backward()
             optimizer.step()
