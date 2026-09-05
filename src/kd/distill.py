@@ -8,7 +8,8 @@ from src.cl.rehearsal import distillation_loss
 
 
 def train_student(student, teacher, train_loader, val_loader, device, mode="kd",
-                  epochs=10, lr=1e-3, T=2.0, ce_weight=0.75, distill_weight=0.25):
+                  epochs=10, lr=1e-3, T=2.0, ce_weight=0.75, distill_weight=0.25,
+                  freeze_backbone=False):
     """
     Distil a trained teacher into the student on real clips. Returns (student, history)
     with the best-val weights loaded.
@@ -21,13 +22,20 @@ def train_student(student, teacher, train_loader, val_loader, device, mode="kd",
                   that translates the student's feature space into the teacher's, so the
                   feature signal transfers across the two backbones. The projector is
                   training-only and dropped at inference (the saved student is unchanged).
+
+    freeze_backbone: train only the LSTM + head (backbone frozen). Lighter and faster, and
+    it isolates the small head so the teacher's contribution (KD vs CE) is clearly visible -
+    the "distillation power" setup. Applied identically to every mode, so it stays fair.
     """
     student.to(device)
+    if freeze_backbone:
+        for p in student.backbone.parameters():
+            p.requires_grad_(False)
     if teacher is not None:
         teacher.to(device).eval()
 
     projector = None
-    params = list(student.parameters())
+    params = [p for p in student.parameters() if p.requires_grad]
     if mode == "hint":
         projector = nn.Linear(student.fc.in_features, teacher.fc.in_features).to(device)
         params = params + list(projector.parameters())
@@ -37,6 +45,8 @@ def train_student(student, teacher, train_loader, val_loader, device, mode="kd",
 
     for epoch in range(epochs):
         student.train()
+        if freeze_backbone:
+            student.backbone.eval()          # keep frozen BatchNorm on its running stats
         run_loss, correct, total = 0.0, 0, 0
         for clips, y in train_loader:
             clips, y = clips.to(device), y.to(device)
