@@ -1,0 +1,341 @@
+%==============================================================================
+% ULAL - prototype paper (IEEEtran conference, two-column, <= 8 pages)
+% Compile:  pdflatex ulal_paper.tex   (run twice for references)
+% Replace the placeholder author names and the TODO result numbers.
+%==============================================================================
+\documentclass[conference]{IEEEtran}
+
+\usepackage[T1]{fontenc}
+\usepackage{graphicx}
+\usepackage{booktabs}
+\usepackage{amsmath}
+\usepackage{amssymb}
+\usepackage{xcolor}
+\usepackage[hidelinks]{hyperref}
+\usepackage{tikz}
+\usetikzlibrary{arrows.meta,positioning,fit,backgrounds}
+
+% author-contribution marks
+\newcommand{\pa}{$\bullet$}   % Author 1
+\newcommand{\pb}{$\blacktriangle$} % Author 2
+\newcommand{\pc}{$\star$}     % Author 3
+
+\begin{document}
+
+\title{Unified Lifelong Action Learning:\\
+A Real-Video Pipeline for Continual Learning, Distillation,\\
+and Meta Domain Adaptation on UCF101}
+
+\author{
+\IEEEauthorblockN{First A. Author\,\pa}
+\IEEEauthorblockA{Dept.\ of Computer Science\\
+University Name\\
+author1@example.com}
+\and
+\IEEEauthorblockN{Second B. Author\,\pb}
+\IEEEauthorblockA{Dept.\ of Computer Science\\
+University Name\\
+author2@example.com}
+\and
+\IEEEauthorblockN{Third C. Author\,\pc}
+\IEEEauthorblockA{Dept.\ of Computer Science\\
+University Name\\
+author3@example.com}
+}
+
+\maketitle
+
+\begin{abstract}
+We present \emph{Unified Lifelong Action Learning} (ULAL), an end-to-end pipeline
+for continual learning of a video action recogniser on UCF101, trained directly on
+video frames. The pipeline (i) builds an honest, group-disjoint data split that
+removes the leakage present in the shipped per-clip split, (ii) selects a
+ResNet50+LSTM backbone, (iii) extends it to new classes with five continual-learning
+strategies (naive, EWC, LwF, replay, and replay+LwF), (iv) compresses the best model
+into a MobileNet student through knowledge distillation, and (v) adapts the student to
+a shifted (YouTube) domain, comparing meta-learning (Reptile) against plain
+fine-tuning under an active-learning budget. We describe the design, the honest
+evaluation protocol, and the trade-offs of each stage. The marks \pa, \pb, \pc\ denote
+the author responsible for each part.
+\end{abstract}
+
+\begin{IEEEkeywords}
+continual learning, catastrophic forgetting, action recognition, knowledge
+distillation, meta-learning, domain adaptation.
+\end{IEEEkeywords}
+
+%------------------------------------------------------------------------------
+\section{Introduction}
+Deep video models forget: fine-tuning a trained recogniser on new action classes
+collapses accuracy on the old ones, a failure known as \emph{catastrophic
+forgetting}~\cite{kirkpatrick2017ewc}. Lifelong (continual) learning aims to add
+classes over time while retaining past knowledge. Video makes this harder than
+images: clips are large, temporal, and expensive to store and process.
+
+This paper describes a single, reproducible pipeline that studies the problem on
+UCF101~\cite{soomro2012ucf101} while training \emph{directly on real video frames} --
+no cached features -- so that the reported numbers reflect the deployed model. Our
+contributions are:
+\begin{itemize}
+\item An honest data split. UCF101's shipped train/val/test split mixes clips of the
+same source video across splits; we quantify the leakage and replace it with a
+group-disjoint split (\pa).
+\item A staged pipeline (Fig.~\ref{fig:pipeline}) that chains backbone selection,
+continual learning, distillation, and domain adaptation, with a consistent evaluation
+protocol (\pa, \pb, \pc).
+\item A controlled comparison of five continual-learning strategies, of four
+distillation objectives, and of meta vs.\ plain adaptation under an equal budget
+(\pb, \pc).
+\end{itemize}
+
+%------------------------------------------------------------------------------
+\section{Related Work}
+\textbf{Continual learning.} Regularisation methods such as
+EWC~\cite{kirkpatrick2017ewc} penalise changes to weights important for old tasks.
+Distillation methods such as LwF~\cite{li2017lwf} keep the old-class outputs stable
+using the model's own past predictions. Rehearsal stores a few exemplars and replays
+them; iCaRL~\cite{rebuffi2017icarl} combines replay with distillation. We evaluate all
+of these on video.
+
+\textbf{Knowledge distillation.} A compact student can be trained to match a larger
+teacher's softened logits~\cite{hinton2015kd} or intermediate features. We compare
+logit and feature (cosine, MSE) objectives.
+
+\textbf{Meta-learning and adaptation.} Reptile~\cite{nichol2018reptile} is a
+first-order meta-learning rule that adapts quickly from few examples. We use it to
+adapt to a shifted domain and compare it with plain fine-tuning.
+
+%------------------------------------------------------------------------------
+\begin{figure*}[t]
+\centering
+\begin{tikzpicture}[
+  node distance=6mm and 9mm,
+  box/.style={draw, rounded corners=2pt, align=center, minimum height=11mm,
+              text width=21mm, font=\footnotesize, fill=blue!5},
+  data/.style={draw, rounded corners=2pt, align=center, minimum height=11mm,
+               text width=21mm, font=\footnotesize, fill=gray!8},
+  arr/.style={-{Latex[length=2mm]}, thick},
+  tag/.style={font=\scriptsize\itshape, text=black!60}
+]
+\node[data]  (ucf)   {UCF101\\videos};
+\node[data,right=of ucf]  (split) {Group-disjoint\\split};
+\node[box,right=of split] (back)  {ResNet50\\+ LSTM\\(base 10)};
+\node[box,right=of back]  (cl)    {Continual\\learning\\10$\to$20$\to$30};
+\node[box,right=of cl]    (kd)    {Distillation\\MobileNet\\student};
+\node[box,right=of kd]    (da)    {Domain\\adaptation\\(Reptile)};
+
+\draw[arr] (ucf)   -- (split);
+\draw[arr] (split) -- (back);
+\draw[arr] (back)  -- (cl);
+\draw[arr] (cl)    -- (kd);
+\draw[arr] (kd)    -- (da);
+
+\node[tag, below=1.5mm of split] {\pa};
+\node[tag, below=1.5mm of back]  {\pa};
+\node[tag, below=1.5mm of cl]    {\pb};
+\node[tag, below=1.5mm of kd]    {\pb};
+\node[tag, below=1.5mm of da]    {\pc};
+\end{tikzpicture}
+\caption{The ULAL pipeline. Video is split by source group (no leakage), a ResNet50+LSTM
+teacher is trained on the base classes, extended to new classes by continual learning,
+distilled into a compact student, and adapted to a shifted domain. Marks denote the
+responsible author.}
+\label{fig:pipeline}
+\end{figure*}
+
+%------------------------------------------------------------------------------
+\section{Method}
+The model is a CNN backbone applied per frame, an LSTM over the 16 frames of a clip,
+and a linear classifier. The classifier grows as new classes arrive; the backbone is
+fine-tuned only in its last block. Fig.~\ref{fig:pipeline} shows the five stages.
+
+\subsection{Data split and leakage (\pa)}
+A UCF101 file \texttt{v\_Class\_gXX\_cYY.avi} encodes a \emph{group} \texttt{gXX} (one
+source video) and a \emph{clip} \texttt{cYY} (one segment of it). Clips of the same
+group are near-duplicate frames. The shipped split is made per clip, so segments of one
+recording land in both train and test; the model is then tested on footage it trained
+on, and every accuracy is inflated. We measure the fraction of groups that span more
+than one split and rebuild a \emph{group-disjoint} split that assigns each whole group
+to a single split, giving honest -- and lower -- numbers.
+
+\subsection{Backbone selection (\pa)}
+Five backbones (a from-scratch CNN, ResNet18, ResNet50, DenseNet121, VGG19-BN), each
+with an LSTM head, are trained on the base classes and compared on accuracy, size, and
+per-clip latency. ResNet50+LSTM is chosen as the teacher for its balance of accuracy,
+size, and speed.
+
+\subsection{Continual learning (\pb)}
+Starting from the base teacher, the head is expanded for each task and the model is
+trained with one of five strategies:
+\begin{itemize}
+\item \textbf{Naive}: plain fine-tuning (the lower bound).
+\item \textbf{EWC}~\cite{kirkpatrick2017ewc}: a Fisher-weighted penalty holds
+important weights near their old values; no stored data.
+\item \textbf{LwF}~\cite{li2017lwf}: a frozen pre-task copy supplies soft targets for
+the old-class logits; no stored data.
+\item \textbf{Replay}: a small buffer of past clips is mixed into every batch.
+\item \textbf{Replay+LwF}~\cite{rebuffi2017icarl}: both together.
+\end{itemize}
+All arms share the same schedule and differ only in the mechanism, so they are directly
+comparable. We report the per-task accuracy matrix, average accuracy, and forgetting.
+
+\subsection{Distillation (\pb)}
+The best continual model (replay+LwF) is the teacher for a MobileNetV3-Small+LSTM
+student trained on all classes. We compare four objectives: cross-entropy only (CE),
+CE+KD (softened logits~\cite{hinton2015kd}), and CE with cosine or MSE distance between
+the 256-d LSTM states of teacher and student.
+
+\subsection{Domain adaptation (\pc)}
+The student is adapted to real YouTube clips of some base classes, which differ from
+UCF101 in compression, lighting, and framing. Predictive-entropy active learning
+selects a small labelled budget, and the student is adapted two ways from the same
+start and the same budget: plain fine-tuning and Reptile~\cite{nichol2018reptile}
+meta-adaptation. We report target accuracy, source retention, and wall-clock time.
+
+%------------------------------------------------------------------------------
+\section{Experimental Setup}
+UCF101 subset of 20 classes as a $10\!\to\!15\!\to\!20$ stream (the capstone uses the
+full $10\!\to\!20\!\to\!30$). Clips are 16 frames at $224\times224$, ImageNet
+normalised. The group-disjoint split uses 18/3/4 groups per class for train/val/test.
+Backbones freeze all but the last block; the LSTM hidden size is 256. For a fair
+comparison, \emph{all continual-learning arms share the same optimizer, learning
+rate, and number of epochs} -- only the mechanism and its own strength knob differ:
+EWC's penalty weight $\lambda$, LwF's distillation weight and temperature, and the
+replay budget (15 clips per class). We deliberately avoid freezing extra layers or
+lowering the learning rate for any single arm, since either would change its trainable
+capacity or step size and confound the result. Distillation uses temperature
+$T\!=\!2$ with weights $0.75/0.25$; Reptile uses a meta step $\epsilon\!=\!0.2$.
+Seeds are fixed for reproducibility.
+
+%------------------------------------------------------------------------------
+\section{Results}
+% TODO: replace the placeholder numbers below with your measured values.
+Numbers below are placeholders illustrating the expected trends; replace them with the
+values printed by the notebooks.
+
+\begin{table}[h]
+\centering
+\caption{Backbone comparison on the base classes (\pa).}
+\label{tab:backbone}
+\begin{tabular}{lccc}
+\toprule
+Backbone & Test acc.\ (\%) & Params (M) & ms/clip \\
+\midrule
+ScratchCNN   & 59.0 & 8.5  & -- \\
+ResNet18     & 89.6 & 11.7 & -- \\
+\textbf{ResNet50} & \textbf{92.9} & 25.9 & -- \\
+DenseNet121  & 94.3 & 8.5  & -- \\
+VGG19-BN     & 93.9 & 20.4 & -- \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+\begin{table}[h]
+\centering
+\caption{Continual learning after the full stream (\pb). AA: average accuracy;
+Forget: mean forgetting; Mem: stored clips per class.}
+\label{tab:cl}
+\begin{tabular}{lccc}
+\toprule
+Method & AA (\%) & Forget (\%) & Mem \\
+\midrule
+Naive        & 29.2 & 91.1 & 0 \\
+EWC          & 35.2 & 81.9 & 0 \\
+LwF          & 44.0 & 68.1 & 0 \\
+Replay       & 70.4 & 26.8 & 15 \\
+\textbf{Replay+LwF} & \textbf{77.4} & \textbf{13.1} & 15 \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+\begin{table}[h]
+\centering
+\caption{Distillation into the MobileNet student (\pb).}
+\label{tab:kd}
+\begin{tabular}{lc}
+\toprule
+Model & Test acc.\ (\%) \\
+\midrule
+Teacher (replay+LwF)     & 77.4 \\
+Student, CE only         & 71.5 \\
+Student, CE + KD         & 72.5 \\
+Student, CE + cosine     & 71.5 \\
+Student, CE + MSE        & 72.4 \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+\begin{table}[h]
+\centering
+\caption{Domain adaptation to YouTube: meta vs.\ plain (\pc), same budget.}
+\label{tab:da}
+\begin{tabular}{lccc}
+\toprule
+Method & YouTube (\%) & Clean UCF (\%) & Time (s) \\
+\midrule
+Before          & 32.5 & 92.0 & -- \\
+Plain fine-tune & XX.X & XX.X & XX \\
+\textbf{Reptile} & \textbf{47.5} & 91.5 & XX \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+Table~\ref{tab:backbone} motivates ResNet50 as a balanced teacher.
+Table~\ref{tab:cl} shows the expected ordering: naive collapses, the free
+regularisers (EWC, LwF) help partially, and rehearsal -- especially replay+LwF -- is
+strongest. Table~\ref{tab:kd} shows the student recovers most of the teacher's
+accuracy at a fraction of the parameters, with distillation giving a small gain over
+CE-only. Table~\ref{tab:da} shows adaptation closes much of the domain gap while
+keeping clean-domain accuracy; the meta and plain variants are compared under an equal
+gradient budget.
+
+%------------------------------------------------------------------------------
+\section{Author Contributions}
+\label{sec:contrib}
+\begin{itemize}
+\item \textbf{First A. Author (\pa)} -- dataset study, leakage analysis and
+group-disjoint split, preprocessing, and the backbone bake-off.
+\item \textbf{Second B. Author (\pb)} -- continual-learning methods (naive, EWC, LwF,
+replay, replay+LwF), evaluation protocol, and knowledge distillation.
+\item \textbf{Third C. Author (\pc)} -- domain adaptation, active learning, the
+meta-learning (Reptile) vs.\ plain-fine-tune comparison, and the unified capstone.
+\end{itemize}
+
+%------------------------------------------------------------------------------
+\section{Conclusion}
+ULAL is a compact, honest, real-video pipeline for lifelong action recognition. A
+leakage-free split makes the numbers trustworthy; replay+LwF is the strongest
+continual-learning arm; distillation yields a much smaller student at a small accuracy
+cost; and meta-adaptation narrows a real domain gap under a tiny labelling budget.
+Future work includes longer task streams, more backbones, and generative rehearsal.
+
+%------------------------------------------------------------------------------
+\section*{Author Signatures}
+\vspace{2em}
+\noindent
+\begin{tabular}{@{}p{0.3\linewidth}p{0.3\linewidth}p{0.3\linewidth}@{}}
+\rule{0.9\linewidth}{0.4pt} & \rule{0.9\linewidth}{0.4pt} & \rule{0.9\linewidth}{0.4pt} \\[2pt]
+First A. Author (\pa) & Second B. Author (\pb) & Third C. Author (\pc) \\
+\end{tabular}
+
+%------------------------------------------------------------------------------
+\begin{thebibliography}{9}
+\bibitem{kirkpatrick2017ewc} J. Kirkpatrick \emph{et al.}, ``Overcoming catastrophic
+forgetting in neural networks,'' \emph{PNAS}, 2017.
+\bibitem{li2017lwf} Z. Li and D. Hoiem, ``Learning without forgetting,'' \emph{IEEE
+TPAMI}, 2017.
+\bibitem{rebuffi2017icarl} S.-A. Rebuffi \emph{et al.}, ``iCaRL: Incremental classifier
+and representation learning,'' \emph{CVPR}, 2017.
+\bibitem{hinton2015kd} G. Hinton, O. Vinyals, and J. Dean, ``Distilling the knowledge
+in a neural network,'' \emph{NIPS Deep Learning Workshop}, 2015.
+\bibitem{nichol2018reptile} A. Nichol, J. Achiam, and J. Schulman, ``On first-order
+meta-learning algorithms,'' \emph{arXiv:1803.02999}, 2018.
+\bibitem{he2016resnet} K. He \emph{et al.}, ``Deep residual learning for image
+recognition,'' \emph{CVPR}, 2016.
+\bibitem{howard2019mobilenetv3} A. Howard \emph{et al.}, ``Searching for MobileNetV3,''
+\emph{ICCV}, 2019.
+\bibitem{soomro2012ucf101} K. Soomro, A. R. Zamir, and M. Shah, ``UCF101: A dataset of
+101 human actions classes from videos in the wild,'' \emph{arXiv:1212.0402}, 2012.
+\end{thebibliography}
+
+\end{document}
