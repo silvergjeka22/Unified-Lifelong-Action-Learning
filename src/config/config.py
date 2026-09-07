@@ -88,6 +88,9 @@ KD_LR             = 1e-4
 
 # DOMAIN ADAPTATION - YouTube clips (meta-learning hyperparameters live in the notebook)
 YT_RAW_DIR = "/content/yt_raw"
+# Cap frames read per YouTube video. These clips are minutes long; reading every full-res frame
+# into RAM crashes the Colab kernel. 300 frames (~12s at 25 fps) is plenty for a few short clips.
+YT_MAX_FRAMES = 300
 YOUTUBE_CLIPS = {
     "HorseRiding": "https://archive.org/download/horse-riding_202411/horse%20riding.mp4",
     "Drumming":    "https://archive.org/download/Davidleeking-drumming798/Davidleeking-drumming798_512kb.mp4",

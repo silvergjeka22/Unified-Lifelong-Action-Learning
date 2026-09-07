@@ -13,9 +13,10 @@ def _download(url, out_path):
     subprocess.run(["yt-dlp", "-q", "-o", out_path, url], check=True)
 
 
-def _clips_from_video(video_path, n_clips, clip_len):
-    """Cut n_clips fixed-length clips from one video and apply the spatial transform."""
-    frames = extract_frames(video_path)
+def _clips_from_video(video_path, n_clips, clip_len, max_frames=None):
+    """Cut n_clips fixed-length clips from one video and apply the spatial transform.
+    Only the first max_frames frames are read, so a long video does not blow up RAM."""
+    frames = extract_frames(video_path, max_frames=max_frames)
     clips = []
     for _ in range(n_clips):
         if len(frames) > clip_len:
@@ -28,13 +29,18 @@ def _clips_from_video(video_path, n_clips, clip_len):
     return clips
 
 
-def download_youtube_clips(youtube_clips, class_to_idx, n_clips=40, raw_dir=None, clip_len=None):
+def download_youtube_clips(youtube_clips, class_to_idx, n_clips=40, raw_dir=None, clip_len=None,
+                           max_frames=None):
     """
     Download each {class: url} video and cut it into n_clips clips. Returns
     (clips, labels) as tensors, ready to run through the model. Real out-of-domain data.
+
+    max_frames caps frames read per video (defaults to cfg.YT_MAX_FRAMES) so a long clip
+    does not exhaust RAM and crash the kernel.
     """
-    raw_dir  = raw_dir or cfg.YT_RAW_DIR
-    clip_len = clip_len or cfg.CLIP_LEN
+    raw_dir    = raw_dir or cfg.YT_RAW_DIR
+    clip_len   = clip_len or cfg.CLIP_LEN
+    max_frames = max_frames or cfg.YT_MAX_FRAMES
     os.makedirs(raw_dir, exist_ok=True)
 
     all_clips, all_labels = [], []
@@ -44,7 +50,7 @@ def download_youtube_clips(youtube_clips, class_to_idx, n_clips=40, raw_dir=None
         path = os.path.join(raw_dir, f"{cls}.mp4")
         if not os.path.exists(path):
             _download(url, path)
-        clips = _clips_from_video(path, n_clips, clip_len)
+        clips = _clips_from_video(path, n_clips, clip_len, max_frames)
         all_clips.extend(clips)
         all_labels.extend([class_to_idx[cls]] * len(clips))
         print(f"  {cls:<20}: {len(clips)} clips")
