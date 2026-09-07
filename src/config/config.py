@@ -46,6 +46,12 @@ CLIP_LEN      = 16
 RESIZE_HEIGHT = 256
 CROP_SIZE     = 224
 
+# PREPROCESSING
+# Optional cap on TRAIN clips per class - a memory/speed saver (like main's max_samples).
+# None = use every clip (full data, best accuracy). Set e.g. 8 for a fast dry-run on Colab.
+# Only the train split is trimmed; val/test and the group-disjoint split stay unchanged.
+MAX_SAMPLES = None
+
 # TRAINING
 # BATCH_SIZE is kept small so every study notebook fits the free-Colab T4 (16 GB).
 # Memory scales with BATCH_SIZE * CLIP_LEN images through the ResNet50 conv stack, and
