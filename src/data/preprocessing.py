@@ -7,8 +7,14 @@ from tqdm import tqdm
 import src.config.config as cfg
 
 
-def extract_frames(video_path, target_fps=cfg.FRAME_RATE):
-    """Extract frames from a video at target fps. Returns list of RGB arrays."""
+def extract_frames(video_path, target_fps=cfg.FRAME_RATE, max_frames=None):
+    """
+    Extract frames from a video at target fps. Returns a list of RGB arrays.
+
+    max_frames caps how many frames are kept and stops reading once reached. UCF101 clips are
+    a few seconds so None (the default) is fine, but long videos - e.g. the minutes-long YouTube
+    domain clips - hold every full-res frame in RAM and can crash the kernel, so pass a cap there.
+    """
     cap = cv2.VideoCapture(video_path)
     original_fps = cap.get(cv2.CAP_PROP_FPS) or target_fps
     frame_interval = max(int(original_fps // target_fps), 1)
@@ -17,6 +23,8 @@ def extract_frames(video_path, target_fps=cfg.FRAME_RATE):
     while success:
         if count % frame_interval == 0:
             frames.append(cv2.cvtColor(frame, cv2.COLOR_BGR2RGB))
+            if max_frames is not None and len(frames) >= max_frames:
+                break
         success, frame = cap.read()
         count += 1
     cap.release()
