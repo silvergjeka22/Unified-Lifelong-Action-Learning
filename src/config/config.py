@@ -70,13 +70,15 @@ LAMBDA_DISTILL     = 3.0       # LwF / replay+LwF distillation weight (raised fr
 KD_TEMPERATURE     = 5.0       # LwF distillation temperature
 
 # KNOWLEDGE DISTILLATION (teacher -> student)
-# Same recipe as the PyTorch KD tutorial: T=2, loss = 0.75*CE + 0.25*distill, Adam lr 1e-3,
-# 10 epochs. Compared: CE (no teacher) vs soft-target KD vs cosine hidden-representation loss.
+# PyTorch KD tutorial recipe: T=2, loss = 0.75*CE + 0.25*distill, ~10 epochs. Compared:
+# CE (no teacher) vs soft-target KD vs cosine vs regressor MSE. NOTE: the tutorial uses lr 1e-3
+# because its student is trained FROM SCRATCH; our student's backbone is ImageNet-pretrained, so
+# 1e-3 over-writes the pretrained features and tanks accuracy (~60%). Use a fine-tuning lr instead.
 KD_T              = 2.0
 KD_CE_WEIGHT      = 0.75
 KD_DISTILL_WEIGHT = 0.25
-KD_EPOCHS         = 10
-KD_LR             = 1e-3
+KD_EPOCHS         = 15
+KD_LR             = 1e-4
 
 # DOMAIN ADAPTATION - YouTube clips (meta-learning hyperparameters live in the notebook)
 YT_RAW_DIR = "/content/yt_raw"
