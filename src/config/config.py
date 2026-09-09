@@ -91,10 +91,11 @@ YT_RAW_DIR = "/content/yt_raw"
 # Cap frames read per YouTube video. These clips are minutes long; reading every full-res frame
 # into RAM crashes the Colab kernel. 300 frames (~12s at 25 fps) is plenty for a few short clips.
 YT_MAX_FRAMES = 300
+# Real out-of-domain clips for the few-shot domain-adaptation task. Any dead URL is skipped at
+# download time (download_youtube_clips), and N_WAY is set from the classes that actually download.
 YOUTUBE_CLIPS = {
     "HorseRiding": "https://archive.org/download/horse-riding_202411/horse%20riding.mp4",
     "Drumming":    "https://archive.org/download/Davidleeking-drumming798/Davidleeking-drumming798_512kb.mp4",
-    "Diving":      "https://archive.org/download/cabeurfm_000005/cabeurfm_000005_access.mp4",
     "PushUps":     "https://archive.org/download/in-shot-20200102-195128/InShot_20200102_195128.mp4",
 }
 

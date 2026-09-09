@@ -9,8 +9,12 @@ from src.data.preprocessing import extract_frames
 
 
 def _download(url, out_path):
-    """Fetch one video with yt-dlp. Works for archive.org direct URLs and YouTube."""
-    subprocess.run(["yt-dlp", "-q", "-o", out_path, url], check=True)
+    """Fetch one video with yt-dlp. Returns True on success, False if the URL fails (dead link).
+    Removes any partial file on failure so a re-run starts clean."""
+    ok = subprocess.run(["yt-dlp", "-q", "-o", out_path, url]).returncode == 0
+    if not ok and os.path.exists(out_path):
+        os.remove(out_path)
+    return ok
 
 
 def _clips_from_video(video_path, n_clips, clip_len, max_frames=None):
@@ -48,8 +52,10 @@ def download_youtube_clips(youtube_clips, class_to_idx, n_clips=40, raw_dir=None
         if cls not in class_to_idx:
             continue
         path = os.path.join(raw_dir, f"{cls}.mp4")
-        if not os.path.exists(path):
-            _download(url, path)
+        # a dead URL is skipped, not fatal - the task just uses the classes that download
+        if not os.path.exists(path) and not _download(url, path):
+            print(f"  {cls:<20}: download failed - skipping")
+            continue
         clips = _clips_from_video(path, n_clips, clip_len, max_frames)
         all_clips.extend(clips)
         all_labels.extend([class_to_idx[cls]] * len(clips))
