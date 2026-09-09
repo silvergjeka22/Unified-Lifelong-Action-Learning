@@ -47,9 +47,11 @@ def sample_episode(clips, labels, class_pool, n_way, k_shot, k_query, device):
 
 
 def _adapt(model, sx, sy, inner_lr, inner_steps):
-    """Copy the model and take inner_steps of SGD on the support set. Returns the copy."""
+    """Copy the model and take inner_steps of SGD on the support set (only the trainable
+    params - a frozen backbone stays put). Returns the copy."""
     adapted = copy.deepcopy(model)
-    opt = torch.optim.SGD(adapted.parameters(), lr=inner_lr, momentum=0.9)
+    params = [p for p in adapted.parameters() if p.requires_grad]
+    opt = torch.optim.SGD(params, lr=inner_lr, momentum=0.9)
     adapted.train()
     for _ in range(inner_steps):
         opt.zero_grad()
@@ -72,11 +74,21 @@ def few_shot_eval(model, sx, sy, qx, qy, inner_lr, inner_steps):
 
 
 def meta_train_maml(model, clips, labels, class_pool, n_way, k_shot, k_query,
-                    epochs, episodes, inner_lr, inner_steps, meta_lr, device):
+                    epochs, episodes, inner_lr, inner_steps, meta_lr, device,
+                    freeze_backbone=False):
     """First-order MAML: adapt on support, take the query gradient at the adapted weights,
-    and apply it to the meta-weights. Returns (model, history)."""
+    and apply it to the meta-weights. Returns (model, history).
+
+    freeze_backbone: meta-learn only the LSTM + head and keep the (pretrained/distilled)
+    backbone fixed. Meta-training a strong backbone can DEGRADE it, so freezing keeps the good
+    features and just learns a fast-adapting head. requires_grad is restored before returning,
+    so meta-test adaptation is the same full-model adaptation as the no-meta arm."""
     model.to(device)
-    meta_opt = torch.optim.Adam(model.parameters(), lr=meta_lr)
+    if freeze_backbone:
+        for p in model.backbone.parameters():
+            p.requires_grad_(False)
+    meta_params = [p for p in model.parameters() if p.requires_grad]
+    meta_opt = torch.optim.Adam(meta_params, lr=meta_lr)
     history = {"query_accs": []}
     for epoch in range(epochs):
         accs = []
@@ -84,13 +96,16 @@ def meta_train_maml(model, clips, labels, class_pool, n_way, k_shot, k_query,
             sx, sy, qx, qy = sample_episode(clips, labels, class_pool, n_way, k_shot, k_query, device)
             adapted = _adapt(model, sx, sy, inner_lr, inner_steps)
             loss  = F.cross_entropy(adapted(qx), qy)
-            grads = torch.autograd.grad(loss, list(adapted.parameters()))
+            grads = torch.autograd.grad(loss, [p for p in adapted.parameters() if p.requires_grad])
             meta_opt.zero_grad()
-            for p, g in zip(model.parameters(), grads):
+            for p, g in zip(meta_params, grads):
                 p.grad = g.detach()
             meta_opt.step()
             with torch.no_grad():
                 accs.append((adapted(qx).argmax(1) == qy).float().mean().item())
         history["query_accs"].append(sum(accs) / len(accs))
         print(f"[maml] epoch {epoch+1}/{epochs} | meta query acc {history['query_accs'][-1]:.4f}")
+    if freeze_backbone:
+        for p in model.backbone.parameters():
+            p.requires_grad_(True)              # restore -> meta-test adapts the full model, like no-meta
     return model, history
