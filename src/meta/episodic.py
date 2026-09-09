@@ -73,6 +73,21 @@ def few_shot_eval(model, sx, sy, qx, qy, inner_lr, inner_steps):
         return (adapted(qx).argmax(1) == qy).float().mean().item()
 
 
+def few_shot_per_class(model, sx, sy, qx, qy, inner_lr, inner_steps, n_classes):
+    """Adapt on the support set, then return per-class query accuracy as a list indexed by the
+    relabelled class 0..n_classes-1 (nan for a class with no query items). The overall accuracy
+    is the mean of this list when the query set is class-balanced."""
+    adapted = few_shot_adapt(model, sx, sy, inner_lr, inner_steps)
+    adapted.eval()
+    with torch.no_grad():
+        preds = adapted(qx).argmax(1)
+    accs = []
+    for c in range(n_classes):
+        mask = qy == c
+        accs.append((preds[mask] == c).float().mean().item() if int(mask.sum()) > 0 else float("nan"))
+    return accs
+
+
 def meta_train_maml(model, clips, labels, class_pool, n_way, k_shot, k_query,
                     epochs, episodes, inner_lr, inner_steps, meta_lr, device,
                     freeze_backbone=False):
