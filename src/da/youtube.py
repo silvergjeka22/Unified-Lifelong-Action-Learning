@@ -8,10 +8,13 @@ from src.data.preprocessing import sample_spread_clips
 
 
 def _download(url, out_path):
-    """Fetch one video with yt-dlp (archive.org, YouTube, ...). Prefers a small ~480p version for
-    speed. Returns True on success, False on failure (removes any partial file). Note: YouTube on
-    cloud IPs (Colab) is often bot-blocked - archive.org or a local file is more reliable."""
-    ok = subprocess.run(["yt-dlp", "-q", "-S", "res:480", "-o", out_path, url]).returncode == 0
+    """Fetch one video with yt-dlp (archive.org, YouTube, ...) and RE-ENCODE it to a standard
+    H.264 mp4 so OpenCV can decode it - YouTube often serves VP9/webm or fragmented mp4 that
+    cv2.VideoCapture cannot read (it returns 0 frames). Prefers ~480p for speed. Returns True on
+    success, False on failure (removes any partial file). Note: YouTube on cloud IPs (Colab) is
+    often bot-blocked - archive.org or a local file is more reliable."""
+    ok = subprocess.run(["yt-dlp", "-q", "-S", "res:480", "--recode-video", "mp4",
+                         "-o", out_path, url]).returncode == 0
     if not ok and os.path.exists(out_path):
         os.remove(out_path)
     return ok
@@ -59,12 +62,18 @@ def download_youtube_clips(youtube_clips, class_to_idx, clips_per_video=20, raw_
                     print(f"  {cls} video {j}: download failed - skipping")
                     continue
             clips = _clips_from_video(path, clips_per_video, clip_len)
+            if not clips:
+                print(f"  {cls} video {j}: 0 clips (could not decode) - skipping")
+                continue
             all_clips.extend(clips)
             all_labels.extend([class_to_idx[cls]] * len(clips))
             all_videos.extend([video_id] * len(clips))
             video_id  += 1
             n_videos  += 1
             print(f"  {cls} video {j}: {len(clips)} clips")
-        print(f"  {cls:<16}: {n_videos} video(s)")
+        print(f"  {cls:<16}: {n_videos} usable video(s)")
 
+    if not all_clips:
+        raise RuntimeError("No readable clips - the downloaded videos could not be decoded. "
+                           "Clear the raw dir and re-run so they re-download as H.264 mp4.")
     return torch.stack(all_clips), torch.tensor(all_labels), torch.tensor(all_videos)
