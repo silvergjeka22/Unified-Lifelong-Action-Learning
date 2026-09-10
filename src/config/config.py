@@ -92,21 +92,26 @@ YT_RAW_DIR = "/content/yt_raw"
 # into RAM crashes the Colab kernel. 300 frames (~12s at 25 fps) is plenty for a few short clips.
 YT_MAX_FRAMES = 300
 # Real out-of-domain clips: SEVERAL videos per class so the few-shot task can be VIDEO-DISJOINT
-# (adapt on one video, test on the held-out videos). The first URL per class is confirmed working;
-# the others are candidates - any dead URL is skipped at download time, and a class needs >=2
-# working videos to get a "new video" test. Swap in your own URLs freely.
+# (adapt on one video, test on the held-out videos). A class needs >=2 working videos.
+# Each entry can be an archive.org URL, a YouTube watch URL, OR a LOCAL file path (an .mp4 you
+# uploaded to Colab/Drive). A local path is used directly - the most reliable option, since YouTube
+# on Colab is often bot-blocked by yt-dlp. Clip starts are spread across each whole video, so clean
+# ~2-minute clips are ideal. Swap these for your own verified videos.
 YOUTUBE_CLIPS = {
     "HorseRiding": [
-        "https://archive.org/download/horse-riding_202411/horse%20riding.mp4",
-        "https://archive.org/details/lwvtca-Equestrian_Center_October_2024",
+        "https://www.youtube.com/shorts/Ru9E4L61QRw",
+        "https://www.youtube.com/shorts/CqbmxCR1-Uc",
+        "https://www.youtube.com/shorts/Dkyt_ayY6YE",
     ],
     "Drumming": [
-        "https://archive.org/download/Davidleeking-drumming798/Davidleeking-drumming798_512kb.mp4",
-        "https://archive.org/details/g678_Drumming_Winter_Concert_12-12-2017_--_ParkTV15",
+        "https://www.youtube.com/shorts/WkcomcZ8Z14",
+        "https://www.youtube.com/shorts/iM57x_SqGY4",
+        "https://www.youtube.com/shorts/q1rywsk0SB0",
     ],
     "PushUps": [
-        "https://archive.org/download/in-shot-20200102-195128/InShot_20200102_195128.mp4",
-        "https://archive.org/details/jccva-Fitness_in_5_Episode_8_-_Advanced_Fitness_Court_Exercises",
+        "https://www.youtube.com/shorts/5P510B8D_f4",
+        "https://www.youtube.com/shorts/KYoeMmscPMg",
+        "https://www.youtube.com/shorts/Ww9MjSt_pzI",
     ],
 }
 
