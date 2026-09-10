@@ -97,8 +97,6 @@ def train_ewc(model, train_loader, val_loader, old_val_loader, star, fisher,
         history["train_losses"].append(ce_mean)
         history["val_accs"].append(val_acc)
         history["val_losses"].append(val_loss)
-        # EWC should be roughly 5-20% of CE: if it is far smaller, raise ewc_lambda;
-        # if the new task will not learn, lower it.
         print(f"Epoch [{epoch+1}/{num_epochs}] | Train {train_acc:.4f} | "
               f"CE {ce_mean:.3f} | EWC {pen_mean:.3f} ({100*pen_mean/max(ce_mean,1e-9):.0f}% of CE) | "
               f"New Val {val_acc:.4f} | Old Val {old_acc:.4f}")
