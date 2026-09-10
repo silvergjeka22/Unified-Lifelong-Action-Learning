@@ -74,14 +74,18 @@ def make_video_disjoint_task(clips, labels, video_ids, class_ids, k_shot, device
             torch.tensor(q_new).to(device))
 
 
-def few_shot_old_new(model, sx, sy, qx, qy, q_new, inner_lr, inner_steps, n_classes):
+def few_shot_old_new(model, sx, sy, qx, qy, q_new, inner_lr, inner_steps, n_classes, batch_size=8):
     """Adapt on the support set, then return (old_per_class, new_per_class) query accuracy lists:
     'old' = clips from the support video (seen scene), 'new' = clips from held-out videos (the real
-    generalisation test). nan for a class with no clips in that bucket."""
+    generalisation test). nan for a class with no clips in that bucket. The query is scored in
+    mini-batches so a large query set does not OOM a heavy backbone (e.g. ResNet50)."""
     adapted = few_shot_adapt(model, sx, sy, inner_lr, inner_steps)
     adapted.eval()
+    preds = []
     with torch.no_grad():
-        correct = adapted(qx).argmax(1) == qy
+        for i in range(0, qx.size(0), batch_size):
+            preds.append(adapted(qx[i:i + batch_size]).argmax(1))
+    correct = torch.cat(preds) == qy
     old_pc, new_pc = [], []
     for c in range(n_classes):
         cls = qy == c
