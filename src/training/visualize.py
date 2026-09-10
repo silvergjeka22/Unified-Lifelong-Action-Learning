@@ -50,6 +50,32 @@ def plot_confusion_matrix(all_labels, all_preds, num_classes=None, classes_list=
     plt.show()
 
 
+def plot_old_vs_new(class_names, base_old, base_new, maml_old, maml_new, k_shot=5):
+    """
+    Compare no-meta vs MAML on OLD (support-video) and NEW (held-out-video) clips. Each *_old /
+    *_new is a per-class list of accuracies. Left panel: overall seen-vs-unseen. Right panel:
+    per-class accuracy on the NEW videos - the real generalisation test where MAML should win.
+    """
+    n = len(class_names)
+    x2, xc, w = np.arange(2), np.arange(n), 0.38
+    fig, (ax_o, ax_c) = plt.subplots(1, 2, figsize=(13, 5))
+
+    ax_o.bar(x2 - w / 2, [np.nanmean(base_old), np.nanmean(base_new)], w, label="no meta")
+    ax_o.bar(x2 + w / 2, [np.nanmean(maml_old), np.nanmean(maml_new)], w, label="MAML")
+    ax_o.set_xticks(x2); ax_o.set_xticklabels(["old\n(support video)", "new\n(held-out videos)"])
+    ax_o.set_ylim(0, 1.05); ax_o.set_ylabel("accuracy")
+    ax_o.set_title("Overall: seen vs unseen videos"); ax_o.legend()
+
+    ax_c.bar(xc - w / 2, base_new, w, label="no meta")
+    ax_c.bar(xc + w / 2, maml_new, w, label="MAML")
+    ax_c.set_xticks(xc); ax_c.set_xticklabels(class_names, rotation=20, ha="right")
+    ax_c.set_ylim(0, 1.05); ax_c.set_ylabel("accuracy")
+    ax_c.set_title(f"Per-class on NEW videos ({k_shot}-shot)"); ax_c.legend()
+
+    plt.tight_layout()
+    plt.show()
+
+
 def plot_forgetting_history(history, epochs_per_task=5):
     """
     Line timeline of each task's test accuracy over the whole CL stream. `history` is a

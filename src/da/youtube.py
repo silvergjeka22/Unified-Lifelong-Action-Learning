@@ -33,32 +33,43 @@ def _clips_from_video(video_path, n_clips, clip_len, max_frames=None):
     return clips
 
 
-def download_youtube_clips(youtube_clips, class_to_idx, n_clips=40, raw_dir=None, clip_len=None,
-                           max_frames=None):
+def download_youtube_clips(youtube_clips, class_to_idx, clips_per_video=20, raw_dir=None,
+                           clip_len=None, max_frames=None):
     """
-    Download each {class: url} video and cut it into n_clips clips. Returns
-    (clips, labels) as tensors, ready to run through the model. Real out-of-domain data.
+    Download EVERY video for each class and cut clips_per_video clips from each. Returns
+    (clips, labels, video_ids): video_ids tags which SOURCE video each clip came from, so a
+    video-disjoint few-shot split can hold out whole videos. Real out-of-domain data.
 
-    max_frames caps frames read per video (defaults to cfg.YT_MAX_FRAMES) so a long clip
-    does not exhaust RAM and crash the kernel.
+    youtube_clips: {class_name: [url, ...]} (a single string is also accepted). A dead URL is
+    skipped (the class just gets fewer videos). max_frames caps frames read per video
+    (defaults to cfg.YT_MAX_FRAMES) so a long clip does not exhaust RAM and crash the kernel.
     """
     raw_dir    = raw_dir or cfg.YT_RAW_DIR
     clip_len   = clip_len or cfg.CLIP_LEN
     max_frames = max_frames or cfg.YT_MAX_FRAMES
     os.makedirs(raw_dir, exist_ok=True)
 
-    all_clips, all_labels = [], []
-    for cls, url in youtube_clips.items():
+    all_clips, all_labels, all_videos = [], [], []
+    video_id = 0
+    for cls, urls in youtube_clips.items():
         if cls not in class_to_idx:
             continue
-        path = os.path.join(raw_dir, f"{cls}.mp4")
-        # a dead URL is skipped, not fatal - the task just uses the classes that download
-        if not os.path.exists(path) and not _download(url, path):
-            print(f"  {cls:<20}: download failed - skipping")
-            continue
-        clips = _clips_from_video(path, n_clips, clip_len, max_frames)
-        all_clips.extend(clips)
-        all_labels.extend([class_to_idx[cls]] * len(clips))
-        print(f"  {cls:<20}: {len(clips)} clips")
+        if isinstance(urls, str):
+            urls = [urls]
+        n_videos = 0
+        for j, url in enumerate(urls):
+            path = os.path.join(raw_dir, f"{cls}_{j}.mp4")
+            # a dead URL is skipped, not fatal - the class just gets fewer videos
+            if not os.path.exists(path) and not _download(url, path):
+                print(f"  {cls} video {j}: download failed - skipping")
+                continue
+            clips = _clips_from_video(path, clips_per_video, clip_len, max_frames)
+            all_clips.extend(clips)
+            all_labels.extend([class_to_idx[cls]] * len(clips))
+            all_videos.extend([video_id] * len(clips))
+            video_id  += 1
+            n_videos  += 1
+            print(f"  {cls} video {j}: {len(clips)} clips")
+        print(f"  {cls:<16}: {n_videos} video(s)")
 
-    return torch.stack(all_clips), torch.tensor(all_labels)
+    return torch.stack(all_clips), torch.tensor(all_labels), torch.tensor(all_videos)

@@ -91,12 +91,23 @@ YT_RAW_DIR = "/content/yt_raw"
 # Cap frames read per YouTube video. These clips are minutes long; reading every full-res frame
 # into RAM crashes the Colab kernel. 300 frames (~12s at 25 fps) is plenty for a few short clips.
 YT_MAX_FRAMES = 300
-# Real out-of-domain clips for the few-shot domain-adaptation task. Any dead URL is skipped at
-# download time (download_youtube_clips), and N_WAY is set from the classes that actually download.
+# Real out-of-domain clips: SEVERAL videos per class so the few-shot task can be VIDEO-DISJOINT
+# (adapt on one video, test on the held-out videos). The first URL per class is confirmed working;
+# the others are candidates - any dead URL is skipped at download time, and a class needs >=2
+# working videos to get a "new video" test. Swap in your own URLs freely.
 YOUTUBE_CLIPS = {
-    "HorseRiding": "https://archive.org/download/horse-riding_202411/horse%20riding.mp4",
-    "Drumming":    "https://archive.org/download/Davidleeking-drumming798/Davidleeking-drumming798_512kb.mp4",
-    "PushUps":     "https://archive.org/download/in-shot-20200102-195128/InShot_20200102_195128.mp4",
+    "HorseRiding": [
+        "https://archive.org/download/horse-riding_202411/horse%20riding.mp4",
+        "https://archive.org/details/lwvtca-Equestrian_Center_October_2024",
+    ],
+    "Drumming": [
+        "https://archive.org/download/Davidleeking-drumming798/Davidleeking-drumming798_512kb.mp4",
+        "https://archive.org/details/g678_Drumming_Winter_Concert_12-12-2017_--_ParkTV15",
+    ],
+    "PushUps": [
+        "https://archive.org/download/in-shot-20200102-195128/InShot_20200102_195128.mp4",
+        "https://archive.org/details/jccva-Fitness_in_5_Episode_8_-_Advanced_Fitness_Court_Exercises",
+    ],
 }
 
 random.seed(SEED)
