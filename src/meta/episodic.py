@@ -46,6 +46,52 @@ def sample_episode(clips, labels, class_pool, n_way, k_shot, k_query, device):
     return make_task(clips, labels, random.sample(class_pool, n_way), k_shot, k_query, device)
 
 
+def make_video_disjoint_task(clips, labels, video_ids, class_ids, k_shot, device):
+    """One VIDEO-DISJOINT few-shot task. For each class: SUPPORT = k_shot clips from ONE of its
+    videos; QUERY = the class's other clips, each flagged new=True if it comes from a DIFFERENT
+    video than the support (held-out) or new=False if from the same support video. Labels are
+    relabelled 0..n-1. Returns (sx, sy, qx, qy, q_new). A class with only one video contributes
+    no 'new' query."""
+    sx, sy, qx, qy, q_new = [], [], [], [], []
+    for new_label, c in enumerate(class_ids):
+        c_idx   = (labels == c).nonzero(as_tuple=True)[0]
+        c_vids  = video_ids[c_idx]
+        uniq    = c_vids.unique()
+        sup_vid = uniq[torch.randint(len(uniq), (1,)).item()].item()
+
+        same = c_idx[c_vids == sup_vid]
+        same = same[torch.randperm(len(same))]
+        sup   = same[:k_shot]                    # support
+        old_q = same[k_shot:]                    # same video, unseen clips
+        new_q = c_idx[c_vids != sup_vid]         # held-out videos
+
+        sx.append(clips[sup]);   sy += [new_label] * len(sup)
+        qx.append(clips[old_q]); qy += [new_label] * len(old_q); q_new += [False] * len(old_q)
+        qx.append(clips[new_q]); qy += [new_label] * len(new_q); q_new += [True]  * len(new_q)
+
+    return (torch.cat(sx).to(device), torch.tensor(sy).to(device),
+            torch.cat(qx).to(device), torch.tensor(qy).to(device),
+            torch.tensor(q_new).to(device))
+
+
+def few_shot_old_new(model, sx, sy, qx, qy, q_new, inner_lr, inner_steps, n_classes):
+    """Adapt on the support set, then return (old_per_class, new_per_class) query accuracy lists:
+    'old' = clips from the support video (seen scene), 'new' = clips from held-out videos (the real
+    generalisation test). nan for a class with no clips in that bucket."""
+    adapted = few_shot_adapt(model, sx, sy, inner_lr, inner_steps)
+    adapted.eval()
+    with torch.no_grad():
+        correct = adapted(qx).argmax(1) == qy
+    old_pc, new_pc = [], []
+    for c in range(n_classes):
+        cls = qy == c
+        old_mask = cls & (~q_new)
+        new_mask = cls & q_new
+        old_pc.append(correct[old_mask].float().mean().item() if int(old_mask.sum()) > 0 else float("nan"))
+        new_pc.append(correct[new_mask].float().mean().item() if int(new_mask.sum()) > 0 else float("nan"))
+    return old_pc, new_pc
+
+
 def _adapt(model, sx, sy, inner_lr, inner_steps):
     """Copy the model and take inner_steps of SGD on the support set (only the trainable
     params - a frozen backbone stays put). Returns the copy."""
