@@ -138,6 +138,33 @@ def few_shot_per_class(model, sx, sy, qx, qy, inner_lr, inner_steps, n_classes):
     return accs
 
 
+def adapt_new_and_retain(model, sx, sy, qx, qy, old_head, old_loader, inner_lr, inner_steps,
+                         device, batch_size=8):
+    """Few-shot adapt to a NEW task, then return (new_acc, old_retention):
+      new_acc       - query accuracy on the NEW classes (did it learn them from K shots),
+      old_retention - the ORIGINAL old-class head applied to the ADAPTED backbone over the OLD
+                      test set (how much it still remembers; the drop from the pre-adapt value is
+                      the forgetting).
+    Query and old test are scored in mini-batches so a heavy backbone does not OOM."""
+    adapted = few_shot_adapt(model, sx, sy, inner_lr, inner_steps)
+    adapted.eval()
+
+    preds = []
+    with torch.no_grad():
+        for i in range(0, qx.size(0), batch_size):
+            preds.append(adapted(qx[i:i + batch_size]).argmax(1))
+    new_acc = (torch.cat(preds) == qy).float().mean().item()
+
+    old_head = old_head.to(device)
+    correct = total = 0
+    with torch.no_grad():
+        for clips, y in old_loader:
+            clips, y = clips.to(device), y.to(device)
+            correct += (old_head(adapted.features(clips)).argmax(1) == y).sum().item()
+            total   += y.size(0)
+    return new_acc, correct / max(total, 1)
+
+
 def meta_train_maml(model, clips, labels, class_pool, n_way, k_shot, k_query,
                     epochs, episodes, inner_lr, inner_steps, meta_lr, device,
                     freeze_backbone=False):
