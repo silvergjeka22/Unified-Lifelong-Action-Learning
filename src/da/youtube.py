@@ -77,3 +77,23 @@ def download_youtube_clips(youtube_clips, class_to_idx, clips_per_video=20, raw_
         raise RuntimeError("No readable clips - the downloaded videos could not be decoded. "
                            "Clear the raw dir and re-run so they re-download as H.264 mp4.")
     return torch.stack(all_clips), torch.tensor(all_labels), torch.tensor(all_videos)
+
+
+def video_disjoint_split(clips, labels, video_ids, holdout_per_class=1):
+    """Split real clips into (adapt_clips, adapt_labels, test_clips, test_labels), holding out the
+    last holdout_per_class WHOLE videos of each class for the test set. No frame of a test video
+    appears in the adaptation set, so the target-domain test is honest. Robust to classes with
+    fewer videos (a class with only held-out videos simply contributes no adaptation clips)."""
+    adapt_idx, test_idx = [], []
+    for c in labels.unique():
+        c_pos  = (labels == c).nonzero(as_tuple=True)[0]
+        c_vids = video_ids[c_pos].unique().tolist()
+        held   = set(c_vids[-holdout_per_class:])
+        for i in c_pos.tolist():
+            if video_ids[i].item() in held:
+                test_idx.append(i)
+            else:
+                adapt_idx.append(i)
+    adapt_idx = torch.tensor(adapt_idx, dtype=torch.long)
+    test_idx  = torch.tensor(test_idx, dtype=torch.long)
+    return clips[adapt_idx], labels[adapt_idx], clips[test_idx], labels[test_idx]
