@@ -1,20 +1,29 @@
 """
-Few-shot class-incremental learning (FSCIL) stream with replay + LwF.
+Few-shot class-incremental learning (FSCIL): add novel classes a task at a time from only a few
+clips each, without forgetting the base classes.
 
-Novel classes arrive a task at a time, each with only a few clips. A replay buffer plus an LwF
-teacher keep the old classes, and the backbone is frozen so few-shot fitting moves only the LSTM +
-head (old-class features are preserved). run_fscil is called twice - once from the pretrained init
-(rehearsal only) and once from a MAML-meta-trained init (MAML + rehearsal) - to show what MAML adds.
+Two classifiers live here:
+  - run_fscil        : a gradient-trained growing head with replay + LwF. On a frozen backbone with
+                       only a few shots the replay/LwF pull drowns the tiny new-class signal, so the
+                       new classes barely learn - kept for reference.
+  - run_fscil_proto  : a nearest-class-mean PROTOTYPE classifier (the standard FSCIL fix). Each class
+                       is the mean feature of its few clips; classify by nearest prototype. No
+                       gradient, no replay, no forgetting - and it actually learns the new classes.
+
+meta_train_protonet meta-trains the features (ProtoNet) so prototypes are more separable - the
+metric-learning cousin of MAML that pairs with the prototype classifier.
 """
 
 import gc
 import torch
+import torch.nn.functional as F
 from torch.utils.data import DataLoader, ConcatDataset, Subset
 
 import src.config.config as cfg
 from src.cl.rehearsal import ReplayBuffer, fill_buffer, snapshot_teacher, train_continual
 from src.models.backbones import expand_classifier
 from src.training.train import test_model
+from src.meta.episodic import sample_episode
 
 
 def fewshot_task_data(train_ds, test_ds, stream_classes, class_to_idx, task_size):
@@ -79,3 +88,90 @@ def run_fscil(model, base_train_loader, base_test_set, task_train_subsets, task_
         gc.collect()
         torch.cuda.empty_cache()
     return model, accs
+
+
+def class_prototypes(model, loader, device):
+    """Return {class_id: mean 256-d feature} over a loader - each class's prototype. The backbone is
+    frozen, so a class's prototype is a fixed point that never drifts (no forgetting)."""
+    sums, counts = {}, {}
+    model.eval()
+    with torch.no_grad():
+        for clips, y in loader:
+            feats = model.features(clips.to(device))
+            for i in range(y.size(0)):
+                c = int(y[i])
+                sums[c]   = feats[i] if c not in sums else sums[c] + feats[i]
+                counts[c] = counts.get(c, 0) + 1
+    return {c: sums[c] / counts[c] for c in sums}
+
+
+def proto_accuracy(model, loader, protos, device):
+    """Nearest-prototype accuracy (cosine similarity) over a loader given {class_id: prototype}."""
+    ids = sorted(protos.keys())
+    bank = F.normalize(torch.stack([protos[c] for c in ids]).to(device), dim=1)
+    id_tensor = torch.tensor(ids, device=device)
+    correct = total = 0
+    model.eval()
+    with torch.no_grad():
+        for clips, y in loader:
+            feats = F.normalize(model.features(clips.to(device)), dim=1)
+            pred  = id_tensor[(feats @ bank.t()).argmax(1)]
+            correct += (pred == y.to(device)).sum().item()
+            total   += y.size(0)
+    return correct / max(total, 1)
+
+
+def run_fscil_proto(model, base_train_loader, base_test_set, task_train_subsets, task_test_subsets, device):
+    """Prototype-based FSCIL. Build a mean-feature prototype per class from its (few) clips, add each
+    task's prototypes incrementally, and classify by nearest prototype. No gradient, no replay, no
+    forgetting (base prototypes from the frozen backbone never change). Returns accs where accs[0] is
+    the base accuracy and accs[i] is accuracy on ALL classes seen through task i."""
+    model = model.to(device)
+    protos = class_prototypes(model, base_train_loader, device)
+    seen_tests  = [base_test_set]
+    base_loader = DataLoader(ConcatDataset(seen_tests), batch_size=cfg.BATCH_SIZE, num_workers=2)
+    accs = [proto_accuracy(model, base_loader, protos, device)]
+    for i in range(len(task_train_subsets)):
+        tl = DataLoader(task_train_subsets[i], batch_size=cfg.BATCH_SIZE, num_workers=2)
+        protos.update(class_prototypes(model, tl, device))
+        seen_tests.append(task_test_subsets[i])
+        loader = DataLoader(ConcatDataset(seen_tests), batch_size=cfg.BATCH_SIZE, num_workers=2)
+        accs.append(proto_accuracy(model, loader, protos, device))
+        torch.cuda.empty_cache()
+    return accs
+
+
+def meta_train_protonet(model, clips, labels, class_pool, n_way, k_shot, k_query,
+                        epochs, episodes, lr, device, freeze_backbone=True):
+    """ProtoNet episodic meta-training - the metric-learning cousin of MAML that PAIRS with a
+    prototype classifier. Each episode builds prototypes from the support set, classifies the query
+    by cosine similarity to them, and backprops the CE loss into the (LSTM) features so classes
+    become more separable. Returns (model, history). freeze_backbone keeps the strong ResNet50."""
+    model.to(device)
+    if freeze_backbone:
+        for p in model.backbone.parameters():
+            p.requires_grad_(False)
+    params = [p for p in model.parameters() if p.requires_grad]
+    opt = torch.optim.Adam(params, lr=lr)
+    history = {"query_accs": []}
+    for epoch in range(epochs):
+        accs = []
+        for _ in range(episodes):
+            sx, sy, qx, qy = sample_episode(clips, labels, class_pool, n_way, k_shot, k_query, device)
+            model.train()
+            sf = F.normalize(model.features(sx), dim=1)
+            qf = F.normalize(model.features(qx), dim=1)
+            protos = torch.stack([sf[sy == c].mean(0) for c in range(n_way)])
+            protos = F.normalize(protos, dim=1)
+            logits = qf @ protos.t()
+            loss = F.cross_entropy(logits, qy)
+            opt.zero_grad()
+            loss.backward()
+            opt.step()
+            accs.append((logits.argmax(1) == qy).float().mean().item())
+        history["query_accs"].append(sum(accs) / len(accs))
+        print(f"[protonet] epoch {epoch+1}/{epochs} | meta query acc {history['query_accs'][-1]:.4f}")
+    if freeze_backbone:
+        for p in model.backbone.parameters():
+            p.requires_grad_(True)
+    return model, history
