@@ -244,7 +244,8 @@ def fair_adapt_eval(model, support_x, support_y, base_test_loader, new_test_load
     """ONE matched adaptation used by EVERY arm, so the comparison is fully fair: grow the head to
     n_base + n_new, keep layer4 + LSTM + head trainable, and take inner_steps few-step SGD updates on
     the new-class support (global labels), with OPTIONAL replay (buffer of old exemplars mixed into
-    each step) and OPTIONAL LwF (teacher distilling the old-class logits). Across arms only the init
+    each step) and OPTIONAL LwF (teacher distilling the old-class logits, with the distillation weight
+    ramped 0 -> lambda_distill so new classes can learn before base protection tightens). Across arms only the init
     (plain vs MAML) and whether replay/LwF are on differ - same head, same steps, same lr, same
     support. Returns (new_acc, base_retention)."""
     model = model.to(device)
@@ -258,7 +259,7 @@ def fair_adapt_eval(model, support_x, support_y, base_test_loader, new_test_load
     if teacher is not None:
         teacher = teacher.to(device).eval()
     model.train()
-    for _ in range(inner_steps):
+    for step in range(inner_steps):
         x, y = support_x, support_y
         if buffer is not None:
             xb, yb = buffer.sample(support_x.size(0))
@@ -267,9 +268,13 @@ def fair_adapt_eval(model, support_x, support_y, base_test_loader, new_test_load
         logits = model(x)
         loss = F.cross_entropy(logits, y)
         if teacher is not None:
+            # smooth LwF: ramp the distillation weight 0 -> lambda_distill across the steps, so the new
+            # classes get to learn first and base protection tightens gradually (a fixed heavy lambda
+            # from step 1 crushes the fresh new-class head before it can move).
+            lam = lambda_distill * (step + 1) / inner_steps
             with torch.no_grad():
                 t = teacher(x)
-            loss = loss + lambda_distill * distillation_loss(logits[:, :n_base], t[:, :n_base], T)
+            loss = loss + lam * distillation_loss(logits[:, :n_base], t[:, :n_base], T)
         opt.zero_grad()
         loss.backward()
         opt.step()
