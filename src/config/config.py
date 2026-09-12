@@ -82,25 +82,10 @@ KD_EPOCHS         = 15
 KD_LR             = 1e-4
 
 # DOMAIN ADAPTATION
-YT_RAW_DIR = "/content/yt_raw"
-YT_MAX_FRAMES = 300
-YOUTUBE_CLIPS = {
-    "HorseRiding": [
-        "https://www.youtube.com/shorts/Ru9E4L61QRw",
-        "https://www.youtube.com/shorts/CqbmxCR1-Uc",
-        "https://www.youtube.com/shorts/Dkyt_ayY6YE",
-    ],
-    "Drumming": [
-        "https://www.youtube.com/shorts/WkcomcZ8Z14",
-        "https://www.youtube.com/shorts/iM57x_SqGY4",
-        "https://www.youtube.com/shorts/q1rywsk0SB0",
-    ],
-    "PushUps": [
-        "https://www.youtube.com/shorts/5P510B8D_f4",
-        "https://www.youtube.com/shorts/KYoeMmscPMg",
-        "https://www.youtube.com/shorts/Ww9MjSt_pzI",
-    ],
-}
+# One real YouTube video (out-of-domain) of a known class - the test set for the DA study.
+YT_RAW_DIR    = "/content/yt_raw"
+YT_TEST_CLASS = "PushUps"
+YT_TEST_VIDEO = "https://www.youtube.com/watch?v=f9TERHtc1LA"
 
 random.seed(SEED)
 
