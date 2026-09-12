@@ -13,7 +13,7 @@ import torch.nn.functional as F
 
 import src.config.config as cfg
 from src.models.backbones import expand_classifier
-from src.cl.rehearsal import train_continual
+from src.cl.rehearsal import train_continual, distillation_loss
 from src.training.train import test_model
 
 
@@ -172,18 +172,24 @@ def adapt_new_and_retain(model, sx, sy, qx, qy, old_head, old_loader, inner_lr, 
 
 def meta_train_maml(model, clips, labels, class_pool, n_way, k_shot, k_query,
                     epochs, episodes, inner_lr, inner_steps, meta_lr, device,
-                    freeze_backbone=False):
+                    freeze_backbone=False, unfreeze_layer4=False):
     """First-order MAML: adapt on support, take the query gradient at the adapted weights,
     and apply it to the meta-weights. Returns (model, history).
 
-    freeze_backbone: meta-learn only the LSTM + head and keep the (pretrained/distilled)
-    backbone fixed. Meta-training a strong backbone can DEGRADE it, so freezing keeps the good
-    features and just learns a fast-adapting head. requires_grad is restored before returning,
-    so meta-test adaptation is the same full-model adaptation as the no-meta arm."""
+    freeze_backbone: meta-learn only the trainable params (LSTM + head, and layer4 if
+    unfreeze_layer4). unfreeze_layer4: also let ResNet50's LAST block (layer4) be meta-learned, so
+    the FEATURES can actually be reshaped - freezing everything leaves only the small LSTM, which
+    barely moves the features (a flat meta-train-vs-plain prototype score is the symptom). layer4 is
+    backbone[-2] (backbone = [...layer4, avgpool]). On return the requires_grad state is set back to
+    the constructor's (layer4 trainable, the rest of the backbone frozen) so the no-meta and MAML
+    arms adapt the SAME parameters at meta-test - a fair comparison."""
     model.to(device)
     if freeze_backbone:
         for p in model.backbone.parameters():
             p.requires_grad_(False)
+        if unfreeze_layer4:
+            for p in model.backbone[-2].parameters():
+                p.requires_grad_(True)
     meta_params = [p for p in model.parameters() if p.requires_grad]
     meta_opt = torch.optim.Adam(meta_params, lr=meta_lr)
     history = {"query_accs": []}
@@ -204,7 +210,9 @@ def meta_train_maml(model, clips, labels, class_pool, n_way, k_shot, k_query,
         print(f"[maml] epoch {epoch+1}/{epochs} | meta query acc {history['query_accs'][-1]:.4f}")
     if freeze_backbone:
         for p in model.backbone.parameters():
-            p.requires_grad_(True)              # restore -> meta-test adapts the full model, like no-meta
+            p.requires_grad_(False)
+        for p in model.backbone[-2].parameters():
+            p.requires_grad_(True)              # restore constructor state: only layer4 trainable
     return model, history
 
 
@@ -228,3 +236,43 @@ def adapt_and_eval(model, train_loader, val_loader, base_test_loader, new_test_l
     new_acc,  _, _ = test_model(model, new_test_loader,  device)
     base_acc, _, _ = test_model(model, base_test_loader, device)
     return model, new_acc, base_acc
+
+
+def fair_adapt_eval(model, support_x, support_y, base_test_loader, new_test_loader, n_base, n_new,
+                    device, buffer=None, teacher=None, inner_lr=0.01, inner_steps=5,
+                    lambda_distill=cfg.LAMBDA_DISTILL, T=cfg.KD_TEMPERATURE):
+    """ONE matched adaptation used by EVERY arm, so the comparison is fully fair: grow the head to
+    n_base + n_new, keep layer4 + LSTM + head trainable, and take inner_steps few-step SGD updates on
+    the new-class support (global labels), with OPTIONAL replay (buffer of old exemplars mixed into
+    each step) and OPTIONAL LwF (teacher distilling the old-class logits). Across arms only the init
+    (plain vs MAML) and whether replay/LwF are on differ - same head, same steps, same lr, same
+    support. Returns (new_acc, base_retention)."""
+    model = model.to(device)
+    model = expand_classifier(model, n_base + n_new).to(device)
+    for p in model.backbone.parameters():
+        p.requires_grad_(False)
+    for p in model.backbone[-2].parameters():
+        p.requires_grad_(True)                       # layer4 trainable (same as the no-meta init)
+    params = [p for p in model.parameters() if p.requires_grad]
+    opt = torch.optim.SGD(params, lr=inner_lr, momentum=0.9)
+    if teacher is not None:
+        teacher = teacher.to(device).eval()
+    model.train()
+    for _ in range(inner_steps):
+        x, y = support_x, support_y
+        if buffer is not None:
+            xb, yb = buffer.sample(support_x.size(0))
+            if xb is not None:
+                x = torch.cat([support_x, xb.to(device)]); y = torch.cat([support_y, yb.to(device)])
+        logits = model(x)
+        loss = F.cross_entropy(logits, y)
+        if teacher is not None:
+            with torch.no_grad():
+                t = teacher(x)
+            loss = loss + lambda_distill * distillation_loss(logits[:, :n_base], t[:, :n_base], T)
+        opt.zero_grad()
+        loss.backward()
+        opt.step()
+    new_acc,  _, _ = test_model(model, new_test_loader,  device)
+    base_acc, _, _ = test_model(model, base_test_loader, device)
+    return new_acc, base_acc
