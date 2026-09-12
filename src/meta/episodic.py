@@ -11,6 +11,11 @@ import random
 import torch
 import torch.nn.functional as F
 
+import src.config.config as cfg
+from src.models.backbones import expand_classifier
+from src.cl.rehearsal import train_continual
+from src.training.train import test_model
+
 
 def build_pool(datasets, per_class):
     """Load up to per_class clips per class from one or more UCF101Clips datasets into RAM
@@ -201,3 +206,24 @@ def meta_train_maml(model, clips, labels, class_pool, n_way, k_shot, k_query,
         for p in model.backbone.parameters():
             p.requires_grad_(True)              # restore -> meta-test adapts the full model, like no-meta
     return model, history
+
+
+def adapt_and_eval(model, train_loader, val_loader, base_test_loader, new_test_loader,
+                   n_base, n_new, device, buffer=None, teacher=None, epochs=5, lr=1e-4,
+                   lambda_distill=cfg.LAMBDA_DISTILL, T=cfg.KD_TEMPERATURE):
+    """Freeze the backbone, grow the head to n_base + n_new, adapt to the new classes with
+    train_continual (optional replay buffer + LwF teacher), then return (new_acc, base_retention):
+    accuracy on the new EXAM classes and on the old BASE classes through the same grown head. The
+    three study arms call this with the same adaptation, differing only in the init (plain vs MAML)
+    and whether replay + LwF are on."""
+    model = model.to(device)
+    for p in model.backbone.parameters():
+        p.requires_grad_(False)
+    model = expand_classifier(model, n_base + n_new).to(device)
+    for p in model.backbone.parameters():
+        p.requires_grad_(False)
+    train_continual(model, train_loader, val_loader, device, buffer=buffer, teacher=teacher,
+                    num_old_classes=n_base, lambda_distill=lambda_distill, T=T, epochs=epochs, lr=lr)
+    new_acc,  _, _ = test_model(model, new_test_loader,  device)
+    base_acc, _, _ = test_model(model, base_test_loader, device)
+    return new_acc, base_acc

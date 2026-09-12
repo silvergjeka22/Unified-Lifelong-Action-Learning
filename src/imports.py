@@ -71,7 +71,6 @@ run_module("src/kd/distill.py")
 run_module("src/da/youtube.py")
 
 run_module("src/meta/episodic.py")
-run_module("src/meta/fscil.py")
 
 from src.training.seed import set_seed
 set_seed(cfg.SEED)
