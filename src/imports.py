@@ -69,6 +69,7 @@ run_module("src/cl/rehearsal.py")
 run_module("src/kd/distill.py")
 
 run_module("src/da/youtube.py")
+run_module("src/da/shift.py")
 
 run_module("src/meta/episodic.py")
 

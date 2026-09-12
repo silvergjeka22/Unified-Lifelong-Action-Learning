@@ -8,9 +8,10 @@ from glob import glob
 
 
 class UCF101Clips(Dataset):
-    def __init__(self, root_dir, class_to_idx):
+    def __init__(self, root_dir, class_to_idx, clip_transform=None):
         self.root = root_dir
         self.class_to_idx = class_to_idx # The Global Phonebook
+        self.clip_transform = clip_transform # optional callable applied to each clip (domain shift)
         self.classes = sorted(os.listdir(self.root))
         self.samples = []
 
@@ -29,6 +30,8 @@ class UCF101Clips(Dataset):
     def __getitem__(self, idx):
         path, label = self.samples[idx]
         clip = torch.load(path)
+        if self.clip_transform is not None:
+            clip = self.clip_transform(clip)
         return clip, label
 
     @staticmethod
