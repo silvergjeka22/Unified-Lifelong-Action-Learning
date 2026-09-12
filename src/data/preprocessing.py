@@ -244,7 +244,8 @@ def describe_group_split(split_map, target_classes=None):
     return clashes
 
 
-def preprocess_group_split(split_map, target_classes=None, output_root=None, max_samples=None):
+def preprocess_group_split(split_map, target_classes=None, output_root=None, max_samples=None,
+                           max_test_samples=None):
     """
     Write .pt clips for a group-disjoint split map built by build_group_split.
 
@@ -253,6 +254,9 @@ def preprocess_group_split(split_map, target_classes=None, output_root=None, max
     val/test are untouched and the split stays group-disjoint (the kept clips still come only
     from the train groups). It trains on fewer clips, so it LOWERS accuracy - use it for a fast
     dry-run and drop it (None) for the final numbers.
+
+    max_test_samples: optional cap on VAL and TEST clips per class (None keeps every clip). Only
+    for fast/small runs - a smaller test set makes accuracy noisier, so drop it for final numbers.
     """
     target_classes = target_classes or sorted(split_map["train"])
     output_root    = output_root or cfg.OUTPUT_ROOT
@@ -270,9 +274,11 @@ def preprocess_group_split(split_map, target_classes=None, output_root=None, max
 
         for cls in target_classes:
             paths = split_map[split].get(cls, [])
-            # memory/speed saver: cap clips per class on the TRAIN split only (val/test full)
+            # memory/speed saver: cap clips per class - train via max_samples, val/test via max_test_samples
             if max_samples is not None and split == "train":
                 paths = paths[:max_samples]
+            elif max_test_samples is not None and split in ("val", "test"):
+                paths = paths[:max_test_samples]
             if not paths:
                 continue
             class_output_path = os.path.join(split_output_path, cls)

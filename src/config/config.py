@@ -34,7 +34,21 @@ TASK_2 = [
     "BoxingPunchingBag", "BoxingSpeedBag", "BrushingTeeth", "CliffDiving", "CricketBowling",
 ]
 
-ALL_CLASSES = SELECTED_CLASSES + TASK_1 + TASK_2
+# More novel classes for the meta-learning study. TASK_1..TASK_4 (20 classes) are the meta-training
+# pool; TASK_5 (5 classes) is the held-out set the model must adapt to and is tested on.
+TASK_3 = [
+    "BandMarching", "BaseballPitch", "Basketball", "BasketballDunk", "BenchPress",
+]
+
+TASK_4 = [
+    "Biking", "Billiards", "BlowDryHair", "BlowingCandles", "BodyWeightSquats",
+]
+
+TASK_5 = [
+    "Bowling", "BreastStroke", "CleanAndJerk", "CuttingInKitchen", "Fencing",
+]
+
+ALL_CLASSES = SELECTED_CLASSES + TASK_1 + TASK_2 + TASK_3 + TASK_4 + TASK_5
 
 # VIDEO
 FRAME_RATE    = 25
