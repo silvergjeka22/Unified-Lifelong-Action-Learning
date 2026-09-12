@@ -212,10 +212,11 @@ def adapt_and_eval(model, train_loader, val_loader, base_test_loader, new_test_l
                    n_base, n_new, device, buffer=None, teacher=None, epochs=5, lr=1e-4,
                    lambda_distill=cfg.LAMBDA_DISTILL, T=cfg.KD_TEMPERATURE):
     """Freeze the backbone, grow the head to n_base + n_new, adapt to the new classes with
-    train_continual (optional replay buffer + LwF teacher), then return (new_acc, base_retention):
-    accuracy on the new EXAM classes and on the old BASE classes through the same grown head. The
-    three study arms call this with the same adaptation, differing only in the init (plain vs MAML)
-    and whether replay + LwF are on."""
+    train_continual (optional replay buffer + LwF teacher), then return (model, new_acc,
+    base_retention): the adapted model, its accuracy on the new EXAM classes, and on the old BASE
+    classes through the same grown head. The adapted model is returned so it can be re-used later
+    (e.g. per-class accuracy or a confusion matrix) without re-training. The study arms call this
+    with the same adaptation, differing only in the init (plain vs MAML) and whether replay/LwF are on."""
     model = model.to(device)
     for p in model.backbone.parameters():
         p.requires_grad_(False)
@@ -226,4 +227,4 @@ def adapt_and_eval(model, train_loader, val_loader, base_test_loader, new_test_l
                     num_old_classes=n_base, lambda_distill=lambda_distill, T=T, epochs=epochs, lr=lr)
     new_acc,  _, _ = test_model(model, new_test_loader,  device)
     base_acc, _, _ = test_model(model, base_test_loader, device)
-    return new_acc, base_acc
+    return model, new_acc, base_acc

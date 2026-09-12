@@ -34,8 +34,6 @@ TASK_2 = [
     "BoxingPunchingBag", "BoxingSpeedBag", "BrushingTeeth", "CliffDiving", "CricketBowling",
 ]
 
-# More novel classes for the meta-learning study. TASK_1..TASK_4 (20 classes) are the meta-training
-# pool; TASK_5 (5 classes) is the held-out set the model must adapt to and is tested on.
 TASK_3 = [
     "BandMarching", "BaseballPitch", "Basketball", "BasketballDunk", "BenchPress",
 ]
