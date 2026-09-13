@@ -218,19 +218,23 @@ def meta_train_maml(model, clips, labels, class_pool, n_way, k_shot, k_query,
 
 def adapt_and_eval(model, train_loader, val_loader, base_test_loader, new_test_loader,
                    n_base, n_new, device, buffer=None, teacher=None, epochs=5, lr=1e-4,
-                   lambda_distill=cfg.LAMBDA_DISTILL, T=cfg.KD_TEMPERATURE):
-    """Freeze the backbone, grow the head to n_base + n_new, adapt to the new classes with
-    train_continual (optional replay buffer + LwF teacher), then return (model, new_acc,
-    base_retention): the adapted model, its accuracy on the new EXAM classes, and on the old BASE
-    classes through the same grown head. The adapted model is returned so it can be re-used later
-    (e.g. per-class accuracy or a confusion matrix) without re-training. The study arms call this
-    with the same adaptation, differing only in the init (plain vs MAML) and whether replay/LwF are on."""
+                   lambda_distill=cfg.LAMBDA_DISTILL, T=cfg.KD_TEMPERATURE, freeze_backbone=True):
+    """Grow the head to n_base + n_new, adapt to the new classes with train_continual (optional replay
+    buffer + LwF teacher), then return (model, new_acc, base_retention): the adapted model, its
+    accuracy on the new EXAM classes, and on the old BASE classes through the same grown head. The
+    adapted model is returned so it can be re-used later (e.g. per-class accuracy or a confusion
+    matrix) without re-training. The study arms call this with the same adaptation, differing only in
+    the init (plain vs MAML) and whether replay/LwF are on. freeze_backbone=True keeps a strong
+    backbone (ResNet50) fixed and tunes only LSTM + head; False fully fine-tunes a small backbone
+    (the MobileNet student) so a weak backbone has room to adapt."""
     model = model.to(device)
-    for p in model.backbone.parameters():
-        p.requires_grad_(False)
+    if freeze_backbone:
+        for p in model.backbone.parameters():
+            p.requires_grad_(False)
     model = expand_classifier(model, n_base + n_new).to(device)
-    for p in model.backbone.parameters():
-        p.requires_grad_(False)
+    if freeze_backbone:
+        for p in model.backbone.parameters():
+            p.requires_grad_(False)
     train_continual(model, train_loader, val_loader, device, buffer=buffer, teacher=teacher,
                     num_old_classes=n_base, lambda_distill=lambda_distill, T=T, epochs=epochs, lr=lr)
     new_acc,  _, _ = test_model(model, new_test_loader,  device)
@@ -240,20 +244,25 @@ def adapt_and_eval(model, train_loader, val_loader, base_test_loader, new_test_l
 
 def fair_adapt_eval(model, support_x, support_y, base_test_loader, new_test_loader, n_base, n_new,
                     device, buffer=None, teacher=None, inner_lr=0.01, inner_steps=5,
-                    lambda_distill=cfg.LAMBDA_DISTILL, T=cfg.KD_TEMPERATURE):
+                    lambda_distill=cfg.LAMBDA_DISTILL, T=cfg.KD_TEMPERATURE, chunk=16,
+                    freeze_backbone=True):
     """ONE matched adaptation used by EVERY arm, so the comparison is fully fair: grow the head to
     n_base + n_new, keep layer4 + LSTM + head trainable, and take inner_steps few-step SGD updates on
     the new-class support (global labels), with OPTIONAL replay (buffer of old exemplars mixed into
     each step) and OPTIONAL LwF (teacher distilling the old-class logits, with the distillation weight
     ramped 0 -> lambda_distill so new classes can learn before base protection tightens). Across arms only the init
     (plain vs MAML) and whether replay/LwF are on differ - same head, same steps, same lr, same
-    support. Returns (new_acc, base_retention)."""
+    support. chunk bounds the per-forward batch so many new classes still fit a free T4.
+    freeze_backbone=True tunes only layer4 + LSTM + head (a strong ResNet50 backbone); False fully
+    fine-tunes a small backbone (the MobileNet student), giving a weak backbone room to adapt. Returns
+    (new_acc, base_retention)."""
     model = model.to(device)
     model = expand_classifier(model, n_base + n_new).to(device)
-    for p in model.backbone.parameters():
-        p.requires_grad_(False)
-    for p in model.backbone[-2].parameters():
-        p.requires_grad_(True)                       # layer4 trainable (same as the no-meta init)
+    if freeze_backbone:
+        for p in model.backbone.parameters():
+            p.requires_grad_(False)
+        for p in model.backbone[-2].parameters():
+            p.requires_grad_(True)                   # layer4 trainable (same as the no-meta init)
     params = [p for p in model.parameters() if p.requires_grad]
     opt = torch.optim.SGD(params, lr=inner_lr, momentum=0.9)
     if teacher is not None:
@@ -265,18 +274,24 @@ def fair_adapt_eval(model, support_x, support_y, base_test_loader, new_test_load
             xb, yb = buffer.sample(support_x.size(0))
             if xb is not None:
                 x = torch.cat([support_x, xb.to(device)]); y = torch.cat([support_y, yb.to(device)])
-        logits = model(x)
-        loss = F.cross_entropy(logits, y)
-        if teacher is not None:
-            # smooth LwF: ramp the distillation weight 0 -> lambda_distill across the steps, so the new
-            # classes get to learn first and base protection tightens gradually (a fixed heavy lambda
-            # from step 1 crushes the fresh new-class head before it can move).
-            lam = lambda_distill * (step + 1) / inner_steps
-            with torch.no_grad():
-                t = teacher(x)
-            loss = loss + lam * distillation_loss(logits[:, :n_base], t[:, :n_base], T)
+        # smooth LwF: ramp the distillation weight 0 -> lambda_distill across the steps, so the new
+        # classes get to learn first and base protection tightens gradually (a fixed heavy lambda
+        # from step 1 crushes the fresh new-class head before it can move).
+        lam = lambda_distill * (step + 1) / inner_steps
+        n = x.size(0)
         opt.zero_grad()
-        loss.backward()
+        # accumulate the gradient over chunks so a large support+replay batch (many new classes) does
+        # not OOM a free-Colab T4 - each chunk's mean loss is weighted by its share of the full batch.
+        for i in range(0, n, chunk):
+            xc, yc = x[i:i + chunk], y[i:i + chunk]
+            w = xc.size(0) / n
+            logits = model(xc)
+            loss = F.cross_entropy(logits, yc)
+            if teacher is not None:
+                with torch.no_grad():
+                    t = teacher(xc)
+                loss = loss + lam * distillation_loss(logits[:, :n_base], t[:, :n_base], T)
+            (loss * w).backward()
         opt.step()
     new_acc,  _, _ = test_model(model, new_test_loader,  device)
     base_acc, _, _ = test_model(model, base_test_loader, device)
