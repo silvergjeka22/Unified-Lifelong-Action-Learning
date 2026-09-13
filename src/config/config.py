@@ -46,7 +46,11 @@ TASK_5 = [
     "Bowling", "BreastStroke", "CleanAndJerk", "CuttingInKitchen", "Fencing",
 ]
 
-ALL_CLASSES = SELECTED_CLASSES + TASK_1 + TASK_2 + TASK_3 + TASK_4 + TASK_5
+TASK_6 = [
+    "FieldHockeyPenalty", "FloorGymnastics", "FrisbeeCatch", "FrontCrawl", "GolfSwing",
+]
+
+ALL_CLASSES = SELECTED_CLASSES + TASK_1 + TASK_2 + TASK_3 + TASK_4 + TASK_5 + TASK_6
 
 # VIDEO
 FRAME_RATE    = 25
