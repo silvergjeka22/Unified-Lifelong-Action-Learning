@@ -86,7 +86,6 @@ KD_EPOCHS         = 15
 KD_LR             = 1e-4
 
 # DOMAIN ADAPTATION
-# One real YouTube video (out-of-domain) of a known class - the test set for the DA study.
 YT_RAW_DIR    = "/content/yt_raw"
 YT_TEST_CLASS = "PushUps"
 YT_TEST_VIDEO = "https://www.youtube.com/watch?v=f9TERHtc1LA"
