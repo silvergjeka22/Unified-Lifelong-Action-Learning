@@ -64,6 +64,26 @@ FINEGRAIN = [
     "TaiChi", "ShavingBeard", "Haircut", "HeadMassage", "MoppingFloor", "HandstandWalking",
 ]
 
+# Stage 5 (meta_student) sport pools - ALL real UCF101 sports, ALL novel to the 20-class student.
+# The student learns "how to pick up a new SPORT fast" by meta-training on 40 sports (SPORTS_META),
+# then adapts to 10 held-out sports (SPORTS_EXAM). Same TYPE (sports) throughout, so the meta-learned
+# init transfers to new sports instead of pointing the wrong way.
+SPORTS_META = [
+    "BaseballPitch", "Basketball", "BasketballDunk", "BenchPress", "Biking",
+    "Billiards", "BodyWeightSquats", "Bowling", "BreastStroke", "CleanAndJerk",
+    "CricketShot", "Fencing", "FieldHockeyPenalty", "FloorGymnastics", "FrisbeeCatch",
+    "FrontCrawl", "GolfSwing", "HammerThrow", "HandstandPushups", "HandstandWalking",
+    "HulaHoop", "IceDancing", "JavelinThrow", "JugglingBalls", "JumpRope",
+    "Kayaking", "Lunges", "Nunchucks", "ParallelBars", "PullUps",
+    "Punch", "Rafting", "RockClimbingIndoor", "RopeClimbing", "Rowing",
+    "Shotput", "SkateBoarding", "Skijet", "SkyDiving", "SoccerJuggling",
+]
+
+SPORTS_EXAM = [
+    "TableTennisShot", "TennisSwing", "SoccerPenalty", "VolleyballSpiking", "LongJump",
+    "Skiing", "Surfing", "ThrowDiscus", "TrampolineJumping", "SumoWrestling",
+]
+
 ALL_CLASSES = SELECTED_CLASSES + TASK_1 + TASK_2 + TASK_3 + TASK_4 + TASK_5 + TASK_6 + MUSIC + FINEGRAIN
 
 # VIDEO
