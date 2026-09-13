@@ -50,7 +50,21 @@ TASK_6 = [
     "FieldHockeyPenalty", "FloorGymnastics", "FrisbeeCatch", "FrontCrawl", "GolfSwing",
 ]
 
-ALL_CLASSES = SELECTED_CLASSES + TASK_1 + TASK_2 + TASK_3 + TASK_4 + TASK_5 + TASK_6
+# Fine-grained lookalike families for the meta-learning study - all NOVEL to the 20-class student.
+# MUSIC is the classic hard case: near-identical "person playing an instrument" scenes that generic
+# features cannot trivially separate, so meta-learning has real signal. FINEGRAIN adds more close-up
+# single-person motions (exercise / grooming) in the same difficulty regime.
+MUSIC = [
+    "PlayingCello", "PlayingDaf", "PlayingDhol", "PlayingFlute",
+    "PlayingGuitar", "PlayingPiano", "PlayingSitar", "PlayingViolin",
+]
+
+FINEGRAIN = [
+    "Lunges", "WallPushups", "HandstandPushups", "PullUps", "Nunchucks", "JumpRope",
+    "TaiChi", "ShavingBeard", "Haircut", "HeadMassage", "MoppingFloor", "HandstandWalking",
+]
+
+ALL_CLASSES = SELECTED_CLASSES + TASK_1 + TASK_2 + TASK_3 + TASK_4 + TASK_5 + TASK_6 + MUSIC + FINEGRAIN
 
 # VIDEO
 FRAME_RATE    = 25
