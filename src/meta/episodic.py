@@ -257,14 +257,16 @@ def recalibrate_head(model, loader, n_classes, device, epochs=3, lr=1e-3):
 def adapt_and_eval(model, train_loader, val_loader, base_test_loader, new_test_loader,
                    n_base, n_new, device, buffer=None, teacher=None, epochs=5, lr=1e-4,
                    lambda_distill=cfg.LAMBDA_DISTILL, T=cfg.KD_TEMPERATURE, freeze_backbone=True):
-    """Grow the head to n_base + n_new, adapt to the new classes with train_continual (optional replay
-    buffer + LwF teacher), then return (model, new_acc, base_retention): the adapted model, its
-    accuracy on the new EXAM classes, and on the old BASE classes through the same grown head. The
-    adapted model is returned so it can be re-used later (e.g. per-class accuracy or a confusion
-    matrix) without re-training. The study arms call this with the same adaptation, differing only in
-    the init (plain vs MAML) and whether replay/LwF are on. freeze_backbone=True keeps a strong
-    backbone (ResNet50) fixed and tunes only LSTM + head; False fully fine-tunes a small backbone
-    (the MobileNet student) so a weak backbone has room to adapt."""
+    """Grow the head to n_base + n_new, adapt to the new classes for `epochs` epochs with train_continual
+    (optional replay buffer + LwF teacher), then return (model, new_acc, base_retention, new_curve,
+    base_curve): the adapted model, its accuracy on the new EXAM classes and on the old BASE classes
+    through the same grown head, and the per-epoch new/base test accuracy (index 0 = before adapting) so
+    the adaptation can be plotted - a rising new_curve shows the classes being learned, a falling
+    base_curve shows forgetting. The model is returned so it can be reused (per-class accuracy, a
+    confusion matrix) without re-training. The study arms call this with the same adaptation, differing
+    only in the init (plain vs MAML) and whether replay/LwF are on. freeze_backbone=True keeps a strong
+    backbone (ResNet50) fixed and tunes only LSTM + head; False fully fine-tunes a small backbone (the
+    MobileNet student) so a weak backbone has room to actually learn the new classes."""
     model = model.to(device)
     if freeze_backbone:
         for p in model.backbone.parameters():
@@ -273,11 +275,16 @@ def adapt_and_eval(model, train_loader, val_loader, base_test_loader, new_test_l
     if freeze_backbone:
         for p in model.backbone.parameters():
             p.requires_grad_(False)
+    track = []
+    track_loaders = {"new": new_test_loader, "base": base_test_loader}
     train_continual(model, train_loader, val_loader, device, buffer=buffer, teacher=teacher,
-                    num_old_classes=n_base, lambda_distill=lambda_distill, T=T, epochs=epochs, lr=lr)
+                    num_old_classes=n_base, lambda_distill=lambda_distill, T=T, epochs=epochs, lr=lr,
+                    track_loaders=track_loaders, track_history=track)
+    new_curve  = [d["new"]  for d in track]
+    base_curve = [d["base"] for d in track]
     new_acc,  _, _ = test_model(model, new_test_loader,  device)
     base_acc, _, _ = test_model(model, base_test_loader, device)
-    return model, new_acc, base_acc
+    return model, new_acc, base_acc, new_curve, base_curve
 
 
 def fair_adapt_eval(model, support_x, support_y, base_test_loader, new_test_loader, n_base, n_new,
