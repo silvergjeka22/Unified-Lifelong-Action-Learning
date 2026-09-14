@@ -14,6 +14,7 @@ if ULAL_ROOT not in sys.path:
 os.environ.setdefault("PYTORCH_CUDA_ALLOC_CONF", "expandable_segments:True")
 
 import cv2
+import gc
 import copy
 import json
 import torch
@@ -67,9 +68,6 @@ run_module("src/cl/ewc.py")
 run_module("src/cl/rehearsal.py")
 
 run_module("src/kd/distill.py")
-
-run_module("src/da/youtube.py")
-run_module("src/da/shift.py")
 
 run_module("src/meta/episodic.py")
 
