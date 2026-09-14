@@ -12,8 +12,8 @@ def extract_frames(video_path, target_fps=cfg.FRAME_RATE, max_frames=None):
     Extract frames from a video at target fps. Returns a list of RGB arrays.
 
     max_frames caps how many frames are kept and stops reading once reached. UCF101 clips are
-    a few seconds so None (the default) is fine, but long videos - e.g. the minutes-long YouTube
-    domain clips - hold every full-res frame in RAM and can crash the kernel, so pass a cap there.
+    a few seconds so None (the default) is fine, but long videos hold every full-res frame in RAM
+    and can crash the kernel, so pass a cap there.
     """
     cap = cv2.VideoCapture(video_path)
     original_fps = cap.get(cv2.CAP_PROP_FPS) or target_fps
@@ -46,41 +46,6 @@ def save_clip_tensor(frames, output_path):
     """Apply spatial transforms and save clip as [T, C, H, W] .pt tensor."""
     processed = [cfg.spatial_transform(Image.fromarray(f)) for f in frames]
     torch.save(torch.stack(processed, dim=0), output_path)
-
-
-def sample_spread_clips(video_path, n_clips, clip_len=cfg.CLIP_LEN, target_fps=cfg.FRAME_RATE):
-    """
-    Return n_clips short clips (each a list of clip_len consecutive RGB frames) whose START
-    positions are SPREAD across the WHOLE video, not just the beginning. Long domain videos
-    (e.g. a concert) often have the action later, and reading only the first frames misses it.
-    RAM-safe: seeks to each start and reads only that window, so nothing large is held at once.
-    """
-    cap = cv2.VideoCapture(video_path)
-    total        = int(cap.get(cv2.CAP_PROP_FRAME_COUNT) or 0)
-    original_fps = cap.get(cv2.CAP_PROP_FPS) or target_fps
-    step         = max(int(original_fps // target_fps), 1)     # keep ~target_fps within a clip
-    last_start   = max(total - clip_len * step, 0)
-
-    windows = []
-    for i in range(n_clips):
-        start = int(last_start * i / max(n_clips - 1, 1)) if last_start > 0 else 0
-        cap.set(cv2.CAP_PROP_POS_FRAMES, start)
-        window = []
-        while len(window) < clip_len:
-            ok, frame = cap.read()
-            if not ok:
-                break
-            window.append(cv2.cvtColor(frame, cv2.COLOR_BGR2RGB))
-            for _ in range(step - 1):
-                cap.read()
-        if not window:
-            continue
-        while len(window) < clip_len:
-            window.append(window[-1])
-        windows.append(window)
-
-    cap.release()
-    return windows
 
 
 def check_group_leakage(target_classes=None, input_root=None, splits=None):

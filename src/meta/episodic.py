@@ -245,7 +245,7 @@ def adapt_and_eval(model, train_loader, val_loader, base_test_loader, new_test_l
 def fair_adapt_eval(model, support_x, support_y, base_test_loader, new_test_loader, n_base, n_new,
                     device, buffer=None, teacher=None, inner_lr=0.01, inner_steps=5,
                     lambda_distill=cfg.LAMBDA_DISTILL, T=cfg.KD_TEMPERATURE, chunk=16,
-                    freeze_backbone=True):
+                    freeze_backbone=True, return_model=False):
     """ONE matched adaptation used by EVERY arm, so the comparison is fully fair: grow the head to
     n_base + n_new, keep layer4 + LSTM + head trainable, and take inner_steps few-step SGD updates on
     the new-class support (global labels), with OPTIONAL replay (buffer of old exemplars mixed into
@@ -255,7 +255,8 @@ def fair_adapt_eval(model, support_x, support_y, base_test_loader, new_test_load
     support. chunk bounds the per-forward batch so many new classes still fit a free T4.
     freeze_backbone=True tunes only layer4 + LSTM + head (a strong ResNet50 backbone); False fully
     fine-tunes a small backbone (the MobileNet student), giving a weak backbone room to adapt. Returns
-    (new_acc, base_retention)."""
+    (new_acc, base_retention), or (new_acc, base_retention, adapted_model) when return_model=True (for
+    a confusion matrix off the few-shot model)."""
     model = model.to(device)
     model = expand_classifier(model, n_base + n_new).to(device)
     if freeze_backbone:
@@ -295,4 +296,6 @@ def fair_adapt_eval(model, support_x, support_y, base_test_loader, new_test_load
         opt.step()
     new_acc,  _, _ = test_model(model, new_test_loader,  device)
     base_acc, _, _ = test_model(model, base_test_loader, device)
+    if return_model:
+        return new_acc, base_acc, model
     return new_acc, base_acc

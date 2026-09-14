@@ -50,10 +50,6 @@ TASK_6 = [
     "FieldHockeyPenalty", "FloorGymnastics", "FrisbeeCatch", "FrontCrawl", "GolfSwing",
 ]
 
-# Fine-grained lookalike families for the meta-learning study - all NOVEL to the 20-class student.
-# MUSIC is the classic hard case: near-identical "person playing an instrument" scenes that generic
-# features cannot trivially separate, so meta-learning has real signal. FINEGRAIN adds more close-up
-# single-person motions (exercise / grooming) in the same difficulty regime.
 MUSIC = [
     "PlayingCello", "PlayingDaf", "PlayingDhol", "PlayingFlute",
     "PlayingGuitar", "PlayingPiano", "PlayingSitar", "PlayingViolin",
@@ -64,10 +60,6 @@ FINEGRAIN = [
     "TaiChi", "ShavingBeard", "Haircut", "HeadMassage", "MoppingFloor", "HandstandWalking",
 ]
 
-# Stage 5 (meta_student) sport pools - ALL real UCF101 sports, ALL novel to the 20-class student.
-# The student learns "how to pick up a new SPORT fast" by meta-training on 40 sports (SPORTS_META),
-# then adapts to 10 held-out sports (SPORTS_EXAM). Same TYPE (sports) throughout, so the meta-learned
-# init transfers to new sports instead of pointing the wrong way.
 SPORTS_META = [
     "BaseballPitch", "Basketball", "BasketballDunk", "BenchPress", "Biking",
     "Billiards", "BodyWeightSquats", "Bowling", "BreastStroke", "CleanAndJerk",
@@ -118,11 +110,6 @@ KD_CE_WEIGHT      = 0.75
 KD_DISTILL_WEIGHT = 0.25
 KD_EPOCHS         = 15
 KD_LR             = 1e-4
-
-# DOMAIN ADAPTATION
-YT_RAW_DIR    = "/content/yt_raw"
-YT_TEST_CLASS = "PushUps"
-YT_TEST_VIDEO = "https://www.youtube.com/watch?v=f9TERHtc1LA"
 
 random.seed(SEED)
 
