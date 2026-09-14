@@ -9,6 +9,7 @@ few-shot task (e.g. a shifted YouTube domain) and reports query accuracy.
 import copy
 import random
 import torch
+import torch.nn as nn
 import torch.nn.functional as F
 
 import src.config.config as cfg
@@ -172,22 +173,29 @@ def adapt_new_and_retain(model, sx, sy, qx, qy, old_head, old_loader, inner_lr, 
 
 def meta_train_maml(model, clips, labels, class_pool, n_way, k_shot, k_query,
                     epochs, episodes, inner_lr, inner_steps, meta_lr, device,
-                    freeze_backbone=False, unfreeze_layer4=False):
+                    freeze_backbone=False, unfreeze_layer4=False, train_last=0):
     """First-order MAML: adapt on support, take the query gradient at the adapted weights,
     and apply it to the meta-weights. Returns (model, history).
 
-    freeze_backbone: meta-learn only the trainable params (LSTM + head, and layer4 if
-    unfreeze_layer4). unfreeze_layer4: also let ResNet50's LAST block (layer4) be meta-learned, so
-    the FEATURES can actually be reshaped - freezing everything leaves only the small LSTM, which
-    barely moves the features (a flat meta-train-vs-plain prototype score is the symptom). layer4 is
-    backbone[-2] (backbone = [...layer4, avgpool]). On return the requires_grad state is set back to
-    the constructor's (layer4 trainable, the rest of the backbone frozen) so the no-meta and MAML
-    arms adapt the SAME parameters at meta-test - a fair comparison."""
+    freeze_backbone: meta-learn only the trainable params (LSTM + head, plus part of the backbone as
+    below). train_last: keep the LAST train_last backbone blocks trainable (the general lever - freeze
+    the lower blocks so their features, which the OLD classes rely on, are preserved, while the upper
+    blocks reshape for the new task); this works for any backbone (ResNet or the MobileNet student).
+    unfreeze_layer4: the ResNet-only shorthand for train_last on layer4 (backbone[-2] = [...layer4,
+    avgpool]); ignored when train_last > 0. Freezing the WHOLE backbone leaves only the small LSTM,
+    which barely moves the features (a flat meta-train-vs-plain prototype score is the symptom), so
+    train_last is the recommended setting for a weak backbone. On return the requires_grad state is set
+    back to the same partial freeze, so the no-meta and MAML arms adapt the SAME parameters at meta-test
+    - a fair comparison."""
     model.to(device)
     if freeze_backbone:
         for p in model.backbone.parameters():
             p.requires_grad_(False)
-        if unfreeze_layer4:
+        if train_last > 0:
+            for child in list(model.backbone)[-train_last:]:
+                for p in child.parameters():
+                    p.requires_grad_(True)
+        elif unfreeze_layer4:
             for p in model.backbone[-2].parameters():
                 p.requires_grad_(True)
     meta_params = [p for p in model.parameters() if p.requires_grad]
@@ -211,9 +219,39 @@ def meta_train_maml(model, clips, labels, class_pool, n_way, k_shot, k_query,
     if freeze_backbone:
         for p in model.backbone.parameters():
             p.requires_grad_(False)
-        for p in model.backbone[-2].parameters():
-            p.requires_grad_(True)              # restore constructor state: only layer4 trainable
+        if train_last > 0:
+            for child in list(model.backbone)[-train_last:]:
+                for p in child.parameters():
+                    p.requires_grad_(True)      # keep the last train_last blocks trainable at meta-test
+        else:
+            for p in model.backbone[-2].parameters():
+                p.requires_grad_(True)          # restore constructor state: only layer4 trainable
     return model, history
+
+
+def recalibrate_head(model, loader, n_classes, device, epochs=3, lr=1e-3):
+    """Re-fit a FRESH n_classes linear head to the model's CURRENT features (backbone + LSTM frozen),
+    so the head matches a backbone that meta-training has shifted. Meta-training moves the features but
+    leaves the old head calibrated to the OLD features, which collapses old-class accuracy; a short
+    linear probe on the old-class data restores it without touching the meta-learned features. This only
+    puts the meta init on equal footing with the plain init (whose head already matches its backbone).
+    All parameters are left trainable on return, so a later full fine-tune adapts the whole model.
+    Returns the model."""
+    model = model.to(device)
+    for p in model.parameters():
+        p.requires_grad_(False)
+    model.fc = nn.Linear(model.fc.in_features, n_classes).to(device)
+    opt = torch.optim.Adam(model.fc.parameters(), lr=lr)
+    model.eval()
+    for _ in range(epochs):
+        for clips, y in loader:
+            clips, y = clips.to(device), y.to(device)
+            opt.zero_grad()
+            F.cross_entropy(model(clips), y).backward()
+            opt.step()
+    for p in model.parameters():
+        p.requires_grad_(True)
+    return model
 
 
 def adapt_and_eval(model, train_loader, val_loader, base_test_loader, new_test_loader,
