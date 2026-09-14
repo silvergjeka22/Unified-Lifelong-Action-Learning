@@ -35,7 +35,9 @@ import torch.nn.functional as F
 from torch.utils.data import DataLoader, ConcatDataset, Dataset, TensorDataset
 
 from torchvision import transforms, models
-from sklearn.metrics import confusion_matrix, accuracy_score, classification_report
+from sklearn.metrics import (
+    confusion_matrix, accuracy_score, classification_report, precision_recall_fscore_support,
+)
 
 subprocess.run([sys.executable, "-m", "pip", "install", "torchinfo", "-q"], capture_output=True)
 from torchinfo import summary
