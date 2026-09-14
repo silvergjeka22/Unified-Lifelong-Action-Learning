@@ -124,6 +124,40 @@ def meta_train_maml(model, clips, labels, class_pool, n_way, k_shot, k_query,
     return model, history
 
 
+def finetune_on_pool(model, clips, labels, class_ids, device, epochs, lr, batch_size,
+                     freeze_backbone=False, train_last=0):
+    """The matched, non-meta control for MAML: plain supervised fine-tuning of the model on the same pool
+    of clips (the meta classes), training the SAME parameters MAML meta-trains (last train_last backbone
+    blocks + LSTM + head, when freeze_backbone) - just ordinary minibatch training instead of episodes.
+    A fresh head over the pool's classes (labels relabelled 0..n-1) is used and left in place for the
+    caller to replace via recalibrate_head. All parameters are trainable on return. Returns the model."""
+    model = model.to(device)
+    if freeze_backbone:
+        for p in model.backbone.parameters():
+            p.requires_grad_(False)
+        if train_last > 0:
+            for child in list(model.backbone)[-train_last:]:
+                for p in child.parameters():
+                    p.requires_grad_(True)
+    remap = {c: i for i, c in enumerate(class_ids)}
+    y = torch.tensor([remap[int(l)] for l in labels])
+    model.fc = nn.Linear(model.fc.in_features, len(class_ids)).to(device)
+    opt = torch.optim.Adam([p for p in model.parameters() if p.requires_grad], lr=lr)
+    model.train()
+    n = clips.size(0)
+    for _ in range(epochs):
+        perm = torch.randperm(n)
+        for i in range(0, n, batch_size):
+            idx = perm[i:i + batch_size]
+            xb, yb = clips[idx].to(device), y[idx].to(device)
+            opt.zero_grad()
+            F.cross_entropy(model(xb), yb).backward()
+            opt.step()
+    for p in model.parameters():
+        p.requires_grad_(True)
+    return model
+
+
 def recalibrate_head(model, loader, n_classes, device, epochs=3, lr=1e-3):
     """Re-fit a FRESH n_classes linear head to the model's CURRENT features (backbone + LSTM frozen), so
     the head matches a backbone that meta-training has shifted. Meta-training moves the features but
