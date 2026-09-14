@@ -48,6 +48,41 @@ def save_clip_tensor(frames, output_path):
     torch.save(torch.stack(processed, dim=0), output_path)
 
 
+def sample_spread_clips(video_path, n_clips, clip_len=cfg.CLIP_LEN, target_fps=cfg.FRAME_RATE):
+    """
+    Return n_clips short clips (each a list of clip_len consecutive RGB frames) whose START
+    positions are SPREAD across the WHOLE video, not just the beginning. Long videos often have
+    the action later, and reading only the first frames misses it. RAM-safe: seeks to each start
+    and reads only that window, so nothing large is held at once.
+    """
+    cap = cv2.VideoCapture(video_path)
+    total        = int(cap.get(cv2.CAP_PROP_FRAME_COUNT) or 0)
+    original_fps = cap.get(cv2.CAP_PROP_FPS) or target_fps
+    step         = max(int(original_fps // target_fps), 1)     # keep ~target_fps within a clip
+    last_start   = max(total - clip_len * step, 0)
+
+    windows = []
+    for i in range(n_clips):
+        start = int(last_start * i / max(n_clips - 1, 1)) if last_start > 0 else 0
+        cap.set(cv2.CAP_PROP_POS_FRAMES, start)
+        window = []
+        while len(window) < clip_len:
+            ok, frame = cap.read()
+            if not ok:
+                break
+            window.append(cv2.cvtColor(frame, cv2.COLOR_BGR2RGB))
+            for _ in range(step - 1):
+                cap.read()
+        if not window:
+            continue
+        while len(window) < clip_len:
+            window.append(window[-1])
+        windows.append(window)
+
+    cap.release()
+    return windows
+
+
 def check_group_leakage(target_classes=None, input_root=None, splits=None):
     """
     Report UCF101 groups that appear in more than one split. Returns the offenders.
