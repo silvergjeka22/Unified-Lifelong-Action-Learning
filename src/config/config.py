@@ -60,6 +60,7 @@ FINEGRAIN = [
     "TaiChi", "ShavingBeard", "Haircut", "HeadMassage", "MoppingFloor", "HandstandWalking",
 ]
 
+# 30 sports MAML meta-trains
 SPORTS_META = [
     "BaseballPitch", "Basketball", "BasketballDunk", "BenchPress", "Biking",
     "Billiards", "BodyWeightSquats", "Bowling", "BreastStroke", "CleanAndJerk",
@@ -67,18 +68,19 @@ SPORTS_META = [
     "FrontCrawl", "GolfSwing", "HammerThrow", "HandstandPushups", "HandstandWalking",
     "HulaHoop", "IceDancing", "JavelinThrow", "JugglingBalls", "JumpRope",
     "Kayaking", "Lunges", "Nunchucks", "ParallelBars", "PullUps",
+]
+
+# 20 NEW MAML EXAM
+SPORTS_EXAM = [
+    "TableTennisShot", "TennisSwing", "SoccerPenalty", "VolleyballSpiking", "LongJump",
+    "Skiing", "Surfing", "ThrowDiscus", "TrampolineJumping", "SumoWrestling",
     "Punch", "Rafting", "RockClimbingIndoor", "RopeClimbing", "Rowing",
     "Shotput", "SkateBoarding", "Skijet", "SkyDiving", "SoccerJuggling",
 ]
 
-SPORTS_EXAM = [
-    "TableTennisShot", "TennisSwing", "SoccerPenalty", "VolleyballSpiking", "LongJump",
-    "Skiing", "Surfing", "ThrowDiscus", "TrampolineJumping", "SumoWrestling",
-]
-
 ALL_CLASSES = SELECTED_CLASSES + TASK_1 + TASK_2 + TASK_3 + TASK_4 + TASK_5 + TASK_6 + MUSIC + FINEGRAIN
 
-# YOUTUBE (real out-of-domain test in the ULAL final notebook)
+# YOUTUBE
 YT_RAW_DIR = "/content/yt_raw"
 
 # VIDEO

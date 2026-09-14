@@ -63,7 +63,7 @@ def fill_buffer(buffer, loader, per_class=None):
 
 def train_continual(model, train_loader, val_loader, device, buffer=None, teacher=None,
                     num_old_classes=10, lambda_distill=1.0, T=5.0, epochs=5, lr=1e-4,
-                    track_loaders=None, track_history=None):
+                    track_loaders=None, track_history=None, verbose=True):
     """
     Train on a new task with optional replay and optional LwF distillation.
 
@@ -118,8 +118,9 @@ def train_continual(model, train_loader, val_loader, device, buffer=None, teache
         history["train_losses"].append(train_loss)
         history["val_accs"].append(val_acc)
         history["val_losses"].append(val_loss)
-        print(f"Epoch [{epoch+1}/{epochs}] | Train Acc: {train_acc:.4f} Loss: {train_loss:.4f} | "
-              f"Val Acc: {val_acc:.4f} Loss: {val_loss:.4f}")
+        if verbose:
+            print(f"Epoch [{epoch+1}/{epochs}] | Train Acc: {train_acc:.4f} Loss: {train_loss:.4f} | "
+                  f"Val Acc: {val_acc:.4f} Loss: {val_loss:.4f}")
         if track_loaders and track_history is not None:
             track_history.append(task_accs(model, track_loaders, device))
     return history
