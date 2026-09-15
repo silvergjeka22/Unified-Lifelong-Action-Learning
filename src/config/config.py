@@ -60,22 +60,22 @@ FINEGRAIN = [
     "TaiChi", "ShavingBeard", "Haircut", "HeadMassage", "MoppingFloor", "HandstandWalking",
 ]
 
-# 30 sports MAML meta-trains
+# sports MAML meta-trains
 SPORTS_META = [
     "BaseballPitch", "Basketball", "BasketballDunk", "BenchPress", "Biking",
     "Billiards", "BodyWeightSquats", "Bowling", "BreastStroke", "CleanAndJerk",
     "CricketShot", "Fencing", "FieldHockeyPenalty", "FloorGymnastics", "FrisbeeCatch",
-    "FrontCrawl", "GolfSwing", "HammerThrow", "HandstandPushups", "HandstandWalking",
     "HulaHoop", "IceDancing", "JavelinThrow", "JugglingBalls", "JumpRope",
     "Kayaking", "Lunges", "Nunchucks", "ParallelBars", "PullUps",
-]
-
-# 20 NEW MAML EXAM
-SPORTS_EXAM = [
     "TableTennisShot", "TennisSwing", "SoccerPenalty", "VolleyballSpiking", "LongJump",
     "Skiing", "Surfing", "ThrowDiscus", "TrampolineJumping", "SumoWrestling",
-    "Punch", "Rafting", "RockClimbingIndoor", "RopeClimbing", "Rowing",
-    "Shotput", "SkateBoarding", "Skijet", "SkyDiving", "SoccerJuggling",
+    "Punch", "Rafting", "RockClimbingIndoor", "RopeClimbing", "Rowing"
+]
+
+# NEW MAML EXAM
+SPORTS_EXAM = [
+    #"Shotput", "SkateBoarding", "Skijet", "SkyDiving", "SoccerJuggling"
+    "FrontCrawl", "GolfSwing", "HammerThrow", "HandstandPushups", "HandstandWalking",
 ]
 
 ALL_CLASSES = SELECTED_CLASSES + TASK_1 + TASK_2 + TASK_3 + TASK_4 + TASK_5 + TASK_6 + MUSIC + FINEGRAIN
