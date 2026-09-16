@@ -8,14 +8,14 @@ from src.training.train import evaluate_model, task_accs, free_gpu
 
 
 def distillation_loss(student_logits, teacher_logits, T=5.0):
-    """KL divergence on temperature-softened logits, scaled by T^2 (Hinton et al.)."""
+    """KL divergence on temperature softened logits, scaled by T^2"""
     s = F.log_softmax(student_logits / T, dim=1)
     t = F.softmax(teacher_logits / T, dim=1)
     return F.kl_div(s, t, reduction="batchmean") * (T * T)
 
 
 def snapshot_teacher(model):
-    """A frozen deep copy of the model as it stands now - the LwF teacher for the next task."""
+    """A frozen deep copy of the model as it stands now the LwF teacher for the next task"""
     teacher = copy.deepcopy(model)
     for p in teacher.parameters():
         p.requires_grad_(False)
@@ -24,7 +24,7 @@ def snapshot_teacher(model):
 
 
 class ReplayBuffer:
-    """A small store of past clips, kept to a fixed size, sampled to mix into new-task batches."""
+    """A small store of past clips, kept to a fixed size, sampled to mix into new task batches"""
 
     def __init__(self, max_size=300):
         self.max_size = max_size
@@ -45,7 +45,7 @@ class ReplayBuffer:
 
 
 def fill_buffer(buffer, loader, per_class=None):
-    """Add clips from a loader into the buffer (optionally capping samples per class)."""
+    """Add clips from a loader into the buffer"""
     seen = {}
     for clips, y in loader:
         if per_class is None:
@@ -72,8 +72,8 @@ def train_continual(model, train_loader, val_loader, device, buffer=None, teache
         buffer + teacher     -> replay + LwF
         neither              -> naive (use train_model instead)
 
-    track_loaders / track_history: see train_model - fills a per-epoch forgetting timeline.
-    Returns a history dict.
+    track_loaders / track_history: see train_model fills a per epoch forgetting timeline.
+    Returns a history dict
     """
     model.to(device)
     free_gpu(device)

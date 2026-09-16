@@ -1,5 +1,3 @@
-# Run from notebook: %run /content/src/data/dataset.py
-
 import os
 import torch
 import matplotlib.pyplot as plt
@@ -10,7 +8,7 @@ from glob import glob
 class UCF101Clips(Dataset):
     def __init__(self, root_dir, class_to_idx):
         self.root = root_dir
-        self.class_to_idx = class_to_idx # The Global Phonebook
+        self.class_to_idx = class_to_idx # The Global index
         self.classes = sorted(os.listdir(self.root))
         self.samples = []
 
