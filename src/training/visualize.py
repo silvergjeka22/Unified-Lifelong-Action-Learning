@@ -50,6 +50,26 @@ def plot_confusion_matrix(all_labels, all_preds, num_classes=None, classes_list=
     plt.show()
 
 
+def plot_old_new_confusion(all_labels, all_preds, n_base, name=""):
+    """Row-normalised 2x2 old-vs-new confusion: how often a true OLD (label < n_base) or NEW clip is
+    predicted as old vs new. A readable, realistic stand-in for a big per-class matrix when there are
+    many base classes - it shows the drift toward the new classes at a glance."""
+    labels = np.array(all_labels)
+    preds  = np.array(all_preds)
+    true_new = (labels >= n_base).astype(int)
+    pred_new = (preds  >= n_base).astype(int)
+    cm = confusion_matrix(true_new, pred_new, labels=[0, 1]).astype(float)
+    cm = np.nan_to_num(cm / cm.sum(axis=1, keepdims=True))
+
+    plt.figure(figsize=(4.5, 4))
+    sns.heatmap(cm, annot=True, fmt=".2f", cmap="YlOrRd", square=True,
+                xticklabels=["old", "new"], yticklabels=["old", "new"], cbar=False)
+    plt.title(f"Old vs new  {name}", fontweight="bold")
+    plt.xlabel("predicted"); plt.ylabel("true")
+    plt.tight_layout()
+    plt.show()
+
+
 def plot_old_vs_new(class_names, base_old, base_new, maml_old, maml_new, k_shot=5):
     """
     Compare no-meta vs MAML on OLD (support-video) and NEW (held-out-video) clips. Each *_old /

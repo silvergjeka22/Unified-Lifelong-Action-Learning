@@ -83,8 +83,9 @@ def train_model(model, train_loader, val_loader, num_epochs=5, lr=1e-4, device="
     return history
 
 
-def test_model(model, test_loader, device="cuda"):
-    """Run inference on the test set. Returns (accuracy, preds, labels)."""
+def test_model(model, test_loader, device="cuda", verbose=True):
+    """Run inference on the test set. Returns (accuracy, preds, labels). verbose=False mutes the
+    Test Accuracy print (used when scoring many models in a loop for a single table)."""
     model.eval()
     preds, labels = [], []
     with torch.no_grad():
@@ -93,7 +94,8 @@ def test_model(model, test_loader, device="cuda"):
             preds.extend(model(clips).argmax(1).cpu().numpy())
             labels.extend(y.numpy())
     acc = accuracy_score(labels, preds)
-    print(f"Test Accuracy: {acc:.4f}")
+    if verbose:
+        print(f"Test Accuracy: {acc:.4f}")
     return acc, preds, labels
 
 
