@@ -1,4 +1,4 @@
-This is pdfTeX, Version 3.141592653-2.6-1.40.22 (TeX Live 2021) (preloaded format=pdflatex 2022.3.19)  16 SEP 2026 15:37
+This is pdfTeX, Version 3.141592653-2.6-1.40.22 (TeX Live 2021) (preloaded format=pdflatex 2022.3.19)  16 SEP 2026 17:06
 entering extended mode
  restricted \write18 enabled.
  %&-line parsing enabled.
@@ -696,24 +696,24 @@ File: l3backend-pdftex.def 2021-03-18 L3 backend support: PDF output (pdfTeX)
 (./ulal_paper.aux)
 \openout1 = `ulal_paper.aux'.
 
-LaTeX Font Info:    Checking defaults for OML/cmm/m/it on input line 28.
-LaTeX Font Info:    ... okay on input line 28.
-LaTeX Font Info:    Checking defaults for OMS/cmsy/m/n on input line 28.
-LaTeX Font Info:    ... okay on input line 28.
-LaTeX Font Info:    Checking defaults for OT1/cmr/m/n on input line 28.
-LaTeX Font Info:    ... okay on input line 28.
-LaTeX Font Info:    Checking defaults for T1/cmr/m/n on input line 28.
-LaTeX Font Info:    ... okay on input line 28.
-LaTeX Font Info:    Checking defaults for TS1/cmr/m/n on input line 28.
-LaTeX Font Info:    ... okay on input line 28.
-LaTeX Font Info:    Checking defaults for OMX/cmex/m/n on input line 28.
-LaTeX Font Info:    ... okay on input line 28.
-LaTeX Font Info:    Checking defaults for U/cmr/m/n on input line 28.
-LaTeX Font Info:    ... okay on input line 28.
-LaTeX Font Info:    Checking defaults for PD1/pdf/m/n on input line 28.
-LaTeX Font Info:    ... okay on input line 28.
-LaTeX Font Info:    Checking defaults for PU/pdf/m/n on input line 28.
-LaTeX Font Info:    ... okay on input line 28.
+LaTeX Font Info:    Checking defaults for OML/cmm/m/it on input line 26.
+LaTeX Font Info:    ... okay on input line 26.
+LaTeX Font Info:    Checking defaults for OMS/cmsy/m/n on input line 26.
+LaTeX Font Info:    ... okay on input line 26.
+LaTeX Font Info:    Checking defaults for OT1/cmr/m/n on input line 26.
+LaTeX Font Info:    ... okay on input line 26.
+LaTeX Font Info:    Checking defaults for T1/cmr/m/n on input line 26.
+LaTeX Font Info:    ... okay on input line 26.
+LaTeX Font Info:    Checking defaults for TS1/cmr/m/n on input line 26.
+LaTeX Font Info:    ... okay on input line 26.
+LaTeX Font Info:    Checking defaults for OMX/cmex/m/n on input line 26.
+LaTeX Font Info:    ... okay on input line 26.
+LaTeX Font Info:    Checking defaults for U/cmr/m/n on input line 26.
+LaTeX Font Info:    ... okay on input line 26.
+LaTeX Font Info:    Checking defaults for PD1/pdf/m/n on input line 26.
+LaTeX Font Info:    ... okay on input line 26.
+LaTeX Font Info:    Checking defaults for PU/pdf/m/n on input line 26.
+LaTeX Font Info:    ... okay on input line 26.
 
 -- Lines per column: 56 (exact).
 (/usr/local/texlive/2021/texmf-dist/tex/context/base/mkii/supp-pdf.mkii
@@ -738,7 +738,7 @@ Package epstopdf-base Info: Redefining graphics rule for `.eps' on input line 4
 File: epstopdf-sys.cfg 2010/07/13 v1.3 Configuration of (r)epstopdf for TeX Liv
 e
 ))
-Package hyperref Info: Link coloring OFF on input line 28.
+Package hyperref Info: Link coloring OFF on input line 26.
 
 (/usr/local/texlive/2021/texmf-dist/tex/latex/hyperref/nameref.sty
 Package: nameref 2021-04-02 v2.47 Cross-referencing by name of section
@@ -752,74 +752,129 @@ Package: gettitlestring 2019/12/15 v1.6 Cleanup title references (HO)
 )
 \c@section@level=\count314
 )
-LaTeX Info: Redefining \ref on input line 28.
-LaTeX Info: Redefining \pageref on input line 28.
-LaTeX Info: Redefining \nameref on input line 28.
+LaTeX Info: Redefining \ref on input line 26.
+LaTeX Info: Redefining \pageref on input line 26.
+LaTeX Info: Redefining \nameref on input line 26.
  (./ulal_paper.out) (./ulal_paper.out)
 \@outlinefile=\write4
 \openout4 = `ulal_paper.out'.
 
-LaTeX Font Info:    Trying to load font information for U+msa on input line 63.
+LaTeX Font Info:    Trying to load font information for U+msa on input line 54.
 
 
 (/usr/local/texlive/2021/texmf-dist/tex/latex/amsfonts/umsa.fd
 File: umsa.fd 2013/01/14 v3.01 AMS symbols A
 )
-LaTeX Font Info:    Trying to load font information for U+msb on input line 63.
+LaTeX Font Info:    Trying to load font information for U+msb on input line 54.
 
 
 (/usr/local/texlive/2021/texmf-dist/tex/latex/amsfonts/umsb.fd
 File: umsb.fd 2013/01/14 v3.01 AMS symbols B
 )
-Underfull \hbox (badness 3769) in paragraph at lines 47--67
+Underfull \hbox (badness 3769) in paragraph at lines 45--60
 []\T1/ptm/b/it/9 Abstract\T1/ptm/b/n/9 ---We present \T1/ptm/b/it/9 Uni-fied Li
 fe-long Ac-tion Learn-ing
  []
 
 
-Underfull \hbox (badness 3343) in paragraph at lines 103--108
-[]\T1/ptm/b/n/10 Continual learn-ing. \T1/ptm/m/n/10 Reg-u-lar-i-sa-tion meth-o
-ds such as
+Underfull \hbox (badness 6708) in paragraph at lines 75--81
+[]\T1/ptm/m/n/10 This pa-per de-scribes one re-pro-ducible pipeline on
  []
 
 
-Overfull \hbox (18.62816pt too wide) in paragraph at lines 139--144
+Overfull \hbox (10.09233pt too wide) in paragraph at lines 117--123
  [][] 
  []
+
+
+LaTeX Warning: `h' float specifier changed to `ht'.
 
 [1{/usr/local/texlive/2021/texmf-var/fonts/map/pdftex/updmap/pdftex.map}
 
 
 ]
-LaTeX Font Info:    Trying to load font information for T1+pcr on input line 21
-0.
+LaTeX Font Info:    Trying to load font information for T1+pcr on input line 18
+4.
 
 (/usr/local/texlive/2021/texmf-dist/tex/latex/psnfss/t1pcr.fd
 File: t1pcr.fd 2001/06/04 font definitions for T1/pcr.
 )
-LaTeX Font Info:    Font shape `T1/pcr/m/it' in size <10> not available
-(Font)              Font shape `T1/pcr/m/sl' tried instead on input line 227.
+Underfull \hbox (badness 10000) in paragraph at lines 184--191
+[]\T1/ptm/b/n/10 Why this mat-ters first. \T1/ptm/m/n/10 A UCF101 file
+ []
+
+
+Underfull \hbox (badness 3536) in paragraph at lines 184--191
+\T1/pcr/m/n/10 v_Class_gXX_cYY.avi \T1/ptm/m/n/10 en-codes a \T1/ptm/m/it/10 gr
+oup \T1/pcr/m/n/10 gXX \T1/ptm/m/n/10 (one
+ []
+
+<figures//leakage.png, id=84, 498.663pt x 353.4003pt>
+File: figures//leakage.png Graphic file (type png)
+<use figures//leakage.png>
+Package pdftex.def Info: figures//leakage.png  used on input line 199.
+(pdftex.def)             Requested size: 252.0pt x 178.59245pt.
+
+LaTeX Warning: `h' float specifier changed to `ht'.
+
+[2 <./figures//leakage.png>]
+<figures//forgetting_naive.png, id=108, 787.0203pt x 390.258pt>
+File: figures//forgetting_naive.png Graphic file (type png)
+<use figures//forgetting_naive.png>
+Package pdftex.def Info: figures//forgetting_naive.png  used on input line 286.
+
+(pdftex.def)             Requested size: 252.84283pt x 125.3734pt.
+<figures//forgetting_replay.png, id=109, 787.0203pt x 390.258pt>
+File: figures//forgetting_replay.png Graphic file (type png)
+<use figures//forgetting_replay.png>
+Package pdftex.def Info: figures//forgetting_replay.png  used on input line 289
+.
+(pdftex.def)             Requested size: 252.84283pt x 125.3734pt.
+
+Underfull \hbox (badness 3758) in paragraph at lines 315--323
+\T1/ptm/m/n/10 parameter ResNet50 teacher; for de-ploy-ment we want
+ []
+
+
+Underfull \hbox (badness 2961) in paragraph at lines 324--327
+[]\T1/ptm/b/n/10 Result. \T1/ptm/m/n/10 Ta-ble []IV[]: the stu-dent keeps \T1/p
+tm/b/n/10 82.7% \T1/ptm/m/n/10 of the
+ []
+
+[3]
+<figures//meta_compare.png, id=123, 611.4042pt x 363.5181pt>
+File: figures//meta_compare.png Graphic file (type png)
+<use figures//meta_compare.png>
+Package pdftex.def Info: figures//meta_compare.png  used on input line 412.
+(pdftex.def)             Requested size: 252.0pt x 149.83102pt.
+<figures//meta_sweep.png, id=124, 555.0336pt x 339.669pt>
+File: figures//meta_sweep.png Graphic file (type png)
+<use figures//meta_sweep.png>
+Package pdftex.def Info: figures//meta_sweep.png  used on input line 422.
+(pdftex.def)             Requested size: 252.0pt x 154.21793pt.
 
 
 LaTeX Warning: `h' float specifier changed to `ht'.
 
-[2]
-Underfull \hbox (badness 10000) in paragraph at lines 347--352
-[]\T1/ptm/b/n/10 Methods. \T1/ptm/m/n/10 The best con-tin-ual model (re-play+Lw
-F,
- []
+<figures//meta_curve.png, id=125, 443.0151pt x 284.0211pt>
+File: figures//meta_curve.png Graphic file (type png)
+<use figures//meta_curve.png>
+Package pdftex.def Info: figures//meta_curve.png  used on input line 431.
+(pdftex.def)             Requested size: 252.0pt x 161.56433pt.
 
+LaTeX Warning: `h' float specifier changed to `ht'.
 
-Underfull \hbox (badness 3281) in paragraph at lines 347--352
-\T1/ptm/m/n/10 a ResNet50 teacher) is dis-tilled into a MobileNetV3-
- []
+<figures//meta_oldnew.png, id=126, 265.2309pt x 281.853pt>
+File: figures//meta_oldnew.png Graphic file (type png)
+<use figures//meta_oldnew.png>
+Package pdftex.def Info: figures//meta_oldnew.png  used on input line 440.
+(pdftex.def)             Requested size: 252.0pt x 267.80183pt.
 
-[3] [4]
-Underfull \hbox (badness 1616) in paragraph at lines 518--521
-[]\T1/ptm/b/n/10 Distillation. \T1/ptm/m/n/10 Com-press the grown teacher into 
-the
- []
+LaTeX Warning: `h' float specifier changed to `ht'.
 
+[4 <./figures//forgetting_naive.png> <./figures//forgetting_replay.png> <./figu
+res//meta_compare.png> <./figures//meta_sweep.png> <./figures//meta_curve.png>]
+[5 <./figures//meta_oldnew.png>]
 
 ** Conference Paper **
 Before submitting the final camera ready copy, remember to:
@@ -831,39 +886,40 @@ Before submitting the final camera ready copy, remember to:
  uses only Type 1 fonts and that every step in the generation
  process uses the appropriate paper size.
 
-[5] (./ulal_paper.aux)
+[6
+
+] (./ulal_paper.aux)
 Package rerunfilecheck Info: File `ulal_paper.out' has not changed.
-(rerunfilecheck)             Checksum: DAD3434DB2F2290CC832986010AB9948;2321.
+(rerunfilecheck)             Checksum: 0566CA261EC6E42CA66CCF888BA67B20;2027.
  ) 
 Here is how much of TeX's memory you used:
- 20967 strings out of 478994
- 384933 string characters out of 5858184
- 679276 words of memory out of 5000000
- 38024 multiletter control sequences out of 15000+600000
- 520875 words of font info for 151 fonts, out of 8000000 for 9000
+ 21010 strings out of 478994
+ 386194 string characters out of 5858184
+ 680392 words of memory out of 5000000
+ 38070 multiletter control sequences out of 15000+600000
+ 521274 words of font info for 150 fonts, out of 8000000 for 9000
  1141 hyphenation exceptions out of 8191
- 87i,10n,88p,514b,812s stack positions out of 5000i,500n,10000p,200000b,80000s
+ 87i,10n,88p,702b,816s stack positions out of 5000i,500n,10000p,200000b,80000s
 {/usr/local/texlive/2021/texmf-dist/fonts/enc/dvips/base/8r.enc}</usr/local/t
 exlive/2021/texmf-dist/fonts/type1/public/amsfonts/cm/cmmi10.pfb></usr/local/te
 xlive/2021/texmf-dist/fonts/type1/public/amsfonts/cm/cmmi8.pfb></usr/local/texl
 ive/2021/texmf-dist/fonts/type1/public/amsfonts/cm/cmr10.pfb></usr/local/texliv
 e/2021/texmf-dist/fonts/type1/public/amsfonts/cm/cmr6.pfb></usr/local/texlive/2
 021/texmf-dist/fonts/type1/public/amsfonts/cm/cmr8.pfb></usr/local/texlive/2021
-/texmf-dist/fonts/type1/public/amsfonts/cm/cmr9.pfb></usr/local/texlive/2021/te
-xmf-dist/fonts/type1/public/amsfonts/cm/cmsy10.pfb></usr/local/texlive/2021/tex
-mf-dist/fonts/type1/public/amsfonts/cm/cmsy6.pfb></usr/local/texlive/2021/texmf
--dist/fonts/type1/public/amsfonts/cm/cmsy7.pfb></usr/local/texlive/2021/texmf-d
-ist/fonts/type1/public/amsfonts/cm/cmsy8.pfb></usr/local/texlive/2021/texmf-dis
-t/fonts/type1/public/amsfonts/cm/cmsy9.pfb></usr/local/texlive/2021/texmf-dist/
-fonts/type1/urw/courier/ucrr8a.pfb></usr/local/texlive/2021/texmf-dist/fonts/ty
-pe1/urw/courier/ucrro8a.pfb></usr/local/texlive/2021/texmf-dist/fonts/type1/urw
-/times/utmb8a.pfb></usr/local/texlive/2021/texmf-dist/fonts/type1/urw/times/utm
-bi8a.pfb></usr/local/texlive/2021/texmf-dist/fonts/type1/urw/times/utmr8a.pfb><
-/usr/local/texlive/2021/texmf-dist/fonts/type1/urw/times/utmri8a.pfb>
-Output written on ulal_paper.pdf (5 pages, 199773 bytes).
+/texmf-dist/fonts/type1/public/amsfonts/cm/cmsy10.pfb></usr/local/texlive/2021/
+texmf-dist/fonts/type1/public/amsfonts/cm/cmsy6.pfb></usr/local/texlive/2021/te
+xmf-dist/fonts/type1/public/amsfonts/cm/cmsy7.pfb></usr/local/texlive/2021/texm
+f-dist/fonts/type1/public/amsfonts/cm/cmsy8.pfb></usr/local/texlive/2021/texmf-
+dist/fonts/type1/public/amsfonts/cm/cmsy9.pfb></usr/local/texlive/2021/texmf-di
+st/fonts/type1/urw/courier/ucrr8a.pfb></usr/local/texlive/2021/texmf-dist/fonts
+/type1/urw/times/utmb8a.pfb></usr/local/texlive/2021/texmf-dist/fonts/type1/urw
+/times/utmbi8a.pfb></usr/local/texlive/2021/texmf-dist/fonts/type1/urw/times/ut
+mr8a.pfb></usr/local/texlive/2021/texmf-dist/fonts/type1/urw/times/utmri8a.pfb>
+
+Output written on ulal_paper.pdf (6 pages, 414729 bytes).
 PDF statistics:
- 232 PDF objects out of 1000 (max. 8388607)
- 204 compressed objects within 3 object streams
- 47 named destinations out of 1000 (max. 500000)
- 133 words of extra memory for PDF output out of 10000 (max. 10000000)
+ 217 PDF objects out of 1000 (max. 8388607)
+ 178 compressed objects within 2 object streams
+ 42 named destinations out of 1000 (max. 500000)
+ 144 words of extra memory for PDF output out of 10000 (max. 10000000)
 
