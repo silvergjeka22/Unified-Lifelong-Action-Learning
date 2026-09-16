@@ -60,7 +60,7 @@ FINEGRAIN = [
     "TaiChi", "ShavingBeard", "Haircut", "HeadMassage", "MoppingFloor", "HandstandWalking",
 ]
 
-# sports MAML meta-trains
+# sports MAML meta trains
 SPORTS_META = [
     "BaseballPitch", "Basketball", "BasketballDunk", "BenchPress", "Biking",
     "Billiards", "BodyWeightSquats", "Bowling", "BreastStroke", "CleanAndJerk",

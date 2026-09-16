@@ -1,5 +1,3 @@
-# Run from notebook: %run /content/src/data/preprocessing.py
-
 import os
 import cv2, torch, random
 from PIL import Image
@@ -9,11 +7,8 @@ import src.config.config as cfg
 
 def extract_frames(video_path, target_fps=cfg.FRAME_RATE, max_frames=None):
     """
-    Extract frames from a video at target fps. Returns a list of RGB arrays.
-
-    max_frames caps how many frames are kept and stops reading once reached. UCF101 clips are
-    a few seconds so None (the default) is fine, but long videos hold every full-res frame in RAM
-    and can crash the kernel, so pass a cap there.
+    Extract video frames at the target FPS and return them as RGB arrays,
+    use max_frames to limit the number of frames stored in memory
     """
     cap = cv2.VideoCapture(video_path)
     original_fps = cap.get(cv2.CAP_PROP_FPS) or target_fps
@@ -32,7 +27,7 @@ def extract_frames(video_path, target_fps=cfg.FRAME_RATE, max_frames=None):
 
 
 def temporal_sample(frames, clip_len=cfg.CLIP_LEN):
-    """Sample a fixed-length clip; pads with last frame if too short."""
+    """Sample a fixed- ength clip pads with last frame if too short"""
     if len(frames) >= clip_len:
         start = random.randint(0, len(frames) - clip_len)
         return frames[start : start + clip_len]
@@ -50,10 +45,8 @@ def save_clip_tensor(frames, output_path):
 
 def sample_spread_clips(video_path, n_clips, clip_len=cfg.CLIP_LEN, target_fps=cfg.FRAME_RATE):
     """
-    Return n_clips short clips (each a list of clip_len consecutive RGB frames) whose START
-    positions are SPREAD across the WHOLE video, not just the beginning. Long videos often have
-    the action later, and reading only the first frames misses it. RAM-safe: seeks to each start
-    and reads only that window, so nothing large is held at once.
+    Return n_clips short clips from different parts of the video.
+    Read one clip at a time to save memory.
     """
     cap = cv2.VideoCapture(video_path)
     total        = int(cap.get(cv2.CAP_PROP_FRAME_COUNT) or 0)
@@ -84,16 +77,7 @@ def sample_spread_clips(video_path, n_clips, clip_len=cfg.CLIP_LEN, target_fps=c
 
 
 def check_group_leakage(target_classes=None, input_root=None, splits=None):
-    """
-    Report UCF101 groups that appear in more than one split. Returns the offenders.
-
-    UCF101 clips are named v_Class_gXX_cYY.avi, and every cYY inside one gXX group is
-    cut from the SAME source video. The standard protocol splits by group for exactly
-    that reason. If the split was made randomly per clip, near-duplicate frames end up
-    in train and test at once and every accuracy here is inflated.
-
-    This reads the raw dataset, so run it before preprocessing.
-    """
+    """Find UCF101 video groups that occur in more than one split"""
     target_classes = target_classes or cfg.SELECTED_CLASSES
     splits         = splits or ["train", "val", "test"]
     input_root     = input_root or cfg.DATASET_ROOT
@@ -247,16 +231,11 @@ def describe_group_split(split_map, target_classes=None):
 def preprocess_group_split(split_map, target_classes=None, output_root=None, max_samples=None,
                            max_test_samples=None):
     """
-    Write .pt clips for a group-disjoint split map built by build_group_split.
+    Save clips from a group-disjoint split map as .pt files.
 
-    max_samples: optional cap on the number of TRAIN clips per class - a memory/speed saver
-    (like main's preprocess_dataset). None keeps every clip. It only trims the TRAIN split, so
-    val/test are untouched and the split stays group-disjoint (the kept clips still come only
-    from the train groups). It trains on fewer clips, so it LOWERS accuracy - use it for a fast
-    dry-run and drop it (None) for the final numbers.
-
-    max_test_samples: optional cap on VAL and TEST clips per class (None keeps every clip). Only
-    for fast/small runs - a smaller test set makes accuracy noisier, so drop it for final numbers.
+    max_samples limits the number of training clips per class.
+    max_test_samples limits validation and test clips per class.
+    Leave either value as None to keep all clips.
     """
     target_classes = target_classes or sorted(split_map["train"])
     output_root    = output_root or cfg.OUTPUT_ROOT

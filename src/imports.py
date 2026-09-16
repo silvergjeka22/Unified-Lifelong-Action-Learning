@@ -1,7 +1,4 @@
-# SHARED IMPORTS -> %run /content/ulal/src/imports.py
-# Loads every project symbol into the notebook namespace. The repo root goes on
-# sys.path and config is imported through src, so there is one cfg object.
-
+# SHARED IMPORTS
 import os
 import sys
 
@@ -10,7 +7,7 @@ if ULAL_ROOT not in sys.path:
     sys.path.insert(0, ULAL_ROOT)
 
 # Free-Colab GPU: let the CUDA allocator grow segments instead of fragmenting. Must be
-# set before torch initialises CUDA, so it goes above the torch import.
+# set before torch initialises CUDA.
 os.environ.setdefault("PYTORCH_CUDA_ALLOC_CONF", "expandable_segments:True")
 
 import cv2
@@ -42,13 +39,13 @@ from sklearn.metrics import (
 subprocess.run([sys.executable, "-m", "pip", "install", "torchinfo", "-q"], capture_output=True)
 from torchinfo import summary
 
-# config - one import root
+# config
 import src.config.config as cfg
-from src.config.config import *          # noqa: F403
+from src.config.config import *       
 
 device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 
-# project modules - %run so every symbol lands in the notebook namespace
+# project modules
 ipython = get_ipython()
 
 def run_module(rel):

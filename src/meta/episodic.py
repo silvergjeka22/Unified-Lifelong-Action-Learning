@@ -1,11 +1,3 @@
-"""
-Episodic few-shot meta-learning on real clips (first-order MAML).
-
-Meta-training samples many N-way K-shot tasks from a pool of UCF101 clips so the model learns an
-initialisation that adapts quickly to new classes. adapt_and_eval is the single adaptation every study
-arm uses; the arms differ only in the init (plain vs MAML) and whether replay / LwF are on.
-"""
-
 import copy
 import random
 import torch

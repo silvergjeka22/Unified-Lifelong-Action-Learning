@@ -7,7 +7,7 @@ from src.training.train import evaluate_model, task_accs, free_gpu
 
 
 def theta_star(model):
-    """Snapshot the trainable weights after a task - the anchor EWC pulls toward."""
+    """Store current weights to anchor EWC loss"""
     return {n: p.clone().detach() for n, p in model.named_parameters() if p.requires_grad}
 
 
@@ -15,7 +15,7 @@ def get_fisher(train_loader, model, device):
     """
     Diagonal Fisher information: the mean squared gradient per weight over the task's
     data, then normalised per layer to [0, 1] so the most important weights sit near 1.
-    Without that normalisation the raw values are tiny and the EWC penalty is inert.
+    Without that normalisation the raw values are tiny and the EWC penalty is insufficient to prevent forgetting
     """
     fisher = {n: torch.zeros_like(p) for n, p in model.named_parameters() if p.requires_grad}
     model.train().to(device)
@@ -42,7 +42,7 @@ def get_fisher(train_loader, model, device):
 
 
 def ewc_loss(model, star, fisher, ewc_lambda, device):
-    """EWC penalty: lambda * sum F * (theta - theta_star)^2, over the old weights."""
+    """EWC penalty: lambda * sum F * (theta - theta_star)^2, over the old weights"""
     loss = torch.zeros((), device=device)
     for n, p in model.named_parameters():
         if n in star and n in fisher:
@@ -60,7 +60,7 @@ def train_ewc(model, train_loader, val_loader, old_val_loader, star, fisher,
     Train on a new task with the EWC penalty. Prints new-task and old-task validation
     accuracy each epoch so the protection is visible. Returns a history dict.
 
-    track_loaders / track_history: see train_model - fills a per-epoch forgetting timeline.
+    track_loaders / track_history: see train_model fills a per epoch forgetting timeline
     """
     model.to(device)
     free_gpu(device)
