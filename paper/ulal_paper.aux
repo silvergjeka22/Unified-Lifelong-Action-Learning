@@ -17,67 +17,83 @@
 \providecommand\HyField@AuxAddToFields[1]{}
 \providecommand\HyField@AuxAddToCoFields[2]{}
 \citation{kirkpatrick2017ewc}
+\citation{delange2021survey}
 \citation{soomro2012ucf101}
+\@writefile{toc}{\contentsline {section}{\numberline {I}Introduction}{1}{section.1}\protected@file@percent }
 \citation{kirkpatrick2017ewc}
+\citation{zenke2017si}
 \citation{li2017lwf}
 \citation{rebuffi2017icarl}
 \citation{hinton2015kd}
+\citation{romero2015fitnets}
 \citation{finn2017maml}
-\@writefile{toc}{\contentsline {section}{\numberline {I}Introduction}{1}{section.1}\protected@file@percent }
-\@writefile{toc}{\contentsline {section}{\numberline {II}Related Work}{1}{section.2}\protected@file@percent }
-\@writefile{toc}{\contentsline {section}{\numberline {III}Method, Model, and Setup}{1}{section.3}\protected@file@percent }
-\newlabel{sec:setup}{{III}{1}{Method, Model, and Setup}{section.3}{}}
-\citation{kirkpatrick2017ewc}
-\citation{li2017lwf}
-\citation{rebuffi2017icarl}
-\@writefile{lof}{\contentsline {figure}{\numberline {1}{\ignorespaces The ULAL pipeline. UCF101 video is split by source group so no recording leaks across train/test (Stage\nobreakspace  {}1). A ResNet50+LSTM teacher is trained on the base classes (Stage\nobreakspace  {}2), extended to new classes by continual learning with a growing classifier head (Stage\nobreakspace  {}3), compressed into a small MobileNet student by knowledge distillation (Stage\nobreakspace  {}4), and finally adapted to brand-new classes from only a few clips with MAML (Stage\nobreakspace  {}5). Each caption shows that stage's headline result.}}{2}{figure.1}\protected@file@percent }
-\newlabel{fig:pipeline}{{1}{2}{The ULAL pipeline. UCF101 video is split by source group so no recording leaks across train/test (Stage~1). A ResNet50+LSTM teacher is trained on the base classes (Stage~2), extended to new classes by continual learning with a growing classifier head (Stage~3), compressed into a small MobileNet student by knowledge distillation (Stage~4), and finally adapted to brand-new classes from only a few clips with MAML (Stage~5). Each caption shows that stage's headline result}{figure.1}{}}
-\@writefile{lot}{\contentsline {table}{\numberline {I}{\ignorespaces Main hyperparameters per stage (shared across the methods compared in it).}}{2}{table.1}\protected@file@percent }
-\newlabel{tab:hparams}{{I}{2}{Main hyperparameters per stage (shared across the methods compared in it)}{table.1}{}}
+\citation{tao2020fscil}
+\citation{tao2020fscil}
+\@writefile{toc}{\contentsline {section}{\numberline {II}Related Work}{2}{section.2}\protected@file@percent }
+\@writefile{toc}{\contentsline {section}{\numberline {III}System, Notation, and Protocol}{2}{section.3}\protected@file@percent }
+\newlabel{sec:setup}{{III}{2}{System, Notation, and Protocol}{section.3}{}}
+\@writefile{toc}{\contentsline {subsection}{\numberline {\mbox  {III-A}}The shared recogniser}{2}{subsection.3.1}\protected@file@percent }
+\@writefile{toc}{\contentsline {subsection}{\numberline {\mbox  {III-B}}The moving freeze boundary}{2}{subsection.3.2}\protected@file@percent }
+\@writefile{toc}{\contentsline {subsection}{\numberline {\mbox  {III-C}}Datasets and budget}{2}{subsection.3.3}\protected@file@percent }
+\@writefile{lot}{\contentsline {table}{\numberline {I}{\ignorespaces Main hyperparameters per stage (shared across the methods compared in that stage). This is the ``budget'' that makes each comparison fair.}}{2}{table.1}\protected@file@percent }
+\newlabel{tab:hparams}{{I}{2}{Main hyperparameters per stage (shared across the methods compared in that stage). This is the ``budget'' that makes each comparison fair}{table.1}{}}
+\@writefile{toc}{\contentsline {subsection}{\numberline {\mbox  {III-D}}How to read the numbers}{2}{subsection.3.4}\protected@file@percent }
+\newlabel{eq:harm}{{2}{2}{How to read the numbers}{equation.3.2}{}}
 \@writefile{toc}{\contentsline {section}{\numberline {IV}Stage 1 --- Data Split and Leakage}{2}{section.4}\protected@file@percent }
 \newlabel{sec:data}{{IV}{2}{Stage 1 --- Data Split and Leakage}{section.4}{}}
-\@writefile{toc}{\contentsline {section}{\numberline {V}Stage 2 --- Backbone Selection}{2}{section.5}\protected@file@percent }
-\newlabel{sec:backbone}{{V}{2}{Stage 2 --- Backbone Selection}{section.5}{}}
-\@writefile{lof}{\contentsline {figure}{\numberline {2}{\ignorespaces Groups (source videos) that leak across splits: 80\% in the shipped split versus 0\% in the group-disjoint split. Every later number is read against the clean split, so the accuracies are lower but honest.}}{2}{figure.2}\protected@file@percent }
-\newlabel{fig:leakage}{{2}{2}{Groups (source videos) that leak across splits: 80\% in the shipped split versus 0\% in the group-disjoint split. Every later number is read against the clean split, so the accuracies are lower but honest}{figure.2}{}}
-\@writefile{lot}{\contentsline {table}{\numberline {II}{\ignorespaces Backbone bake-off on the 10 base classes (group-disjoint test).}}{2}{table.2}\protected@file@percent }
-\newlabel{tab:backbone}{{II}{2}{Backbone bake-off on the 10 base classes (group-disjoint test)}{table.2}{}}
+\@writefile{lof}{\contentsline {figure}{\numberline {1}{\ignorespaces \textbf  {The ULAL pipeline.} Each stage answers one question (top), transforms the model (middle), and reports a headline result (bottom). UCF101 video is first split by source group so that no recording leaks across train and test (Stage\nobreakspace  {}1). A ResNet50+LSTM teacher is trained on the base classes (Stage\nobreakspace  {}2), extended to new classes by continual learning with a growing classifier head (Stage\nobreakspace  {}3), compressed into a small MobileNet student by knowledge distillation (Stage\nobreakspace  {}4), and finally adapted to brand-new classes from only a few clips with MAML plus replay (Stage\nobreakspace  {}5). The dashed red arrows mark the \emph  {moving freeze boundary}: from Stage\nobreakspace  {}3 onward the lower backbone is frozen to protect old features while the upper blocks, LSTM, and head remain trainable. Each stage supplies an ability the next one needs.}}{3}{figure.1}\protected@file@percent }
+\newlabel{fig:pipeline}{{1}{3}{\textbf {The ULAL pipeline.} Each stage answers one question (top), transforms the model (middle), and reports a headline result (bottom). UCF101 video is first split by source group so that no recording leaks across train and test (Stage~1). A ResNet50+LSTM teacher is trained on the base classes (Stage~2), extended to new classes by continual learning with a growing classifier head (Stage~3), compressed into a small MobileNet student by knowledge distillation (Stage~4), and finally adapted to brand-new classes from only a few clips with MAML plus replay (Stage~5). The dashed red arrows mark the \emph {moving freeze boundary}: from Stage~3 onward the lower backbone is frozen to protect old features while the upper blocks, LSTM, and head remain trainable. Each stage supplies an ability the next one needs}{figure.1}{}}
+\@writefile{lof}{\contentsline {figure}{\numberline {2}{\ignorespaces \textbf  {The shared recogniser.} The backbone $\phi $ runs on each of the 16 frames; an LSTM summarises the sequence into a 256-d clip feature; a growing head classifies. The moving freeze boundary (dashed) decides how deep the trainable region reaches at each stage---broad early on, then narrowed to the upper backbone, LSTM, and head to protect old features.}}{3}{figure.2}\protected@file@percent }
+\newlabel{fig:arch}{{2}{3}{\textbf {The shared recogniser.} The backbone $\phi $ runs on each of the 16 frames; an LSTM summarises the sequence into a 256-d clip feature; a growing head classifies. The moving freeze boundary (dashed) decides how deep the trainable region reaches at each stage---broad early on, then narrowed to the upper backbone, LSTM, and head to protect old features}{figure.2}{}}
+\@writefile{toc}{\contentsline {section}{\numberline {V}Stage 2 --- Backbone Selection}{3}{section.5}\protected@file@percent }
+\newlabel{sec:backbone}{{V}{3}{Stage 2 --- Backbone Selection}{section.5}{}}
+\@writefile{lof}{\contentsline {figure}{\numberline {3}{\ignorespaces Source groups that leak across the splits: 80\% under the shipped per-clip split versus 0\% under the group-disjoint split. Every subsequent number in this paper is read against the clean split; the accuracies are therefore lower than commonly reported on UCF101, but honest.}}{3}{figure.3}\protected@file@percent }
+\newlabel{fig:leakage}{{3}{3}{Source groups that leak across the splits: 80\% under the shipped per-clip split versus 0\% under the group-disjoint split. Every subsequent number in this paper is read against the clean split; the accuracies are therefore lower than commonly reported on UCF101, but honest}{figure.3}{}}
+\citation{rebuffi2017icarl}
 \citation{hinton2015kd}
-\@writefile{toc}{\contentsline {section}{\numberline {VI}Stage 3 --- Continual Learning}{3}{section.6}\protected@file@percent }
-\newlabel{sec:cl}{{VI}{3}{Stage 3 --- Continual Learning}{section.6}{}}
-\@writefile{lot}{\contentsline {table}{\numberline {III}{\ignorespaces Continual learning after the full $10\!\to \!15\!\to \!20$ stream (\%). Final: all 20 classes; Old: classes 0--14; New: last task 15--19; Base: original 10.}}{3}{table.3}\protected@file@percent }
-\newlabel{tab:cl}{{III}{3}{Continual learning after the full $10\!\to \!15\!\to \!20$ stream (\%). Final: all 20 classes; Old: classes 0--14; New: last task 15--19; Base: original 10}{table.3}{}}
-\@writefile{toc}{\contentsline {section}{\numberline {VII}Stage 4 --- Knowledge Distillation}{3}{section.7}\protected@file@percent }
-\newlabel{sec:kd}{{VII}{3}{Stage 4 --- Knowledge Distillation}{section.7}{}}
-\@writefile{lot}{\contentsline {table}{\numberline {IV}{\ignorespaces Distillation into the MobileNetV3-Small student (20-class test).}}{3}{table.4}\protected@file@percent }
-\newlabel{tab:kd}{{IV}{3}{Distillation into the MobileNetV3-Small student (20-class test)}{table.4}{}}
-\@writefile{toc}{\contentsline {section}{\numberline {VIII}Stage 5 --- Few-Shot Meta-Adaptation}{3}{section.8}\protected@file@percent }
-\newlabel{sec:meta}{{VIII}{3}{Stage 5 --- Few-Shot Meta-Adaptation}{section.8}{}}
-\@writefile{lof}{\contentsline {figure}{\numberline {3}{\ignorespaces Per-task accuracy across the whole stream. \emph  {Left (Naive):} each old task's line collapses the moment a new task is learned---catastrophic forgetting. \emph  {Right (Replay):} rehearsing a few old clips keeps every line high.}}{4}{figure.3}\protected@file@percent }
-\newlabel{fig:forget}{{3}{4}{Per-task accuracy across the whole stream. \emph {Left (Naive):} each old task's line collapses the moment a new task is learned---catastrophic forgetting. \emph {Right (Replay):} rehearsing a few old clips keeps every line high}{figure.3}{}}
-\@writefile{lot}{\contentsline {table}{\numberline {V}{\ignorespaces Few-shot meta-adaptation: 20 base + 5 new (5-way), identical adaptation for all arms, ranked by harmonic mean. Measured at 8 clips/class, 5 epochs.}}{4}{table.5}\protected@file@percent }
-\newlabel{tab:meta}{{V}{4}{Few-shot meta-adaptation: 20 base + 5 new (5-way), identical adaptation for all arms, ranked by harmonic mean. Measured at 8 clips/class, 5 epochs}{table.5}{}}
-\@writefile{lof}{\contentsline {figure}{\numberline {4}{\ignorespaces New-class accuracy and base retention per method. Inits with no protection (MAML, fine-tune, no-meta) learn new classes but wipe the base; adding replay recovers the base, and the MAML init gives the highest new-class accuracy among the protected arms---so MAML+replay tops the balanced ranking.}}{4}{figure.4}\protected@file@percent }
-\newlabel{fig:metacompare}{{4}{4}{New-class accuracy and base retention per method. Inits with no protection (MAML, fine-tune, no-meta) learn new classes but wipe the base; adding replay recovers the base, and the MAML init gives the highest new-class accuracy among the protected arms---so MAML+replay tops the balanced ranking}{figure.4}{}}
-\@writefile{lof}{\contentsline {figure}{\numberline {5}{\ignorespaces New-class accuracy versus number of support clips. MAML's advantage is largest at \textbf  {1 clip} (MAML 0.26 while every other init is near 0) and narrows as clips grow---meta-learning helps most exactly when data is scarce.}}{4}{figure.5}\protected@file@percent }
-\newlabel{fig:sweep}{{5}{4}{New-class accuracy versus number of support clips. MAML's advantage is largest at \textbf {1 clip} (MAML 0.26 while every other init is near 0) and narrows as clips grow---meta-learning helps most exactly when data is scarce}{figure.5}{}}
-\@writefile{lof}{\contentsline {figure}{\numberline {6}{\ignorespaces MAML meta-training curve: meta query accuracy rises from 0.83 to 0.98 over 8 epochs, confirming the initialisation is genuinely being shaped, not left at the student's starting point.}}{4}{figure.6}\protected@file@percent }
-\newlabel{fig:metacurve}{{6}{4}{MAML meta-training curve: meta query accuracy rises from 0.83 to 0.98 over 8 epochs, confirming the initialisation is genuinely being shaped, not left at the student's starting point}{figure.6}{}}
+\citation{romero2015fitnets}
+\@writefile{lot}{\contentsline {table}{\numberline {II}{\ignorespaces Backbone bake-off on the 10 base classes (group-disjoint test). Every backbone is trained under the identical Stage-2 budget and seed.}}{4}{table.2}\protected@file@percent }
+\newlabel{tab:backbone}{{II}{4}{Backbone bake-off on the 10 base classes (group-disjoint test). Every backbone is trained under the identical Stage-2 budget and seed}{table.2}{}}
+\@writefile{toc}{\contentsline {section}{\numberline {VI}Stage 3 --- Continual Learning}{4}{section.6}\protected@file@percent }
+\newlabel{sec:cl}{{VI}{4}{Stage 3 --- Continual Learning}{section.6}{}}
+\@writefile{lot}{\contentsline {table}{\numberline {III}{\ignorespaces Continual learning after the full $10\!\to \!15\!\to \!20$ stream (\%). Final: all 20 classes; Old: classes 0--14; New: last task 15--19; Base: original 10. Sorted by final accuracy.}}{4}{table.3}\protected@file@percent }
+\newlabel{tab:cl}{{III}{4}{Continual learning after the full $10\!\to \!15\!\to \!20$ stream (\%). Final: all 20 classes; Old: classes 0--14; New: last task 15--19; Base: original 10. Sorted by final accuracy}{table.3}{}}
+\@writefile{toc}{\contentsline {section}{\numberline {VII}Stage 4 --- Knowledge Distillation}{4}{section.7}\protected@file@percent }
+\newlabel{sec:kd}{{VII}{4}{Stage 4 --- Knowledge Distillation}{section.7}{}}
+\@writefile{lof}{\contentsline {figure}{\numberline {4}{\ignorespaces Per-task accuracy across the whole stream. \emph  {Left (Naive):} each old task's line collapses the moment a new task is learned---catastrophic forgetting made visible. \emph  {Right (Replay):} rehearsing a few old clips per class keeps every line high, so the final model still knows the earliest classes.}}{5}{figure.4}\protected@file@percent }
+\newlabel{fig:forget}{{4}{5}{Per-task accuracy across the whole stream. \emph {Left (Naive):} each old task's line collapses the moment a new task is learned---catastrophic forgetting made visible. \emph {Right (Replay):} rehearsing a few old clips per class keeps every line high, so the final model still knows the earliest classes}{figure.4}{}}
+\@writefile{lot}{\contentsline {table}{\numberline {IV}{\ignorespaces Distillation into the MobileNetV3-Small student (20-class group-disjoint test). All students share one budget, seed, and initialisation; only the transfer term differs.}}{5}{table.4}\protected@file@percent }
+\newlabel{tab:kd}{{IV}{5}{Distillation into the MobileNetV3-Small student (20-class group-disjoint test). All students share one budget, seed, and initialisation; only the transfer term differs}{table.4}{}}
+\@writefile{toc}{\contentsline {section}{\numberline {VIII}Stage 5 --- Few-Shot Meta-Adaptation}{5}{section.8}\protected@file@percent }
+\newlabel{sec:meta}{{VIII}{5}{Stage 5 --- Few-Shot Meta-Adaptation}{section.8}{}}
+\@writefile{lot}{\contentsline {table}{\numberline {V}{\ignorespaces Few-shot meta-adaptation: 20 base + 5 new (5-way), identical adaptation for every arm, ranked by harmonic mean. Measured at 8 clips/class, 5 epochs. ``Bal.''\ is the balanced mean, ``Harm.''\ the harmonic mean of Eq.\nobreakspace  {}\textup  {\hbox {\mathsurround \z@ \normalfont  (\ignorespaces \ref  {eq:harm}\unskip \@@italiccorr )}}.}}{6}{table.5}\protected@file@percent }
+\newlabel{tab:meta}{{V}{6}{Few-shot meta-adaptation: 20 base + 5 new (5-way), identical adaptation for every arm, ranked by harmonic mean. Measured at 8 clips/class, 5 epochs. ``Bal.''\ is the balanced mean, ``Harm.''\ the harmonic mean of Eq.~\eqref {eq:harm}}{table.5}{}}
+\@writefile{lof}{\contentsline {figure}{\numberline {5}{\ignorespaces New-class accuracy and base retention per method. Inits with no protection (MAML, fine-tune, no-meta) learn new classes but wipe the base; adding replay recovers the base, and the MAML init gives the highest new-class accuracy among the protected arms---so MAML+replay tops the balanced ranking.}}{6}{figure.5}\protected@file@percent }
+\newlabel{fig:metacompare}{{5}{6}{New-class accuracy and base retention per method. Inits with no protection (MAML, fine-tune, no-meta) learn new classes but wipe the base; adding replay recovers the base, and the MAML init gives the highest new-class accuracy among the protected arms---so MAML+replay tops the balanced ranking}{figure.5}{}}
+\@writefile{toc}{\contentsline {subsection}{\numberline {\mbox  {VIII-A}}Cross-stage synthesis}{6}{subsection.8.1}\protected@file@percent }
+\@writefile{lof}{\contentsline {figure}{\numberline {6}{\ignorespaces New-class accuracy versus the number of support clips. MAML's advantage is largest at \textbf  {1 clip} (MAML $\approx $0.26 while every other init is near 0) and narrows as clips grow: meta-learning helps most exactly when data is scarce.}}{6}{figure.6}\protected@file@percent }
+\newlabel{fig:sweep}{{6}{6}{New-class accuracy versus the number of support clips. MAML's advantage is largest at \textbf {1 clip} (MAML $\approx $0.26 while every other init is near 0) and narrows as clips grow: meta-learning helps most exactly when data is scarce}{figure.6}{}}
+\@writefile{lof}{\contentsline {figure}{\numberline {7}{\ignorespaces MAML meta-training curve: meta query accuracy rises from 0.83 to 0.98 over 8 epochs, confirming the initialisation is genuinely being shaped rather than left at the student's starting point.}}{6}{figure.7}\protected@file@percent }
+\newlabel{fig:metacurve}{{7}{6}{MAML meta-training curve: meta query accuracy rises from 0.83 to 0.98 over 8 epochs, confirming the initialisation is genuinely being shaped rather than left at the student's starting point}{figure.7}{}}
+\@writefile{toc}{\contentsline {section}{\numberline {IX}The ULAL Capstone (to be run)}{6}{section.9}\protected@file@percent }
+\newlabel{sec:ulal}{{IX}{6}{The ULAL Capstone (to be run)}{section.9}{}}
 \bibcite{kirkpatrick2017ewc}{1}
-\bibcite{li2017lwf}{2}
-\bibcite{rebuffi2017icarl}{3}
-\bibcite{hinton2015kd}{4}
-\@writefile{lof}{\contentsline {figure}{\numberline {7}{\ignorespaces Old-vs-new confusion for MAML+replay: most base clips are still predicted as base and most new clips as new. Without replay this matrix collapses (all mass predicted ``new'').}}{5}{figure.7}\protected@file@percent }
-\newlabel{fig:oldnew}{{7}{5}{Old-vs-new confusion for MAML+replay: most base clips are still predicted as base and most new clips as new. Without replay this matrix collapses (all mass predicted ``new'')}{figure.7}{}}
-\@writefile{toc}{\contentsline {section}{\numberline {IX}The ULAL Capstone (to be run)}{5}{section.9}\protected@file@percent }
-\newlabel{sec:ulal}{{IX}{5}{The ULAL Capstone (to be run)}{section.9}{}}
-\@writefile{toc}{\contentsline {section}{\numberline {X}Discussion and Limitations}{5}{section.10}\protected@file@percent }
-\@writefile{toc}{\contentsline {section}{\numberline {XI}Conclusion}{5}{section.11}\protected@file@percent }
-\@writefile{lot}{\contentsline {table}{\numberline {VI}{\ignorespaces Author contribution index.}}{5}{table.6}\protected@file@percent }
-\newlabel{tab:contrib}{{VI}{5}{Author contribution index}{table.6}{}}
-\bibcite{finn2017maml}{5}
-\bibcite{he2016resnet}{6}
-\bibcite{howard2019mobilenetv3}{7}
-\bibcite{soomro2012ucf101}{8}
-\@writefile{toc}{\contentsline {section}{References}{6}{section*.2}\protected@file@percent }
-\gdef \@abspage@last{6}
+\bibcite{zenke2017si}{2}
+\bibcite{li2017lwf}{3}
+\@writefile{lof}{\contentsline {figure}{\numberline {8}{\ignorespaces Old-vs-new confusion for MAML+replay: most base clips are still predicted as base and most new clips as new. Without replay this matrix collapses, with nearly all mass predicted ``new''.}}{7}{figure.8}\protected@file@percent }
+\newlabel{fig:oldnew}{{8}{7}{Old-vs-new confusion for MAML+replay: most base clips are still predicted as base and most new clips as new. Without replay this matrix collapses, with nearly all mass predicted ``new''}{figure.8}{}}
+\@writefile{toc}{\contentsline {section}{\numberline {X}Discussion and Limitations}{7}{section.10}\protected@file@percent }
+\@writefile{toc}{\contentsline {section}{\numberline {XI}Conclusion}{7}{section.11}\protected@file@percent }
+\@writefile{lot}{\contentsline {table}{\numberline {VI}{\ignorespaces Author contribution index, organised by pipeline stage.}}{7}{table.6}\protected@file@percent }
+\newlabel{tab:contrib}{{VI}{7}{Author contribution index, organised by pipeline stage}{table.6}{}}
+\@writefile{toc}{\contentsline {section}{References}{7}{section*.2}\protected@file@percent }
+\bibcite{rebuffi2017icarl}{4}
+\bibcite{delange2021survey}{5}
+\bibcite{hinton2015kd}{6}
+\bibcite{romero2015fitnets}{7}
+\bibcite{finn2017maml}{8}
+\bibcite{tao2020fscil}{9}
+\bibcite{he2016resnet}{10}
+\bibcite{howard2019mobilenetv3}{11}
+\bibcite{soomro2012ucf101}{12}
+\gdef \@abspage@last{8}

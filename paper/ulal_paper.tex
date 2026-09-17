@@ -1,9 +1,9 @@
 %==============================================================================
 % ULAL - Unified Lifelong Action Learning (IEEEtran conference, two-column)
-% Compile:  pdflatex ulal_paper.tex   (run twice)
+% Compile:  pdflatex ulal_paper.tex   (run twice for refs)
 % Figures are real plots exported from the notebooks into paper/figures/.
-% The \figph macro still falls back to a placeholder box if a file is missing,
-% so the paper always compiles.
+% The \figph macro falls back to a labelled placeholder box if a file is
+% missing, so the paper always compiles.
 %==============================================================================
 \documentclass[conference]{IEEEtran}
 
@@ -13,20 +13,25 @@
 \usepackage{amsmath}
 \usepackage{amssymb}
 \usepackage{xcolor}
+\usepackage{array}
 \usepackage[hidelinks]{hyperref}
 \usepackage{tikz}
-\usetikzlibrary{arrows.meta,positioning,fit,backgrounds}
+\usetikzlibrary{arrows.meta,positioning,fit,backgrounds,calc,shapes.geometric}
 \graphicspath{{figures/}}
 
+% Fallback so a missing figure never breaks the build.
 \newcommand{\figph}[2]{%
   \IfFileExists{figures/#1}{\includegraphics[width=\linewidth]{#1}}%
   {\fbox{\parbox[c][3cm][c]{0.9\linewidth}{\centering\itshape #2}}}%
 }
 
+% A compact "ability arrow" used in the running text.
+\newcommand{\ability}[1]{\textsc{#1}}
+
 \begin{document}
 
 \title{Unified Lifelong Action Learning:\\
-A Real-Video Pipeline for Continual Learning, Distillation,\\
+A Real-Video Pipeline for Continual Learning, Knowledge Distillation,\\
 and Few-Shot Meta-Adaptation on UCF101}
 
 \author{
@@ -43,185 +48,343 @@ and Few-Shot Meta-Adaptation on UCF101}
 \maketitle
 
 \begin{abstract}
-We present \emph{Unified Lifelong Action Learning} (ULAL), an end-to-end pipeline that
-studies how a video action recogniser can keep learning new actions over time without
-forgetting the old ones, trained directly on real video frames (no cached features).
-The pipeline (i) builds an honest, group-disjoint split that removes an 80\% leakage in
-UCF101's shipped split; (ii) selects a ResNet50+LSTM backbone from a five-way bake-off
-(93.9\% on the base classes); (iii) extends it to new classes with five
-continual-learning methods, where rehearsal reaches 89.8\% after the full stream while
-plain fine-tuning collapses to 26.0\%; (iv) compresses the best model into a
-MobileNetV3-Small student that keeps 82.7\% at $\sim$14$\times$ fewer parameters; and
-(v) adapts the student to brand-new, few-shot classes with first-order MAML, where
-\emph{MAML+replay} reaches the best balance (harmonic mean 0.60) and beats a matched
-fine-tune baseline, isolating the meta-learning effect. For every stage we explain
-\emph{why} the methods rank as they do from their abilities. A final capstone notebook
-(ULAL) chains the best choice of each stage and is described here, pending its run.
+We present \emph{Unified Lifelong Action Learning} (ULAL), an end-to-end pipeline
+that studies how a single video action recogniser can keep learning new actions over
+time without forgetting the old ones, trained directly on real video frames with no
+cached features. The pipeline is built as five linked studies, each answering one
+question. (i) \emph{How do we measure honestly?} We show that UCF101's shipped split
+leaks 80\% of its source groups across train and test and replace it with a
+group-disjoint split that leaks none. (ii) \emph{Which backbone?} A five-way bake-off
+selects a ResNet50+LSTM teacher (93.9\% on the base classes). (iii) \emph{How do we
+stop forgetting?} Across a $10\!\to\!15\!\to\!20$ class stream, rehearsal reaches 89.8\%
+while plain fine-tuning collapses to 26.0\% and every data-free regulariser (EWC, LwF)
+trails. (iv) \emph{How do we shrink the model?} Knowledge distillation compresses the
+teacher into a MobileNetV3-Small student that keeps 82.7\% at roughly $14\times$ fewer
+parameters, with cosine feature distillation best. (v) \emph{How do we learn brand-new
+classes from a handful of clips?} A nine-arm meta-learning comparison, controlled by a
+matched fine-tune baseline that sees the same auxiliary data, shows \emph{MAML+replay}
+is the best-balanced few-shot adapter (harmonic mean 0.60) and beats the fine-tune
+control by 0.07, isolating the meta-learning effect. For every stage we first explain
+\emph{why} the methods should rank as they do from the ability each one has, then show
+the measured result. A final capstone notebook chains the winning choice of every stage
+and is described here pending its run. The whole pipeline runs on a single free-tier
+Colab T4 GPU.
 \end{abstract}
 
 \begin{IEEEkeywords}
 continual learning, catastrophic forgetting, action recognition, knowledge
-distillation, meta-learning, few-shot learning.
+distillation, meta-learning, few-shot learning, model compression.
 \end{IEEEkeywords}
 
 %------------------------------------------------------------------------------
 \section{Introduction}
-Deep video models forget. Fine-tuning a trained recogniser on new action classes
-collapses its accuracy on the old ones---\emph{catastrophic
-forgetting}~\cite{kirkpatrick2017ewc}. Lifelong (continual) learning aims to add
-classes over time while keeping what was already learned. Video makes this harder than
-images: clips are large and temporal, so storing and replaying past data is expensive.
+Deep video models forget. Fine-tuning a trained action recogniser on a set of new
+classes collapses its accuracy on the classes it already knew---\emph{catastrophic
+forgetting}~\cite{kirkpatrick2017ewc}. Lifelong, or continual, learning aims to add
+classes over time while preserving what was already learned~\cite{delange2021survey}.
+Video makes this markedly harder than images: a clip is a large spatio-temporal tensor,
+so storing and replaying past data is expensive, and the temporal model on top of the
+per-frame features adds a second place for representations to drift.
 
-This paper describes one reproducible pipeline on UCF101~\cite{soomro2012ucf101},
-trained \emph{directly on real video frames}, so every number reflects the deployed
-model. Each stage is one notebook and answers one question: \emph{how do we measure
-honestly? which backbone? how do we stop forgetting? how do we shrink the model? and
-how do we learn brand-new classes from only a handful of clips?} Our contributions:
+A realistic deployment does not need only one of these abilities; it needs several at
+once. It must (a) be measured on data it has never seen, (b) start from strong features,
+(c) retain old classes as new ones arrive, (d) be small enough to run on a modest
+device, and (e) still pick up a brand-new class from only a handful of examples. Each of
+these is usually studied in isolation. The contribution of this paper is to study them
+\emph{together}, as one pipeline on one dataset, trained \emph{directly on real video
+frames} so that every reported number reflects the model that would actually be
+deployed---no offline feature cache stands between the study and the recogniser.
+
+We build the pipeline on UCF101~\cite{soomro2012ucf101} as five linked studies, each a
+single notebook answering one question, and each feeding the next. The organising idea
+is a \emph{moving freeze boundary}: the recogniser is one shared network (a CNN backbone
+applied per frame, an LSTM over the frame features, and a classifier head that
+\emph{grows} as classes arrive), and each stage decides how much of that network stays
+trainable. Early stages train broadly; later stages freeze the lower backbone to protect
+old features and let only the upper blocks, the LSTM, and the head move. This single
+design connects all five studies and lets each comparison change exactly one mechanism
+at a time.
+
+\textbf{Contributions.}
 \begin{itemize}
-\item \textbf{An honest split.} We show 80\% of UCF101 groups leak across the shipped
-splits and replace them with a group-disjoint split.
-\item \textbf{A controlled study} of five continual-learning methods, four distillation
-objectives, and a nine-arm meta-learning comparison whose fine-tune control isolates
-the meta-learning effect.
-\item \textbf{Explanations, not just tables.} For every stage we first say \emph{why}
-one method should beat another from its ability, then show the measured result.
+\item \textbf{An honest measurement protocol.} We quantify the 80\% source-group leakage
+in UCF101's shipped split and replace it with a group-disjoint split that leaks nothing,
+so every later number is trustworthy though lower.
+\item \textbf{A controlled, five-stage study} of backbone selection, five
+continual-learning methods, four distillation objectives, and a nine-arm meta-learning
+comparison, all sharing one recogniser and one hyperparameter budget per stage.
+\item \textbf{A fine-tune control that isolates meta-learning.} In the few-shot stage the
+MAML init is compared against an ordinary fine-tune init that saw the \emph{same}
+auxiliary data, so any remaining gain is attributable to meta-learning and not to extra
+data.
+\item \textbf{A balanced metric for the few-shot regime.} Because base classes outnumber
+new ones, we report the harmonic mean of base and new accuracy, which reveals a ranking
+that a base-dominated average hides.
+\item \textbf{Explanations, not just tables.} For every stage we state \emph{why} one
+method should beat another from its ability before showing the measured result, and we
+close with a cross-stage synthesis of when each tool wins.
 \end{itemize}
 
 %------------------------------------------------------------------------------
+% ---- FULL-WIDTH PIPELINE FIGURE ----
 \begin{figure*}[t]
 \centering
+\resizebox{\textwidth}{!}{%
 \begin{tikzpicture}[
-  font=\footnotesize, node distance=7mm and 8mm,
-  data/.style={draw, rounded corners=3pt, align=center, minimum height=13mm,
-               text width=19mm, fill=gray!10},
-  box/.style={draw, rounded corners=3pt, align=center, minimum height=13mm,
-              text width=23mm, fill=blue!6},
-  win/.style={draw, rounded corners=3pt, align=center, minimum height=13mm,
-              text width=23mm, fill=green!8},
-  arr/.style={-{Latex[length=2.4mm]}, thick},
-  caplbl/.style={font=\scriptsize\itshape, text=black!55, align=center}
+  font=\footnotesize, node distance=6mm and 9mm,
+  q/.style={align=center, font=\scriptsize\itshape, text=black!60, text width=24mm},
+  data/.style={draw, rounded corners=2pt, align=center, minimum height=12mm,
+               text width=17mm, fill=gray!12},
+  box/.style={draw, rounded corners=2pt, align=center, minimum height=12mm,
+              text width=21mm, fill=blue!7},
+  win/.style={draw, rounded corners=2pt, align=center, minimum height=12mm,
+              text width=21mm, fill=green!10},
+  res/.style={align=center, font=\scriptsize, text=black!75, text width=24mm},
+  arr/.style={-{Latex[length=2.6mm]}, thick},
+  freeze/.style={-{Latex[length=2mm]}, densely dashed, thick, red!55}
 ]
-\node[data] (ucf) {UCF101\\videos};
-\node[data, right=of ucf] (split) {Group-disjoint\\split};
-\node[box,  right=of split] (back) {ResNet50\\+ LSTM\\teacher};
-\node[box,  right=of back] (cl) {Continual\\learning\\(head grows)};
-\node[box,  right=of cl] (kd) {MobileNet\\student\\(distilled)};
-\node[win,  right=of kd] (meta) {Few-shot\\MAML\\+ replay};
+% question row
+\node[q] (q1) {Q1: is the\\measurement honest?};
+\node[q, right=of q1] (q2) {Q2: which\\features?};
+\node[q, right=of q2] (q3) {Q3: how to\\retain the old?};
+\node[q, right=of q3] (q4) {Q4: how to\\shrink it?};
+\node[q, right=of q4] (q5) {Q5: how to learn\\new from few?};
+% main flow row
+\node[data, below=4mm of q1] (split) {Group-disjoint\\split};
+\node[box,  below=4mm of q2] (back)  {ResNet50\\+LSTM\\teacher};
+\node[box,  below=4mm of q3] (cl)    {Continual\\learning\\(head grows)};
+\node[box,  below=4mm of q4] (kd)    {MobileNet\\student\\(distilled)};
+\node[win,  below=4mm of q5] (meta)  {Few-shot\\MAML\\+ replay};
+\node[data, left=9mm of split] (ucf) {UCF101\\videos};
+% arrows
 \draw[arr] (ucf)--(split); \draw[arr] (split)--(back); \draw[arr] (back)--(cl);
 \draw[arr] (cl)--(kd); \draw[arr] (kd)--(meta);
-\node[caplbl, below=1.5mm of split] {S1: remove\\80\% leakage};
-\node[caplbl, below=1.5mm of back]  {S2: pick backbone\\93.9\%};
-\node[caplbl, below=1.5mm of cl]    {S3: retain old\\89.8\%};
-\node[caplbl, below=1.5mm of kd]    {S4: compress\\82.7\%, 14$\times$ smaller};
-\node[caplbl, below=1.5mm of meta]  {S5: learn new\\from few clips};
-\end{tikzpicture}
-\caption{The ULAL pipeline. UCF101 video is split by source group so no recording
-leaks across train/test (Stage~1). A ResNet50+LSTM teacher is trained on the base
-classes (Stage~2), extended to new classes by continual learning with a growing
-classifier head (Stage~3), compressed into a small MobileNet student by knowledge
-distillation (Stage~4), and finally adapted to brand-new classes from only a few clips
-with MAML (Stage~5). Each caption shows that stage's headline result.}
+% result row
+\node[res, below=4mm of split] (r1) {80\% $\to$ 0\%\\group leakage};
+\node[res, below=4mm of back]  (r2) {93.9\% base\\(best of five)};
+\node[res, below=4mm of cl]    (r3) {89.8\% kept\\vs 26.0\% naive};
+\node[res, below=4mm of kd]    (r4) {82.7\%,\\$\sim$14$\times$ smaller};
+\node[res, below=4mm of meta]  (r5) {0.60 harmonic\\(best balanced)};
+\draw[densely dotted, black!35] (split)--(r1); \draw[densely dotted, black!35] (back)--(r2);
+\draw[densely dotted, black!35] (cl)--(r3);    \draw[densely dotted, black!35] (kd)--(r4);
+\draw[densely dotted, black!35] (meta)--(r5);
+% freeze boundary annotation
+\node[align=center, font=\scriptsize\itshape, text=red!60, below=13mm of ucf, text width=20mm]
+  (fz) {moving freeze\\boundary};
+\draw[freeze] (fz.east) .. controls +(1.2,0) and +(-0.6,-1.1) .. (cl.south);
+\draw[freeze] (fz.east) .. controls +(2.4,0.2) and +(-0.6,-1.1) .. (meta.south);
+\end{tikzpicture}%
+}
+\caption{\textbf{The ULAL pipeline.} Each stage answers one question (top), transforms
+the model (middle), and reports a headline result (bottom). UCF101 video is first split
+by source group so that no recording leaks across train and test (Stage~1). A
+ResNet50+LSTM teacher is trained on the base classes (Stage~2), extended to new classes
+by continual learning with a growing classifier head (Stage~3), compressed into a small
+MobileNet student by knowledge distillation (Stage~4), and finally adapted to brand-new
+classes from only a few clips with MAML plus replay (Stage~5). The dashed red arrows mark
+the \emph{moving freeze boundary}: from Stage~3 onward the lower backbone is frozen to
+protect old features while the upper blocks, LSTM, and head remain trainable. Each stage
+supplies an ability the next one needs.}
 \label{fig:pipeline}
 \end{figure*}
 
 %------------------------------------------------------------------------------
 \section{Related Work}
-\textbf{Continual learning.} EWC~\cite{kirkpatrick2017ewc} penalises changes to weights
-important for old tasks; LwF~\cite{li2017lwf} keeps old-class outputs stable using the
-model's own past predictions; rehearsal replays a few stored exemplars, and
-iCaRL~\cite{rebuffi2017icarl} combines replay with distillation. We evaluate all of
-these on video. \textbf{Knowledge distillation.} A compact student can match a larger
-teacher's softened logits~\cite{hinton2015kd} or its features; we compare logit and
-feature (cosine, MSE) objectives. \textbf{Meta/few-shot learning.}
-MAML~\cite{finn2017maml} learns an initialisation that adapts quickly from few
-examples; because base classes outnumber new ones, we report the harmonic mean of base
-and new accuracy, the standard few-shot class-incremental metric.
+\textbf{Continual learning.} Approaches fall into three families.
+\emph{Regularisation} methods add a penalty that discourages changing parameters
+important to old tasks: EWC~\cite{kirkpatrick2017ewc} weights the penalty by the Fisher
+information, and synaptic-intelligence variants use online importance
+estimates~\cite{zenke2017si}. \emph{Functional} methods keep the model's outputs stable:
+Learning without Forgetting (LwF)~\cite{li2017lwf} distils the old model's own
+predictions on new data. \emph{Rehearsal} methods store and replay a small set of past
+exemplars; iCaRL~\cite{rebuffi2017icarl} combines rehearsal with distillation and a
+nearest-mean classifier. We evaluate a representative of each family on video, where the
+cost of storing exemplars is a first-order concern. \textbf{Knowledge distillation.} A
+compact student can be trained to match a larger teacher's softened
+logits~\cite{hinton2015kd} or its intermediate features~\cite{romero2015fitnets}; we
+compare logit distillation against two feature objectives (cosine and a
+regressor-MSE) following the structure of the PyTorch distillation tutorial.
+\textbf{Meta and few-shot learning.} MAML~\cite{finn2017maml} learns an initialisation
+from which a few gradient steps adapt to a new task; first-order MAML drops the
+second-order term for efficiency. Few-shot class-incremental learning
+(FSCIL)~\cite{tao2020fscil} adds new classes from few examples while retaining a large
+base set, and it is standard there to report the harmonic mean of base and new accuracy
+so that neither side can be ignored. Our few-shot stage sits in this setting and adopts
+that metric.
 
 %------------------------------------------------------------------------------
-\section{Method, Model, and Setup}
+\section{System, Notation, and Protocol}
 \label{sec:setup}
-The recogniser applies a CNN backbone to each of a clip's 16 frames, runs an LSTM over
-those frame features, and classifies from the final LSTM state. The classifier
-\emph{grows} as new classes arrive (new rows appended, old rows kept), and only the
-last backbone block is fine-tuned. Clips are 16 frames at $224\times224$, ImageNet
-normalised, on a single Colab T4 GPU. The group-disjoint split uses 18/3/4 groups per
-class. Within each stage, every compared method shares the settings in
-Table~\ref{tab:hparams}, so any difference in the result comes only from the mechanism
-under test---that is what makes each comparison fair. Seeds are fixed and reset before
-every training run.
+
+\subsection{The shared recogniser}
+Every stage uses the same recogniser, sketched in Fig.~\ref{fig:arch}. A clip is
+$T{=}16$ RGB frames at $224\times224$, ImageNet-normalised. A CNN backbone $\phi$ is
+applied to each frame independently, producing a sequence of frame features
+$\phi(x_1),\dots,\phi(x_T)$. An LSTM reads that sequence and its final hidden state
+$h_T\in\mathbb{R}^{256}$ is the clip embedding. A linear head $W$ maps $h_T$ to class
+logits. Formally, for a clip $x$,
+\begin{equation}
+h_T = \mathrm{LSTM}\big(\phi(x_1),\dots,\phi(x_T)\big),\qquad
+z = W\,h_T .
+\end{equation}
+The head \emph{grows} as classes arrive: adding $k$ classes appends $k$ rows to $W$ and
+keeps the existing rows, so old-class logits are never discarded, only joined by new
+ones. We call the shared clip embedding $h_T=\varphi(x)$ the model's \emph{feature}; it
+is what distillation aligns and what the prototype probe reads.
+
+\begin{figure}[t]
+\centering
+\begin{tikzpicture}[
+  font=\scriptsize, node distance=3.2mm,
+  fr/.style={draw, minimum width=6mm, minimum height=8mm, fill=gray!8},
+  cnn/.style={draw, rounded corners=2pt, minimum width=8mm, minimum height=8mm, fill=blue!7},
+  lstm/.style={draw, rounded corners=2pt, minimum width=10mm, minimum height=8mm, fill=blue!7},
+  head/.style={draw, rounded corners=2pt, minimum width=9mm, minimum height=8mm, fill=green!10},
+  arr/.style={-{Latex[length=2mm]}}
+]
+\node[fr] (f1) {$x_1$};
+\node[fr, right=of f1] (f2) {$x_2$};
+\node[right=1.5mm of f2] (dots) {$\cdots$};
+\node[fr, right=1.5mm of dots] (fT) {$x_T$};
+\node[cnn, above=5mm of f1] (c1) {$\phi$};
+\node[cnn, above=5mm of f2] (c2) {$\phi$};
+\node[cnn, above=5mm of fT] (cT) {$\phi$};
+\node[lstm, above=5mm of c2] (lstm) {LSTM};
+\node[head, right=8mm of lstm] (head) {head $W$};
+\node[right=3mm of head] (out) {logits $z$};
+\draw[arr] (f1)--(c1); \draw[arr] (f2)--(c2); \draw[arr] (fT)--(cT);
+\draw[arr] (c1)--(lstm); \draw[arr] (c2)--(lstm); \draw[arr] (cT)--(lstm);
+\draw[arr] (lstm)--(head); \draw[arr] (head)--(out);
+% freeze boundary
+\draw[densely dashed, red!55, thick] ($(c1.south west)+(-2mm,-1mm)$) -- ($(cT.south east)+(2mm,-1mm)$)
+  node[midway, below, font=\scriptsize\itshape, text=red!60] {};
+\node[font=\scriptsize\itshape, text=red!60, align=center] at ($(cT.south east)+(9mm,-3mm)$)
+  {freeze\\below};
+\end{tikzpicture}
+\caption{\textbf{The shared recogniser.} The backbone $\phi$ runs on each of the 16
+frames; an LSTM summarises the sequence into a 256-d clip feature; a growing head
+classifies. The moving freeze boundary (dashed) decides how deep the trainable region
+reaches at each stage---broad early on, then narrowed to the upper backbone, LSTM, and
+head to protect old features.}
+\label{fig:arch}
+\end{figure}
+
+\subsection{The moving freeze boundary}
+The five stages differ in \emph{which} parameters they train, and this is the thread that
+ties the pipeline together. Stage~2 trains the whole recogniser to obtain strong base
+features. Stage~3 keeps most of the backbone plastic but only the last block is
+fine-tuned as classes are added, so that low-level features stay put. Stage~4 trains a
+separate small student end-to-end to match the teacher. Stage~5 freezes the lower
+backbone and meta-trains only the upper blocks, the LSTM, and the head, so the old-class
+features are preserved while the upper layers reshape for the new task. Making this
+boundary explicit is what lets each comparison be fair: within a stage every method
+trains the \emph{same} parameters, so only the mechanism under test differs.
+
+\subsection{Datasets and budget}
+All experiments use UCF101 on a single free-tier Colab T4 GPU. The group-disjoint split
+assigns whole source groups to a single split in an $18/3/4$ groups-per-class ratio
+(train/val/test), preserving the standard $\approx$72/12/16\% proportions while removing
+leakage (Section~\ref{sec:data}). Table~\ref{tab:hparams} lists the per-stage
+hyperparameters; every method compared within a stage shares them, and seeds are fixed
+and reset before each training run, so a difference in the result comes only from the
+mechanism under test.
 
 \begin{table}[h]
 \centering
-\caption{Main hyperparameters per stage (shared across the methods compared in it).}
+\caption{Main hyperparameters per stage (shared across the methods compared in that
+stage). This is the ``budget'' that makes each comparison fair.}
 \label{tab:hparams}
+\renewcommand{\arraystretch}{1.15}
 \begin{tabular}{ll}
 \toprule
 Stage & Key settings \\
 \midrule
-Backbone (2)     & Adam, lr $10^{-4}$, 5 epochs \\
-Continual (3)    & Adam, lr $10^{-4}$, 5 epochs/task; replay 15/class; \\
-                 & LwF weight 3.0, $T{=}5$; EWC $\lambda{=}2800$ \\
-Distillation (4) & Adam, lr $10^{-4}$, 15 epochs; $T{=}2$, CE/KD $0.75/0.25$ \\
-Meta-train (5)   & 5-way 3-shot, 60 episodes $\times$ 8 epochs, \\
-                 & inner SGD 5 steps @ $0.05$, meta-lr $10^{-4}$ \\
-Adaptation (5)   & 8 clips/class, 5 epochs, lr $3\!\times\!10^{-4}$; \\
-                 & replay 8/class; LwF $0.5$, $T{=}2$ \\
+Backbone (S2)     & Adam, lr $10^{-4}$, 5 epochs \\
+Continual (S3)    & Adam, lr $10^{-4}$, 5 epochs/task; replay 15/class; \\
+                  & LwF weight 3.0, $T{=}5$; EWC $\lambda{=}2800$ \\
+Distillation (S4) & Adam, lr $10^{-4}$, 15 epochs; $T{=}2$, CE/KD $0.75/0.25$ \\
+Meta-train (S5)   & 5-way 3-shot, 60 episodes $\times$ 8 epochs, \\
+                  & inner SGD 5 steps @ $0.05$, meta-lr $10^{-4}$ \\
+Adaptation (S5)   & 8 clips/class, 5 epochs, lr $3\!\times\!10^{-4}$; \\
+                  & replay 8/class; LwF $0.5$, $T{=}2$ \\
 \bottomrule
 \end{tabular}
 \end{table}
 
-\textbf{How to read the numbers.} \emph{Test accuracy} is the fraction correct on the
-unseen (group-disjoint) test set. \emph{Old/New accuracy} split the score into classes
-learned earlier versus the newest task. For the few-shot stage, where 20 old classes
-outnumber 5 new ones, a plain average is dominated by the old classes and rewards a
-method that simply guards them; we therefore add the \emph{balanced} mean
-$(\mathrm{acc}_{\text{new}}+\mathrm{acc}_{\text{base}})/2$ and the \emph{harmonic} mean,
-which weight new and old equally and, for the harmonic, punish sacrificing either side.
+\subsection{How to read the numbers}
+\emph{Test accuracy} is the fraction correct on the unseen, group-disjoint test set.
+\emph{Old} and \emph{New} accuracy split that score into classes learned earlier versus
+the newest task, and \emph{Base} is retention on the original classes. In the few-shot
+stage, where 20 base classes outnumber 5 new ones, a plain average is $20/25$ dominated
+by the base and rewards a method that simply guards old classes while learning nothing
+new. We therefore add the \emph{balanced} mean
+$\tfrac{1}{2}(\mathrm{acc}_{\text{new}}+\mathrm{acc}_{\text{base}})$ and the
+\emph{harmonic} mean
+\begin{equation}
+\label{eq:harm}
+\mathrm{H}=\frac{2\,\mathrm{acc}_{\text{new}}\,\mathrm{acc}_{\text{base}}}
+{\mathrm{acc}_{\text{new}}+\mathrm{acc}_{\text{base}}},
+\end{equation}
+which weight the two sides equally and, for the harmonic, collapse to zero if either side
+is sacrificed. This is the standard FSCIL metric~\cite{tao2020fscil}.
 
 %------------------------------------------------------------------------------
 \section{Stage 1 --- Data Split and Leakage}
 \label{sec:data}
-\textbf{Why this matters first.} A UCF101 file \texttt{v\_Class\_gXX\_cYY.avi} encodes a
-\emph{group} \texttt{gXX} (one source video) and a \emph{clip} \texttt{cYY} (one segment
-of it). All clips of a group are near-duplicate frames. If the split is made per clip,
-segments of the same recording land in both train and test, and the model is scored on
-footage it trained on---it can recognise the \emph{scene} instead of the \emph{action}
-and look far better than it is. We must therefore fix the split before trusting any
-later number, by assigning each whole group to a single split.
+\textbf{Why this comes first.} A UCF101 filename
+\texttt{v\_Class\_gXX\_cYY.avi} encodes a \emph{group} \texttt{gXX} (one source
+recording) and a \emph{clip} \texttt{cYY} (one segment of that recording). All clips of a
+group share nearly identical frames---the same actor, background, and camera. If the
+split is made per clip, segments of the \emph{same} recording land in both train and
+test, and the model is scored on footage it effectively trained on: it can recognise the
+\emph{scene} rather than the \emph{action} and appear far stronger than it is. No later
+comparison can be trusted until this is fixed, so we assign each whole group to a single
+split.
 
-\textbf{Result.} Across the 20 studied classes (2{,}679 videos, 500 groups), the
-shipped split leaks \textbf{400 of 500 groups (80\%)} across train/val/test; the
+\textbf{Result.} Across the 20 studied classes (2{,}679 videos, 500 groups), the shipped
+split leaks \textbf{400 of 500 groups (80\%)} across train/val/test, whereas the
 group-disjoint split leaks \textbf{0} (Fig.~\ref{fig:leakage}). The disjoint split keeps
-the standard $\approx$72/12/16\% train/val/test proportions.
+the conventional $\approx$72/12/16\% proportions, so the drop in accuracy that follows is
+purely the removal of an inflation, not a change of task difficulty.
 
 \begin{figure}[h]
 \centering
 \figph{leakage.png}{[leakage.png] shipped vs group-disjoint leakage bar.}
-\caption{Groups (source videos) that leak across splits: 80\% in the shipped split
-versus 0\% in the group-disjoint split. Every later number is read against the clean
-split, so the accuracies are lower but honest.}
+\caption{Source groups that leak across the splits: 80\% under the shipped per-clip split
+versus 0\% under the group-disjoint split. Every subsequent number in this paper is read
+against the clean split; the accuracies are therefore lower than commonly reported on
+UCF101, but honest.}
 \label{fig:leakage}
 \end{figure}
+
+\textbf{Reading it.} The lesson is methodological rather than architectural: a dataset's
+default split can silently reward memorising context. Because the same leakage would
+inflate every stage below---backbone, continual learning, distillation, and
+meta-adaptation alike---fixing it once at the source is what makes the rest of the study
+comparable to itself and to future work.
 
 %------------------------------------------------------------------------------
 \section{Stage 2 --- Backbone Selection}
 \label{sec:backbone}
 \textbf{Why we expect differences.} The backbone supplies the per-frame features; the
 LSTM only has to combine them over time. A network with no prior knowledge (a
-from-scratch CNN) must learn good spatial features from a few thousand clips and will
+from-scratch CNN) must learn good spatial features from a few thousand clips and should
 struggle, whereas ImageNet-pretrained backbones already carry rich features and should
-cluster high. Among the pretrained ones the choice is a trade-off of accuracy, feature
-size, and speed, so we compare five and pick the best balance to be the teacher.
+cluster high. Among the pretrained backbones the choice becomes a trade-off of accuracy,
+feature dimensionality, and speed, so we compare five and select the best balance as the
+teacher for every later stage.
 
 \textbf{Result.} Table~\ref{tab:backbone} gives the measured numbers. The from-scratch
-CNN is far behind (52.8\%); all pretrained backbones exceed 90\%. \textbf{ResNet50 is
-both the most accurate (93.9\%) and a good size/speed balance}, so it is chosen as the
-teacher for every later stage.
+CNN is far behind (52.8\%); all four pretrained backbones exceed 90\%. \textbf{ResNet50
+is both the most accurate (93.9\%) and a good size/speed balance}, so it becomes the
+teacher.
 
 \begin{table}[h]
 \centering
-\caption{Backbone bake-off on the 10 base classes (group-disjoint test).}
+\caption{Backbone bake-off on the 10 base classes (group-disjoint test). Every backbone
+is trained under the identical Stage-2 budget and seed.}
 \label{tab:backbone}
+\renewcommand{\arraystretch}{1.1}
 \begin{tabular}{lccc}
 \toprule
 Backbone & Test acc.\ (\%) & Params (M) & ms/clip \\
@@ -235,38 +398,60 @@ VGG19-BN          & 92.0 & 20.8 & 115.7 \\
 \end{tabular}
 \end{table}
 
-\textbf{Why the ordering.} The from-scratch CNN has no prior features \emph{and} its
-LSTM ingests a huge flattened feature map, giving it the most parameters (103M) yet the
-worst accuracy---capacity without useful priors does not help on little data. The
-pretrained backbones all reach the low-90s because the hard part (spatial features) is
-already solved. ResNet50 edges the others thanks to its deeper, richer 2048-d feature,
-which also gives the later distillation and meta stages a clean feature space to build
-on; its speed (55 ms/clip) is acceptable and far better than VGG19-BN (116 ms).
+\textbf{Why the ordering.} The from-scratch CNN has no prior features \emph{and} its LSTM
+ingests a large flattened feature map, giving it the most parameters (103M) yet the worst
+accuracy: capacity without useful priors does not help on little data. The pretrained
+backbones all reach the low-90s because the hard part---good spatial features---is
+already solved before the LSTM sees anything. ResNet50 edges the others thanks to its
+deeper, richer 2048-d feature, which also hands the later distillation and meta stages a
+clean feature space to build on; its 55~ms/clip is acceptable and less than half of
+VGG19-BN's 116~ms. We therefore trade a slightly larger parameter count for the best
+accuracy and the best downstream feature.
 
 %------------------------------------------------------------------------------
 \section{Stage 3 --- Continual Learning}
 \label{sec:cl}
 \textbf{The five methods and why they should differ.} Starting from the base teacher we
-grow the head and train on a $10\!\to\!15\!\to\!20$ class stream with each method. Their
-\emph{abilities} predict the outcome: \emph{Naive} (plain fine-tuning) has no way to
-protect the past, so it should forget badly; \emph{EWC}~\cite{kirkpatrick2017ewc} can
-only slow weight change with a penalty (no stored data), so it should protect some but
-not learn new classes freely; \emph{LwF}~\cite{li2017lwf} keeps old \emph{outputs}
-stable through the model's own past predictions (no stored data), a stronger signal
-than a weight penalty but still drifting; \emph{Replay} re-exposes the model to a few
-real old clips, which should directly refresh the old classes; and
-\emph{Replay+LwF}~\cite{rebuffi2017icarl} adds output-stability on top of re-exposure.
-All arms share the schedule in Table~\ref{tab:hparams}; only the mechanism differs.
+grow the head and train on a $10\!\to\!15\!\to\!20$ class stream with five methods. Their
+abilities predict the outcome. \emph{Naive} fine-tuning minimises only the new-task loss,
+\begin{equation}
+\mathcal{L}_{\text{naive}}=\mathcal{L}_{\text{CE}}(\text{new}),
+\end{equation}
+so it has no mechanism to protect the past and should forget badly. \emph{EWC} adds a
+quadratic penalty that resists moving parameters important to old tasks,
+\begin{equation}
+\mathcal{L}_{\text{EWC}}=\mathcal{L}_{\text{CE}}(\text{new})
++\tfrac{\lambda}{2}\sum_i F_i(\theta_i-\theta_i^{\star})^2,
+\end{equation}
+where $F_i$ is the Fisher importance and $\theta^\star$ the old weights; it stores no data
+and can only \emph{slow} drift. \emph{LwF} keeps the old-class outputs stable by distilling
+the old model's predictions on the new data,
+\begin{equation}
+\mathcal{L}_{\text{LwF}}=\mathcal{L}_{\text{CE}}(\text{new})
++\lambda\,\mathrm{KD}\big(z^{\text{old}}_{1:C_{\text{old}}},\,z^{\star}_{1:C_{\text{old}}}\big),
+\end{equation}
+a stronger signal than a weight penalty but still without ever seeing old data.
+\emph{Replay} re-exposes the model to a few stored old clips $\mathcal{R}$ mixed into each
+new batch $\mathcal{B}$,
+\begin{equation}
+\mathcal{L}_{\text{replay}}=\mathcal{L}_{\text{CE}}(\mathcal{B}\cup\mathcal{R}),
+\end{equation}
+directly refreshing the old decision boundaries. \emph{Replay+LwF}~\cite{rebuffi2017icarl}
+adds output stability on top of re-exposure. All arms share the schedule of
+Table~\ref{tab:hparams}; only the mechanism differs.
 
 \textbf{Result.} Table~\ref{tab:cl} reports accuracy after the \emph{full} 20-class
-stream, split into old classes (0--14) and the newest task (15--19), plus the base
-(0--9) retention. Figure~\ref{fig:forget} contrasts naive forgetting with replay.
+stream, split into old classes (0--14) and the newest task (15--19), plus base (0--9)
+retention. Figure~\ref{fig:forget} contrasts naive forgetting with replay across the
+whole stream.
 
 \begin{table}[h]
 \centering
-\caption{Continual learning after the full $10\!\to\!15\!\to\!20$ stream (\%). Final:
-all 20 classes; Old: classes 0--14; New: last task 15--19; Base: original 10.}
+\caption{Continual learning after the full $10\!\to\!15\!\to\!20$ stream (\%). Final: all
+20 classes; Old: classes 0--14; New: last task 15--19; Base: original 10. Sorted by
+final accuracy.}
 \label{tab:cl}
+\renewcommand{\arraystretch}{1.1}
 \begin{tabular}{lcccc}
 \toprule
 Method & Final & Old (0--14) & New (15--19) & Base (0--9) \\
@@ -289,46 +474,60 @@ Replay+LwF        & 87.0 & 82.6 & 99.2 & 83.0 \\
 \figph{forgetting_replay.png}{[forgetting\_replay.png]}
 \end{minipage}
 \caption{Per-task accuracy across the whole stream. \emph{Left (Naive):} each old task's
-line collapses the moment a new task is learned---catastrophic forgetting. \emph{Right
-(Replay):} rehearsing a few old clips keeps every line high.}
+line collapses the moment a new task is learned---catastrophic forgetting made visible.
+\emph{Right (Replay):} rehearsing a few old clips per class keeps every line high, so the
+final model still knows the earliest classes.}
 \label{fig:forget}
 \end{figure*}
 
-\textbf{Why the winners win.} The table follows exactly from the abilities.
-\emph{Naive} and \emph{LwF} learn the newest task almost perfectly (94.9\% and 100\%)
-but erase everything older (old $\le$5\%): with the shared weights free to move and no
-old data, the network re-purposes itself entirely for the last task. LwF even learns
-the new task better than naive (its distillation stabilises training) yet still forgets,
-because keeping \emph{outputs} stable cannot substitute for \emph{seeing} old data.
-\emph{EWC} is the opposite failure: its penalty protects the old classes (base 76.9\%)
-but is so restrictive that the new task barely learns (36.8\%)---a stability/plasticity
-lock. \emph{Replay} and \emph{Replay+LwF} win decisively (89.8\% and 87.0\%) because
-re-exposing even 15 clips per class refreshes the old decision boundaries \emph{while}
-the new task is learned. Notably plain \emph{Replay} slightly beats Replay+LwF here: the
-buffer already protects the old classes, so the extra LwF distillation adds a mild drag
-on new-class learning without a retention gain. The lesson: \emph{on video, storing a
-little data beats any data-free regulariser.}
+\textbf{Why the winners win.} The table follows exactly from the abilities. \emph{Naive}
+and \emph{LwF} learn the newest task almost perfectly (94.9\% and 100\%) but erase
+everything older (old $\le5\%$): with the shared weights free to move and no old data, the
+network re-purposes itself entirely for the last task. LwF even fits the new task
+\emph{better} than naive because its distillation term stabilises optimisation, yet it
+still forgets---keeping \emph{outputs} stable is no substitute for \emph{seeing} old data.
+\emph{EWC} is the opposite failure: its penalty protects the base (76.9\%) but is so
+restrictive that the new task barely learns (36.8\%), a stability/plasticity lock. Both
+\emph{replay} arms win decisively (89.8\% and 87.0\%) because re-exposing even 15 clips
+per class refreshes the old boundaries \emph{while} the new task is learned. Notably plain
+replay slightly beats replay+LwF here: the buffer already protects the old classes, so the
+extra LwF term adds a mild drag on new-class learning without a retention gain. The lesson
+for video is blunt---\emph{storing a little data beats any data-free regulariser}---and it
+is why the capstone uses replay.
 
 %------------------------------------------------------------------------------
 \section{Stage 4 --- Knowledge Distillation}
 \label{sec:kd}
-\textbf{Why and how.} The best continual model is a 25.9M-parameter ResNet50 teacher;
-for deployment we want something far smaller. We distil it into a
-MobileNetV3-Small+LSTM student ($\sim$1.8M parameters, $\sim$14$\times$ smaller) and
-compare four objectives: cross-entropy only (CE), CE+KD on softened
-logits~\cite{hinton2015kd}, and CE with a cosine or a regressor-MSE loss between the
-256-d LSTM states of teacher and student. We expect the student to recover most of the
-teacher's accuracy (its knowledge transfers) but the gap between objectives to be small,
-because the student backbone is itself pretrained and already strong.
+\textbf{Why and how.} The retained model is a 25.9M-parameter ResNet50 teacher; for
+deployment we want something far smaller. We distil it into a MobileNetV3-Small+LSTM
+student ($\sim$1.8M parameters, $\sim$14$\times$ smaller) and compare four objectives, all
+of the form $\mathcal{L}=\alpha\,\mathcal{L}_{\text{CE}}+(1-\alpha)\,\mathcal{L}_{\text{transfer}}$
+with $\alpha=0.75$:
+\begin{itemize}
+\item \textbf{CE only:} $\mathcal{L}_{\text{transfer}}=0$ (labels alone, the baseline).
+\item \textbf{KD}~\cite{hinton2015kd}: match softened logits,
+$\mathcal{L}_{\text{transfer}}=T^2\,\mathrm{KL}\!\big(\sigma(z_t/T)\,\|\,\sigma(z_s/T)\big)$.
+\item \textbf{Cosine:} align the 256-d LSTM features by direction,
+$\mathcal{L}_{\text{transfer}}=1-\cos\!\big(\varphi_s(x),\varphi_t(x)\big)$.
+\item \textbf{MSE-regressor}~\cite{romero2015fitnets}: a learnable regressor $g$ maps the
+student feature onto the teacher's before an $\ell_2$ match,
+$\mathcal{L}_{\text{transfer}}=\lVert g(\varphi_s(x))-\varphi_t(x)\rVert_2^2$
+(the regressor is dropped at inference).
+\end{itemize}
+We expect the student to recover most of the teacher's accuracy---its knowledge
+transfers---but the gap between objectives to be small, because the student backbone is
+itself pretrained and already strong.
 
-\textbf{Result.} Table~\ref{tab:kd}: the student keeps \textbf{82.7\%} of the teacher's
-87.0\% at 14$\times$ fewer parameters, with cosine feature-distillation the best of the
-four objectives.
+\textbf{Result.} Table~\ref{tab:kd}: the student keeps \textbf{82.7\%} against the
+teacher's 87.0\% at 14$\times$ fewer parameters, with cosine feature distillation the best
+of the four objectives.
 
 \begin{table}[h]
 \centering
-\caption{Distillation into the MobileNetV3-Small student (20-class test).}
+\caption{Distillation into the MobileNetV3-Small student (20-class group-disjoint test).
+All students share one budget, seed, and initialisation; only the transfer term differs.}
 \label{tab:kd}
+\renewcommand{\arraystretch}{1.1}
 \begin{tabular}{lcc}
 \toprule
 Model & Test acc.\ (\%) & Params (M) \\
@@ -343,53 +542,70 @@ Student, CE + MSE (regressor)  & 75.9 & 1.8 \\
 \end{table}
 
 \textbf{Why.} Compression works because the teacher's decision function transfers: a
-14$\times$ smaller student reaches within $\sim$4 points of the teacher. Among
-objectives, \emph{cosine} on the LSTM state wins because it aligns the \emph{direction}
-of the student's temporal feature with the teacher's without forcing its exact
-magnitude, which is a gentle, achievable target across two different backbones. Plain
-\emph{KD} on logits helps less here---the student is pretrained, so labels already get
-it far and the extra ``dark knowledge'' is small. \emph{MSE} is harshest (it demands
-matching magnitude too) and does worst. The honest headline is \emph{compression}
-(teacher-level behaviour at 14$\times$ fewer parameters), with a modest bonus from
-feature-cosine distillation.
+14$\times$ smaller student lands within $\sim$4 points of the teacher. Among objectives,
+\emph{cosine} on the LSTM state wins because it aligns the \emph{direction} of the
+student's temporal feature with the teacher's without forcing its exact magnitude---a
+gentle, achievable target across two different backbones. Plain \emph{KD} on logits helps
+least here: the student is pretrained, so labels already carry it far and the extra ``dark
+knowledge'' in softened logits is small. \emph{MSE} is the harshest objective (it demands
+matching direction \emph{and} magnitude between mismatched feature bases) and does worst.
+The honest headline of this stage is therefore \emph{compression}---teacher-level
+behaviour at 14$\times$ fewer parameters---with a modest bonus from feature-cosine
+distillation, exactly as the ability of each objective predicts.
 
 %------------------------------------------------------------------------------
 \section{Stage 5 --- Few-Shot Meta-Adaptation}
 \label{sec:meta}
-\textbf{The question and the design.} Given the deployed 20-class student, how well can
-it learn \emph{brand-new} classes from only a handful of clips? We keep the 20 base
-classes and add 5 new sports (a 5-way task, matching the 5-way meta-training). Every
-method uses the \emph{same} few-shot adaptation---same 8 support clips per class, same 5
-epochs, same learning rate, same seed, same replay buffer/LwF teacher---so only two
-things vary: the \emph{initialisation} and whether replay/LwF are on. Three inits
-(\emph{plain} student; \emph{fine-tune}, i.e.\ the student after ordinary training on 30
-auxiliary sports; and \emph{MAML}, the student after meta-training on the same 30
-sports) are crossed with three protection settings, giving nine arms. The
-\emph{fine-tune} arm is the key control: it saw the same extra data as MAML but trained
-in the ordinary way, so \emph{MAML vs fine-tune} isolates meta-learning from ``just
-more data.''
+\textbf{The question and the design.} Given the deployed 20-class student, how well can it
+learn \emph{brand-new} classes from only a handful of clips? We keep the 20 base classes
+and add 5 new sports (a 5-way task, matching the 5-way meta-training). Every method uses
+the \emph{same} few-shot adaptation---the same 8 support clips per class, the same 5
+epochs, learning rate, seed, and the same replay buffer / LwF teacher objects---so only
+two things vary: the \emph{initialisation} and whether replay / LwF are switched on. Three
+inits (\emph{plain} student; \emph{fine-tune}, i.e.\ the student after ordinary supervised
+training on 30 auxiliary sports; and \emph{MAML}, the student after meta-training on the
+same 30 sports) are crossed with three protection settings, giving nine arms. The
+\emph{fine-tune} arm is the key control: it saw the same extra data as MAML but trained in
+the ordinary way, so \emph{MAML vs fine-tune} isolates meta-learning from ``just more
+data.''
+
+\textbf{How MAML shapes the init.} First-order MAML learns an initialisation $\theta$ from
+which a few gradient steps reach a good task-specific solution. For each episode it adapts
+on a support set,
+\begin{equation}
+\theta' = \theta - \alpha\,\nabla_\theta\,\mathcal{L}^{\text{sup}}(\theta),
+\end{equation}
+then updates the initialisation by the loss of the \emph{adapted} weights on a held-out
+query set,
+\begin{equation}
+\theta \leftarrow \theta - \beta\,\nabla_{\theta'}\,\mathcal{L}^{\text{qry}}(\theta'),
+\end{equation}
+(first order: the gradient is taken at $\theta'$). Over many episodes $\theta$ moves to a
+place from which one task is a few steps away. To keep this on a free T4 and to protect the
+base features, only the last backbone blocks, the LSTM, and the head are meta-trained; the
+lower backbone stays frozen. Because meta-training shifts the features, we then re-fit a
+fresh linear head to the shifted features (a short linear probe) so that the MAML init is
+placed on equal footing with the plain init, whose head already matches its features.
 
 \textbf{Why the metric.} With 20 base and 5 new classes, a plain overall accuracy is
-$20/25$ base, so it rewards a method that guards the base and learns nothing new. We
-rank by the harmonic mean of base and new accuracy,
-\begin{equation}
-\text{harmonic}=\frac{2\,\mathrm{acc}_{\text{new}}\,\mathrm{acc}_{\text{base}}}
-{\mathrm{acc}_{\text{new}}+\mathrm{acc}_{\text{base}}},
-\end{equation}
-which weights the two equally and collapses to zero if either is zero.
+$20/25$ base and rewards a method that guards the base and learns nothing new. We rank by
+the harmonic mean of Eq.~\eqref{eq:harm}, which weights the two sides equally and collapses
+to zero if either is sacrificed.
 
-\textbf{Result.} Table~\ref{tab:meta} (measured; base before adapting $=0.759$) ranks
-the nine arms. \textbf{MAML+replay is best}, reaching a balanced \textbf{0.60}, and it
-\emph{beats fine-tune+replay by 0.07 harmonic}---so the gain is really from
-meta-learning, not merely the extra data. Figures~\ref{fig:metacompare}--\ref{fig:oldnew}
-show the comparison, the shot-count trend, the meta-training curve, and a readable
-old-vs-new confusion.
+\textbf{Result.} Table~\ref{tab:meta} (measured; base before adapting $=0.759$) ranks the
+nine arms. \textbf{MAML+replay is best}, reaching a balanced \textbf{0.60}, and it
+\emph{beats fine-tune+replay by 0.07 harmonic}, so the gain is really from meta-learning
+and not merely from the extra data.
+Figures~\ref{fig:metacompare}--\ref{fig:oldnew} show the per-method comparison, the
+shot-count trend, the meta-training curve, and a readable old-vs-new confusion.
 
 \begin{table}[h]
 \centering
-\caption{Few-shot meta-adaptation: 20 base + 5 new (5-way), identical adaptation for
-all arms, ranked by harmonic mean. Measured at 8 clips/class, 5 epochs.}
+\caption{Few-shot meta-adaptation: 20 base + 5 new (5-way), identical adaptation for every
+arm, ranked by harmonic mean. Measured at 8 clips/class, 5 epochs. ``Bal.''\ is the
+balanced mean, ``Harm.''\ the harmonic mean of Eq.~\eqref{eq:harm}.}
 \label{tab:meta}
+\renewcommand{\arraystretch}{1.1}
 \begin{tabular}{lcccc}
 \toprule
 Method & New & Base & Bal. & \textbf{Harm.} \\
@@ -410,27 +626,27 @@ fine-tune                 & 0.500 & 0.011 & 0.256 & 0.022 \\
 \begin{figure}[h]
 \centering
 \figph{meta_compare.png}{[meta\_compare.png] per-method new vs base bar.}
-\caption{New-class accuracy and base retention per method. Inits with no protection
-(MAML, fine-tune, no-meta) learn new classes but wipe the base; adding replay recovers
-the base, and the MAML init gives the highest new-class accuracy among the protected
-arms---so MAML+replay tops the balanced ranking.}
+\caption{New-class accuracy and base retention per method. Inits with no protection (MAML,
+fine-tune, no-meta) learn new classes but wipe the base; adding replay recovers the base,
+and the MAML init gives the highest new-class accuracy among the protected arms---so
+MAML+replay tops the balanced ranking.}
 \label{fig:metacompare}
 \end{figure}
 
 \begin{figure}[h]
 \centering
 \figph{meta_sweep.png}{[meta\_sweep.png] new accuracy vs clips/class.}
-\caption{New-class accuracy versus number of support clips. MAML's advantage is largest
-at \textbf{1 clip} (MAML 0.26 while every other init is near 0) and narrows as clips
-grow---meta-learning helps most exactly when data is scarce.}
+\caption{New-class accuracy versus the number of support clips. MAML's advantage is
+largest at \textbf{1 clip} (MAML $\approx$0.26 while every other init is near 0) and
+narrows as clips grow: meta-learning helps most exactly when data is scarce.}
 \label{fig:sweep}
 \end{figure}
 
 \begin{figure}[h]
 \centering
 \figph{meta_curve.png}{[meta\_curve.png] meta query accuracy per epoch.}
-\caption{MAML meta-training curve: meta query accuracy rises from 0.83 to 0.98 over
-8 epochs, confirming the initialisation is genuinely being shaped, not left at the
+\caption{MAML meta-training curve: meta query accuracy rises from 0.83 to 0.98 over 8
+epochs, confirming the initialisation is genuinely being shaped rather than left at the
 student's starting point.}
 \label{fig:metacurve}
 \end{figure}
@@ -438,92 +654,131 @@ student's starting point.}
 \begin{figure}[h]
 \centering
 \figph{meta_oldnew.png}{[meta\_oldnew.png] 2x2 old vs new confusion for MAML+replay.}
-\caption{Old-vs-new confusion for MAML+replay: most base clips are still predicted as
-base and most new clips as new. Without replay this matrix collapses (all mass
-predicted ``new'').}
+\caption{Old-vs-new confusion for MAML+replay: most base clips are still predicted as base
+and most new clips as new. Without replay this matrix collapses, with nearly all mass
+predicted ``new''.}
 \label{fig:oldnew}
 \end{figure}
 
 \textbf{Why the winners win.} Each row follows from ability. \emph{MAML alone} has the
-highest new-class accuracy (0.661) but base $=0.011$: a meta-learned init is built to
-move its features quickly onto the new task, and with no protection it moves them all
-the way, erasing the old classes. \emph{Replay alone} is the opposite (base 0.677, new
-0.295): re-exposure protects the old classes but the un-primed init learns the new
-sports slowly. \emph{MAML+replay} combines both abilities---a fast-adapting init
-\emph{and} re-exposure---so it is best balanced (0.60). The \emph{fine-tune} control saw
-the same 30 sports, so \emph{fine-tune+replay} is a strong baseline (0.53), but
-MAML+replay still beats it by 0.07, which is the clean evidence that \emph{meta-learning
-itself}, not just the extra data, is responsible. The \emph{LwF} variants over-protect:
-with only a few new clips, distilling the old outputs crushes the fresh new-class head,
-so their new accuracy is lower. Finally, the shot sweep (Fig.~\ref{fig:sweep}) shows the
-meta advantage is a property of the \emph{init}: it is largest at 1 clip and shrinks as
-data grows---so MAML \emph{complements} rehearsal rather than replacing it.
+highest new-class accuracy (0.661) but base $=0.011$: a meta-learned init is built to move
+its features quickly onto the new task, and with no protection it moves them all the way,
+erasing the old classes. \emph{Replay alone} is the opposite (base 0.677, new 0.295):
+re-exposure protects the old classes but the un-primed init learns the new sports slowly.
+\emph{MAML+replay} combines both abilities---a fast-adapting init \emph{and}
+re-exposure---so it is best balanced (0.60). The \emph{fine-tune} control saw the same 30
+sports, which is why \emph{fine-tune+replay} is a strong baseline (0.53); that MAML+replay
+still beats it by 0.07 is the clean evidence that \emph{meta-learning itself}, not just the
+extra data, is responsible. The \emph{LwF} variants over-protect: with only a few new
+clips, distilling the old outputs crushes the fresh new-class head, so their new accuracy
+is lower. Finally, the shot sweep (Fig.~\ref{fig:sweep}) shows the meta advantage is a
+property of the \emph{init}---largest at 1 clip and shrinking as data grows---so MAML
+\emph{complements} rehearsal rather than replacing it. This is also why, across the
+project as a whole, replay is the reliable retention tool and MAML is the tool reserved
+for the genuinely few-shot extension.
+
+\subsection{Cross-stage synthesis}
+Read together, the five stages tell one story about \emph{regimes}. Measurement dominates
+everything: the group-disjoint split lowers but validates every number, and in Stage~5 the
+harmonic mean surfaces a MAML+replay win that a base-dominated average hides. For
+retention on video, \emph{data beats cleverness}: rehearsing a few clips outperforms every
+data-free regulariser, because the shared weights will always drift toward the newest task
+unless old data pulls them back. For deployment, distillation's win is \emph{compression},
+not a new objective---the gap between transfer losses is small once the student is
+pretrained. And meta-learning's win is \emph{few-shot extension}, largest when only one or
+two clips are available and vanishing as data grows. Each tool has a regime, and the
+pipeline is the claim that, chained in the right order, their abilities compose.
 
 %------------------------------------------------------------------------------
 \section{The ULAL Capstone (to be run)}
 \label{sec:ulal}
-The final notebook, \texttt{ULAL.ipynb}, chains the best choice of every stage into one
-lifelong pipeline and is evaluated on real video. \emph{This section describes the
-intended run; the numbers are expectations, not measurements.}
+The final notebook, \texttt{ULAL.ipynb}, chains the winning choice of every stage into one
+lifelong pipeline and is evaluated on real video, including clips outside UCF101.
+\emph{This section describes the intended run; the numbers below are expectations from the
+per-stage studies, not fresh measurements.}
 
-\textbf{Stage by stage.} (1) Train the ResNet50+LSTM teacher on the base classes
-(Stage~2 winner). (2) Grow it across the class stream with \emph{replay}, the winning
-retention ability from Stage~3. (3) Distil the grown teacher into the MobileNet student
-(Stage~4), keeping most of the accuracy at $\sim$14$\times$ fewer parameters for
-deployment. (4) Meta-train the compact student and then adapt it to brand-new classes
-from a handful of clips (Stage~5). (5) Test on real clips: for \emph{known} classes this
-measures domain robustness (test the student directly); for \emph{new} classes it
-measures learn-from-few (expand the head and few-shot adapt, expecting accuracy to rise
-from near zero after only a few examples).
+\textbf{Stage by stage.} (1) Train the ResNet50+LSTM teacher on the base classes (the
+Stage-2 winner). (2) Grow it across a two-task $10\!\to\!20\!\to\!30$ stream with
+\emph{replay}, the winning retention ability from Stage~3, printing the per-task accuracy,
+the old-vs-new split, the confusion matrix, and the forgetting curve exactly as in the
+continual-learning study. (3) Clear the GPU and distil the grown teacher into the
+MobileNet student with the \emph{cosine} objective (the Stage-4 winner), reporting the
+accuracy kept and the compression ratio. (4) Clear the GPU again and meta-train the compact
+student with MAML. (5) Test on real clips downloaded from the web: for \emph{known} classes
+this measures domain robustness (test the student directly and report accuracy and a
+confusion matrix); for \emph{new} classes it measures learn-from-few (expand the head and
+few-shot adapt, expecting accuracy to rise from near zero after only a few examples), with
+a dedicated small-shot sweep over 1, 3, and 5 real clips per class.
 
-\textbf{Why this order.} Each stage supplies an ability the next needs---strong
+\textbf{Why this order.} Each stage supplies an ability the next one needs---strong
 features, data-rich retention, deployable size, fast few-shot extension. The capstone is
-the claim that these abilities \emph{compose} into one model that is accurate, small,
-retains old classes, and still picks up new ones from little data. We expect the student
-to keep most of its known-class accuracy on real clips and to improve markedly on new
-classes after few-shot adaptation, mirroring Stage~5. The measured numbers will be added
-once the run completes.
+the concrete claim that these abilities \emph{compose} into a single model that is
+accurate, small, retains old classes, and still picks up new ones from little data. Based
+on the per-stage results we expect the student to keep most of its known-class accuracy on
+real clips and to improve markedly on new classes after few-shot adaptation, mirroring the
+Stage-5 shot sweep. The measured numbers will be filled in once the run completes; the
+real-video test depends on downloadable clips, which is the capstone's main external risk.
 
 %------------------------------------------------------------------------------
 \section{Discussion and Limitations}
-Three themes recur. \emph{Measurement matters:} the group-disjoint split lowers but
-trusts every number, and in Stage~5 the harmonic mean reveals MAML+replay's win that a
-base-dominated average hides. \emph{Data beats cleverness for retention:} on video,
-rehearsal of a few clips outperforms every data-free regulariser (EWC, LwF).
-\emph{Each tool has a regime:} distillation's win is compression, and meta-learning's
-win is few-shot extension---asked outside their regime (e.g.\ MAML with plenty of data)
-they tie simpler baselines.
+Three themes recur across the pipeline. \emph{Measurement matters:} without the
+group-disjoint split every later number would be inflated by scene memorisation, and
+without the harmonic mean the few-shot ranking would be wrong. \emph{Data beats cleverness
+for retention:} on video, rehearsal of a few clips outperforms every data-free regulariser
+we tried (EWC, LwF), and even a small buffer makes the difference between 26\% and 90\%
+final accuracy. \emph{Each tool has a regime:} distillation's win is compression, and
+meta-learning's win is few-shot extension---asked outside their regime (for example MAML
+with plenty of data per class) they tie simpler baselines, which is itself an honest and
+useful finding.
 
-Limitations: a single dataset and short streams (up to $20{+}5$ classes); rehearsal
-stores clips, so its retention is not free (generative rehearsal is future work);
-meta-learning's advantage is confined to the few-shot regime; the small student caps the
-achievable new-class accuracy; and the capstone's real-video test depends on
-downloadable clips and is still pending.
+\textbf{Limitations.} The study uses a single dataset and short streams (up to $20{+}5$
+classes); scaling to the full 101 classes and to longer streams is future work. Rehearsal
+stores real clips, so its retention is not free in memory; generative or feature-level
+rehearsal would remove that cost. Meta-learning's advantage is confined to the few-shot
+regime, and the small student caps the achievable new-class accuracy. Finally, the capstone
+run and its real-video test are still pending and depend on the availability of external
+clips.
 
 %------------------------------------------------------------------------------
 \section{Conclusion}
-ULAL is a compact, honest, real-video pipeline for lifelong action recognition. A
-leakage-free split makes the numbers trustworthy; ResNet50+LSTM is a strong teacher
-(93.9\%); rehearsal is the strongest continual learner (89.8\%); distillation yields a
-14$\times$ smaller student at 82.7\%; and, scored fairly, MAML+replay is the
-best-balanced few-shot adapter (0.60 harmonic), with a fine-tune control confirming the
-gain is from meta-learning. The capstone composes the best of each stage and is left to
-a final run.
+ULAL is a compact, honest, real-video pipeline for lifelong action recognition on a single
+free GPU. A leakage-free split makes the numbers trustworthy; a ResNet50+LSTM is a strong
+teacher (93.9\%); rehearsal is the strongest continual learner (89.8\% versus 26.0\% for
+naive fine-tuning); distillation yields a 14$\times$ smaller student that keeps 82.7\%; and,
+scored fairly with a harmonic metric and a fine-tune control, MAML+replay is the
+best-balanced few-shot adapter (0.60 harmonic). The organising idea---one shared recogniser
+with a moving freeze boundary---lets each stage change exactly one mechanism and lets their
+abilities compose. The capstone assembles the best of every stage into one lifelong model
+and is left to a final run.
 
 %------------------------------------------------------------------------------
 \section*{Author Contributions}
-Table~\ref{tab:contrib} indexes which author is responsible for which part.
+The work divides naturally along the pipeline of Fig.~\ref{fig:pipeline}, and
+Table~\ref{tab:contrib} indexes which author led which part. Assignments were made so that
+each author owns a contiguous span of the pipeline together with a share of the shared
+infrastructure (the recogniser, the training harness, and the plotting and metrics code),
+and so that the two comparison-heavy stages (continual learning and meta-adaptation) sit
+with different authors. All three authors jointly designed the study, reviewed each other's
+stages for fairness, and wrote the paper.
+
 \begin{table}[h]
 \centering
-\caption{Author contribution index.}
+\caption{Author contribution index, organised by pipeline stage.}
 \label{tab:contrib}
-\begin{tabular}{ll}
+\renewcommand{\arraystretch}{1.2}
+\begin{tabular}{p{0.30\linewidth}p{0.60\linewidth}}
 \toprule
-Contributor & Sections \\
+Contributor & Responsibilities \\
 \midrule
-First A. Author  & S1 Data split \& leakage; S2 Backbone selection \\
-Second B. Author & S3 Continual learning; S4 Knowledge distillation \\
-Third C. Author  & S5 Few-shot meta-adaptation; capstone; setup \\
+Second B. Author &
+S1 data split and leakage audit; S2 backbone bake-off; the shared recogniser and training
+harness. \\
+Third C. Author &
+S3 continual learning (all five methods, forgetting timelines); S4 knowledge distillation
+(four objectives, compression analysis). \\
+First A. Author &
+S5 few-shot meta-adaptation (MAML, fine-tune control, harmonic metric); the ULAL capstone;
+the evaluation protocol, metrics, and figures. \\
 \bottomrule
 \end{tabular}
 \end{table}
@@ -532,20 +787,28 @@ Third C. Author  & S5 Few-shot meta-adaptation; capstone; setup \\
 \begin{thebibliography}{9}
 \bibitem{kirkpatrick2017ewc} J. Kirkpatrick \emph{et al.}, ``Overcoming catastrophic
 forgetting in neural networks,'' \emph{PNAS}, 2017.
+\bibitem{zenke2017si} F. Zenke, B. Poole, and S. Ganguli, ``Continual learning through
+synaptic intelligence,'' \emph{ICML}, 2017.
 \bibitem{li2017lwf} Z. Li and D. Hoiem, ``Learning without forgetting,'' \emph{IEEE
 TPAMI}, 2017.
 \bibitem{rebuffi2017icarl} S.-A. Rebuffi \emph{et al.}, ``iCaRL: Incremental classifier
 and representation learning,'' \emph{CVPR}, 2017.
-\bibitem{hinton2015kd} G. Hinton, O. Vinyals, and J. Dean, ``Distilling the knowledge in
-a neural network,'' \emph{NIPS Deep Learning Workshop}, 2015.
+\bibitem{delange2021survey} M. De~Lange \emph{et al.}, ``A continual learning survey:
+Defying forgetting in classification tasks,'' \emph{IEEE TPAMI}, 2022.
+\bibitem{hinton2015kd} G. Hinton, O. Vinyals, and J. Dean, ``Distilling the knowledge in a
+neural network,'' \emph{NIPS Deep Learning Workshop}, 2015.
+\bibitem{romero2015fitnets} A. Romero \emph{et al.}, ``FitNets: Hints for thin deep
+nets,'' \emph{ICLR}, 2015.
 \bibitem{finn2017maml} C. Finn, P. Abbeel, and S. Levine, ``Model-agnostic meta-learning
 for fast adaptation of deep networks,'' \emph{ICML}, 2017.
+\bibitem{tao2020fscil} X. Tao \emph{et al.}, ``Few-shot class-incremental learning,''
+\emph{CVPR}, 2020.
 \bibitem{he2016resnet} K. He \emph{et al.}, ``Deep residual learning for image
 recognition,'' \emph{CVPR}, 2016.
 \bibitem{howard2019mobilenetv3} A. Howard \emph{et al.}, ``Searching for MobileNetV3,''
 \emph{ICCV}, 2019.
-\bibitem{soomro2012ucf101} K. Soomro, A. R. Zamir, and M. Shah, ``UCF101: A dataset of
-101 human action classes from videos in the wild,'' \emph{arXiv:1212.0402}, 2012.
+\bibitem{soomro2012ucf101} K. Soomro, A. R. Zamir, and M. Shah, ``UCF101: A dataset of 101
+human action classes from videos in the wild,'' \emph{arXiv:1212.0402}, 2012.
 \end{thebibliography}
 
 \end{document}
