@@ -86,3 +86,14 @@ def video_disjoint_split(clips, labels, video_ids, holdout_per_class=1):
     adapt_idx = torch.tensor(adapt_idx, dtype=torch.long)
     test_idx  = torch.tensor(test_idx, dtype=torch.long)
     return clips[adapt_idx], labels[adapt_idx], clips[test_idx], labels[test_idx]
+
+
+def spread_per_class(clips, labels, k):
+    """Pick k clips per class, spread evenly over that class's clips (the same pick every call)"""
+    keep = []
+    for c in labels.unique():
+        idx  = (labels == c).nonzero(as_tuple=True)[0]
+        pick = torch.linspace(0, len(idx) - 1, min(k, len(idx))).round().long()
+        keep.append(idx[pick])
+    keep = torch.cat(keep)
+    return clips[keep], labels[keep]
