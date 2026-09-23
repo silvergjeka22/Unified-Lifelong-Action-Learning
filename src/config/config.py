@@ -113,7 +113,7 @@ KD_TEMPERATURE     = 5.0
 KD_T              = 2.0
 KD_CE_WEIGHT      = 0.75
 KD_DISTILL_WEIGHT = 0.25
-KD_EPOCHS         = 15
+KD_EPOCHS         = 10
 KD_LR             = 1e-4
 
 random.seed(SEED)
