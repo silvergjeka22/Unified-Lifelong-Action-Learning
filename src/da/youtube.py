@@ -8,18 +8,12 @@ from src.data.preprocessing import sample_spread_clips
 
 
 def _download(url, out_path):
-    """Download a video as an H.264 MP4. Returns None on success, else yt-dlp's error message"""
-    run = subprocess.run(["yt-dlp", "-q", "-S", "res:480", "--recode-video", "mp4",
-                          "-o", out_path, url], capture_output=True, text=True)
-    if run.returncode == 0:
-        return None
-    if os.path.exists(out_path):
+    """Download a video as an H.264 MP4"""
+    ok = subprocess.run(["yt-dlp", "-q", "-S", "res:480", "--recode-video", "mp4",
+                         "-o", out_path, url]).returncode == 0
+    if not ok and os.path.exists(out_path):
         os.remove(out_path)
-    lines  = [l.strip() for l in run.stderr.splitlines() if l.strip()]
-    errors = [l for l in lines if l.startswith("ERROR")]
-    if errors:
-        return errors[-1]
-    return lines[-1] if lines else f"yt-dlp exit code {run.returncode}"
+    return ok
 
 
 def _clips_from_video(video_path, n_clips, clip_len):
@@ -55,12 +49,10 @@ def download_youtube_clips(youtube_clips, class_to_idx, clips_per_video=20, raw_
                 path = src                       # a local video file use it directly (most reliable)
             else:
                 path = os.path.join(raw_dir, f"{cls}_{j}.mp4")
-                # a video already in raw_dir is reused; a dead URL is skipped, not fatal
-                if not os.path.exists(path):
-                    error = _download(src, path)
-                    if error:
-                        print(f"  {cls} video {j}: download failed - skipping ({error})")
-                        continue
+                # a dead URL is skipped, not fatal the class just gets fewer videos
+                if not os.path.exists(path) and not _download(src, path):
+                    print(f"  {cls} video {j}: download failed - skipping")
+                    continue
             clips = _clips_from_video(path, clips_per_video, clip_len)
             if not clips:
                 print(f"  {cls} video {j}: 0 clips (could not decode) - skipping")
@@ -74,8 +66,8 @@ def download_youtube_clips(youtube_clips, class_to_idx, clips_per_video=20, raw_
         print(f"  {cls:<16}: {n_videos} usable video(s)")
 
     if not all_clips:
-        raise RuntimeError(f"No readable clips: every video failed to download or decode (see the reasons "
-                           f"above). Put the videos in {raw_dir} as <class>_<n>.mp4 and re-run.")
+        raise RuntimeError("No readable clips the downloaded videos could not be decoded "
+                           "Clear the raw dir and re run so they re download as H.264 mp4")
     return torch.stack(all_clips), torch.tensor(all_labels), torch.tensor(all_videos)
 
 

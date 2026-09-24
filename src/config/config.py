@@ -81,7 +81,7 @@ SPORTS_EXAM = [
 ALL_CLASSES = SELECTED_CLASSES + TASK_1 + TASK_2 + TASK_3 + TASK_4 + TASK_5 + TASK_6 + MUSIC + FINEGRAIN
 
 # YOUTUBE
-YT_RAW_DIR = f"{DRIVE_PROJECT}/yt_raw"   # on Drive: each video is downloaded once and reused
+YT_RAW_DIR = "/content/yt_raw"
 
 # VIDEO
 FRAME_RATE    = 25
