@@ -22,7 +22,7 @@ class MobileNetV3SmallLSTMStudent(nn.Module):
 
     def __init__(self, num_classes=NUM_CLASSES, hidden_size=HIDDEN_SIZE, dropout_p=0.3):
         super().__init__()
-        mobile = models.mobilenet_v3_small(weights=None)
+        mobile = models.mobilenet_v3_small(weights=MobileNet_V3_Small_Weights.DEFAULT)
         self.backbone = mobile.features
         self.pool     = nn.AdaptiveAvgPool2d((1, 1))
         self.lstm     = nn.LSTM(self.BACKBONE_DIM, hidden_size, batch_first=True)
