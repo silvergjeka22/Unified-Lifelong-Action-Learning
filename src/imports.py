@@ -70,7 +70,7 @@ run_module("src/kd/distill.py")
 
 run_module("src/da/youtube.py")
 
-run_module("src/few_shot_learn/few_shot_utilites.py")
+run_module("src/few_shot_learn/few_shot_utilities.py")
 
 run_module("src/meta/episodic.py")
 
