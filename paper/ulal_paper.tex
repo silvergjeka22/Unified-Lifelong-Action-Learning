@@ -48,6 +48,35 @@
         rectangle split part fill={green!26,green!9}, rounded corners=2pt, minimum height=7mm,
         font=\tiny] (#1) at (#2) {#3\nodepart{two}#4};}
 
+% ---- compact vertical columns for the per-method figures ----
+\tikzset{
+  c box/.style={draw, rounded corners=1.5pt, align=center, minimum height=5mm, inner sep=0.7mm, font=\tiny},
+  c data/.style={c box, fill=gray!12},
+  c clip/.style={c box, fill=gray!12, minimum width=10mm,
+                 double copy shadow={shadow xshift=0.5mm, shadow yshift=0.5mm}},
+  c net/.style={c box, fill=blue!8, minimum width=15mm},
+  c frz/.style={c box, fill=white, densely dashed, minimum width=11mm},
+  c head/.style={c box, fill=green!16, minimum width=11mm},
+  c meta/.style={c box, fill=violet!12, minimum width=11mm},
+  c loss/.style={c box, fill=red!7, rounded corners=2.5pt, minimum width=8mm},
+  c op/.style={draw, circle, inner sep=0.3pt, minimum size=4.2mm, fill=white, font=\tiny},
+  c buf/.style={draw, cylinder, shape border rotate=90, aspect=0.25, fill=orange!25,
+                minimum height=5.5mm, minimum width=8mm, align=center, inner sep=0.2mm, font=\tiny},
+  c title/.style={font=\scriptsize\bfseries, align=center},
+  c res/.style={font=\scriptsize\bfseries, text=black!75},
+  c todo/.style={font=\scriptsize\bfseries, text=red!65!black},
+  c pick/.style={font=\tiny\bfseries, text=green!45!black},
+  c note/.style={font=\tiny, text=black!55, align=center},
+  c arr/.style={-{Latex[length=1.3mm]}},
+}
+% a split head in the compact columns
+\newcommand{\colhead}[4]{%
+  \node[draw, rectangle split, rectangle split horizontal, rectangle split parts=2,
+        rectangle split part fill={green!26,green!9}, rounded corners=1.5pt, minimum height=5mm,
+        inner sep=0.8mm, font=\tiny] (#1) at (#2) {#3\nodepart{two}#4};}
+% results still to be measured
+\newcommand{\todo}{\textcolor{red!65!black}{\textsc{todo}}}
+
 \begin{document}
 
 \title{Unified Lifelong Action Learning:\\
@@ -68,6 +97,7 @@ and Few-Shot Meta-Adaptation on UCF101}
 \maketitle
 
 \begin{abstract}
+% TODO: add the S6 (CLIP) and final capstone results.
 We present \emph{Unified Lifelong Action Learning} (ULAL), an end-to-end pipeline that
 studies how a single video action recogniser can keep learning new actions over time
 without forgetting the old ones, trained directly on real video frames. The pipeline is
@@ -79,7 +109,8 @@ selects a ResNet50+LSTM teacher (93.9\% on the base classes). (iii) \emph{How do
 forgetting?} On a $10\!\to\!15\!\to\!20$ class stream, rehearsal keeps 89.8\% while naive
 fine-tuning collapses to 26.0\% and the data-free methods (EWC, LwF) trail. (iv) \emph{How
 do we shrink the model?} Cosine feature distillation gives a MobileNetV3-Small student
-that keeps 82.7\% at $14\times$ fewer parameters. (v) \emph{How do we learn new classes
+that keeps 82.7\% at $14\times$ fewer parameters; with only 32 training clips per class, a new
+class-prototype alignment objective raises the student from 61.5\% to 67.9\%. (v) \emph{How do we learn new classes
 from a few clips?} A nine-arm comparison with a matched fine-tune control shows
 MAML+replay is the best-balanced few-shot adapter (harmonic mean 0.60). A final capstone
 chains the winner of every stage into one pipeline and tests it on real YouTube videos of
@@ -114,7 +145,8 @@ deployed.
 
 The pipeline (Fig.~\ref{fig:pipeline}) is built on UCF101~\cite{soomro2012ucf101} as five
 linked studies (S1--S5), each a notebook answering one question, and a capstone that
-chains the winner of every study. The organising idea is a \emph{moving freeze boundary}:
+chains the winner of every study. A sixth study (S6) compares meta-learning with a
+different route to few-shot learning: a frozen CLIP foundation model. The organising idea is a \emph{moving freeze boundary}:
 the recogniser is one shared network (a CNN applied to every frame, an LSTM over the frame
 features, and a classifier head that \emph{grows} as classes arrive), and each stage
 decides which of its parts may still change.
@@ -128,6 +160,8 @@ methods, four distillation objectives, and nine meta-adaptation arms, each drawn
 own schematic and compared under one shared budget and seed.
 \item \textbf{A fine-tune control that isolates meta-learning}: the MAML start is compared
 with an ordinary fine-tune start that saw the \emph{same} extra data.
+\item \textbf{A foundation-model reference}: few-shot learning with a frozen CLIP encoder
+(zero-shot, prototypes, linear probe, MLP adapter) against the meta-learned student.
 \item \textbf{A real-video capstone}: the winners of all stages are chained into one
 pipeline and taught five unseen sports from a few YouTube clips, tested on YouTube videos
 they never saw.
@@ -139,103 +173,106 @@ they never saw.
 \centering
 \resizebox{\textwidth}{!}{%
 \begin{tikzpicture}[ulal]
-% panels
-\draw[u panel] (0, 9)    rectangle (152, -9);    \node[u stage] at (-2, 0)      {S1 Data};
-\draw[u panel] (0, -17)  rectangle (152, -31);   \node[u stage] at (-2, -24)    {S2 Teacher};
-\draw[u panel] (0, -39)  rectangle (152, -61);   \node[u stage] at (-2, -50)    {S3 Continual\\learning};
-\draw[u panel] (0, -69)  rectangle (152, -93);   \node[u stage] at (-2, -81)    {S4 Distillation};
-\draw[u panel] (0, -101) rectangle (152, -122);  \node[u stage] at (-2, -111.5) {S5 Meta-\\learning};
-\draw[u panel] (0, -129) rectangle (152, -153);  \node[u stage] at (-2, -141)   {Capstone:\\real video};
-\draw[u hand] (78, -9)   -- (78, -17);  \node[u handlab] at (79.5, -13)  {clips};
-\draw[u hand] (78, -31)  -- (78, -39);  \node[u handlab] at (79.5, -35)  {teacher (10 classes)};
-\draw[u hand] (78, -61)  -- (78, -69);  \node[u handlab] at (79.5, -65)  {teacher (30 classes)};
-\draw[u hand] (78, -93)  -- (78, -101); \node[u handlab] at (79.5, -97)  {student (30 classes)};
-\draw[u hand] (78, -122) -- (78, -129); \node[u handlab] at (79.5, -125.5) {MAML student};
-% S1
-\node[u data] (ucf) at (12, 0) {UCF101\\video};
-\node[u data] (grp) at (35, 0) {split\\by group};
-\node[u data, minimum height=4.3mm, minimum width=15mm] (tr) at (60, 5)  {train {\tiny(18)}};
-\node[u data, minimum height=4.3mm, minimum width=15mm] (va) at (60, 0)  {val {\tiny(3)}};
-\node[u data, minimum height=4.3mm, minimum width=15mm] (te) at (60, -5) {test {\tiny(4)}};
-\node[u clip] (c1) at (92, 0) {clip};
-\node[u small, anchor=west] at (99, 0) {16 frames, $224{\times}224$};
-\draw[u arr] (ucf)--(grp);
-\draw[u arr] (grp.east)--(tr.west); \draw[u arr] (grp.east)--(va.west); \draw[u arr] (grp.east)--(te.west);
-\draw[u arr] (tr.east)--(c1.west); \draw[u arr] (va.east)--(c1.west); \draw[u arr] (te.east)--(c1.west);
-% S2
-\node[u clip] (c2) at (35, -24) {clip};
-\node[u net]  (r2) at (64, -24) {ResNet50};
-\node[u net]  (l2) at (92, -24) {LSTM};
-\node[u head] (h2) at (118, -24) {head\\10};
-\node         (y2) at (140, -24) {$\hat y$};
-\draw[u arr] (c2)--(r2); \draw[u arr] (r2)--node[u dim]{2048}(l2); \draw[u arr] (l2)--node[u dim]{256}(h2); \draw[u arr] (h2)--(y2);
-% S3
-\node[u clip] (c3) at (12, -45) {new\\clips};
-\node[u buf]  (b3) at (12, -56) {old};
-\node[u op]   (p3) at (35, -50) {$+$};
-\node[u net]  (r3) at (64, -50) {ResNet50};
-\node[u net]  (l3) at (92, -50) {LSTM};
+\foreach \x in {0,33,66,99,132,165} \draw[u panel] (\x,4) rectangle ++(27,-54);
+% ======== S1 Data ========
+\node[c title] at (13.5,0.5) {S1 Data};
+\node[c data, minimum width=18mm] (s1a) at (13.5,-6.5) {UCF101 video};
+\node[c data, minimum width=18mm] (s1b) at (13.5,-14) {split by group};
+\node[c data, minimum width=7mm, minimum height=6mm] (s1t) at (5.5,-22.5) {train\\18};
+\node[c data, minimum width=7mm, minimum height=6mm] (s1v) at (13.5,-22.5) {val\\3};
+\node[c data, minimum width=7mm, minimum height=6mm] (s1e) at (21.5,-22.5) {test\\4};
+\node[c clip] (s1c) at (13.5,-32) {clip};
+\node[c note] at (13.5,-39) {16 frames\\$224{\times}224$};
+\draw[c arr] (s1a)--(s1b);
+\draw[c arr] (s1b.south) -- (s1t.north); \draw[c arr] (s1b)--(s1v); \draw[c arr] (s1b.south) -- (s1e.north);
+\draw[c arr] (s1t.south) -- (s1c.north); \draw[c arr] (s1v)--(s1c); \draw[c arr] (s1e.south) -- (s1c.north);
+% ======== S2 Teacher ========
+\node[c title] at (46.5,0.5) {S2 Teacher};
+\node[c clip] (s2c) at (46.5,-6.5) {clip};
+\node[c net]  (s2r) at (46.5,-15) {ResNet50};
+\node[c net]  (s2l) at (46.5,-23) {LSTM};
+\node[c head] (s2h) at (46.5,-31) {head 10};
+\node[c box, fill=white] (s2o) at (46.5,-44) {teacher (10)};
+\draw[c arr] (s2c)--(s2r); \draw[c arr] (s2r)--node[c note, right]{2048}(s2l);
+\draw[c arr] (s2l)--node[c note, right]{256}(s2h); \draw[c arr] (s2h)--(s2o);
+% ======== S3 Continual learning ========
+\node[c title] at (79.5,0.5) {S3 Continual learning};
+\node[c clip, minimum width=8mm] (s3n) at (73,-6.5) {new};
+\node[c buf] (s3b) at (86,-6.5) {old};
+\node[c op] (s3p) at (79.5,-12.5) {$+$};
+\node[c net]  (s3r) at (79.5,-19) {ResNet50};
+\node[c net]  (s3l) at (79.5,-26.5) {LSTM};
 \node[draw, rectangle split, rectangle split horizontal, rectangle split parts=3,
-      rectangle split part fill={green!30,green!18,green!8}, rounded corners=2pt,
-      minimum height=7mm, font=\tiny] (h3) at (118, -50) {10\nodepart{two}+10\nodepart{three}+10};
-\node[u small] at (118, -44.5) {head grows};
-\node         (y3) at (140, -50) {$\hat y$};
-\draw[u arr] (c3.east) -- (p3); \draw[u arr] (b3.east) -- (p3);
-\draw[u arr] (p3)--(r3); \draw[u arr] (r3)--node[u dim]{2048}(l3); \draw[u arr] (l3)--node[u dim]{256}(h3); \draw[u arr] (h3)--(y3);
-% S4
-\node[u clip] (c4)  at (35, -81) {clip};
-\node[u frz]  (r4t) at (64, -75) {ResNet50};
-\node[u frz]  (l4t) at (92, -75) {LSTM};
-\node[u net]  (r4s) at (64, -87) {MobileNet};
-\node[u net]  (l4s) at (92, -87) {LSTM};
-\node[u op]   (cos) at (106, -81) {$\cos$};
-\node[u head] (h4)  at (118, -87) {head\\30};
-\node         (y4)  at (140, -87) {$\hat y$};
-\node[u small, anchor=east] at (51, -74) {teacher (frozen)};
-\node[u small, anchor=east] at (51, -88) {student};
-\draw[u arr] (c4.east)--(r4t.west); \draw[u arr] (c4.east)--(r4s.west);
-\draw[u arr] (r4t)--node[u dim]{2048}(l4t); \draw[u arr] (r4s)--node[u dim]{576}(l4s);
-\draw[u arr] (l4t.east) -| node[u small, pos=0.3, above]{$h_t$} (cos.north);
-\draw[u arr] (l4s)--(h4); \draw[u arr] (h4)--(y4);
-\draw[u arr] (101.5, -87) |- (cos.west); \node[u small] at (104.5, -89.5) {$h_s$};
-% S5
-\node[u data] (sp5) at (12, -111) {35 other\\sports};
-\node[draw, rectangle split, rectangle split parts=2, rounded corners=2pt, fill=gray!12,
-      align=center, font=\tiny, inner sep=1mm] (ep5) at (35, -111) {support\nodepart{two}query};
+      rectangle split part fill={green!30,green!18,green!8}, rounded corners=1.5pt,
+      minimum height=5mm, inner sep=0.7mm, font=\tiny] (s3h) at (79.5,-34) {10\nodepart{two}+10\nodepart{three}+10};
+\node[c box, fill=white] (s3o) at (79.5,-44) {teacher (30)};
+\draw[c arr] (s3n.south) |- (s3p.west); \draw[c arr] (s3b.south) |- (s3p.east);
+\draw[c arr] (s3p)--(s3r); \draw[c arr] (s3r)--(s3l); \draw[c arr] (s3l)--(s3h);
+\draw[c arr] (s3h)--(s3o);
+% ======== S4 Distillation ========
+\node[c title] at (112.5,0.5) {S4 Distillation};
+\node[c clip] (s4c) at (112.5,-6.5) {clip};
+\node[c frz]  (s4tr) at (106,-14.5) {ResNet50};
+\node[c frz]  (s4tl) at (106,-22) {LSTM};
+\node[c net, minimum width=12mm] (s4sr) at (119.5,-14.5) {MobileNet};
+\node[c net, minimum width=12mm] (s4sl) at (119.5,-22) {LSTM};
+\node[c op]   (s4cos) at (110.5,-29.5) {$\cos$};
+\node[c head] (s4h) at (119.5,-36.5) {head 30};
+\node[c box, fill=white] (s4o) at (119.5,-44) {student (30)};
+\draw[c arr] (s4c.south) -- ++(0,-1.4) -| (s4tr.north); \draw[c arr] (s4c.south) -- ++(0,-1.4) -| (s4sr.north);
+\draw[c arr] (s4tr)--(s4tl); \draw[c arr] (s4sr)--(s4sl);
+\draw[c arr] (s4tl.south) |- (s4cos.west); \draw[c arr] (s4sl)--(s4h); \draw[c arr] (119.5,-29.5) -- (s4cos.east);
+\draw[c arr] (s4h)--(s4o);
+% ======== S5 Meta-learning ========
+\node[c title] at (145.5,0.5) {S5 Meta-learning};
+\node[c data, minimum width=18mm] (s5d) at (145.5,-6.5) {35 other sports};
+\node[draw, rectangle split, rectangle split horizontal, rectangle split parts=2, rounded corners=1.5pt,
+      fill=gray!12, inner sep=0.7mm, font=\tiny] (s5e) at (145.5,-13.5) {support\nodepart{two}query};
 \node[draw, rectangle split, rectangle split horizontal, rectangle split parts=2,
-      rectangle split part fill={white,blue!8}, rounded corners=2pt, minimum height=7mm,
-      align=center, font=\tiny] (m5) at (64, -111) {MobileNet\\lower\nodepart{two}last 4\\blocks};
-\node[u net]  (l5) at (92, -111) {LSTM};
-\node[u head] (h5) at (118, -111) {head};
-\node[u meta] (rf5) at (140, -111) {re-fit\\head 30};
-\draw[u arr] (sp5)--(ep5); \draw[u arr] (ep5)--(m5); \draw[u arr] (m5)--(l5); \draw[u arr] (l5)--(h5); \draw[u arr] (h5)--(rf5);
-\draw[red!65, densely dashed, thick] ($(m5.one split north)+(0,1.2)$) -- ($(m5.one split south)+(0,-1.2)$);
-\node[font=\tiny, text=red!65, anchor=east] at ($(m5.one split south)+(-0.5,-1.8)$) {freeze};
-\draw[u arr, violet!75, thick] (70, -106.5) to[bend left=12] node[font=\tiny, above=-0.6mm]{inner: 5 steps} (116, -106.5);
-\draw[u arr, violet!75, thick] (116, -115.5) to[bend left=12] node[font=\tiny, below=-0.6mm]{outer: update start} (70, -115.5);
-% Capstone
-\node[u data] (yt) at (12, -141) {YouTube\\5 new sports};
-\node[u clip, minimum height=4.5mm] (lr) at (35, -137) {learn};
-\node[u clip, minimum height=4.5mm] (ts) at (35, -147) {test};
-\node[u op]   (p6) at (50, -137) {$+$};
-\node[u buf, minimum height=6mm] (b6) at (50, -146.5) {old};
-\node[u box, fill=blue!8, minimum width=45mm] (mod6) at (78, -137) {teacher $\;|\;$ KD student $\;|\;$ MAML student};
-\node[draw, rectangle split, rectangle split horizontal, rectangle split parts=2,
-      rectangle split part fill={green!22,green!8}, rounded corners=2pt, minimum height=7mm,
-      font=\tiny] (h6) at (118, -137) {30\nodepart{two}+5};
-\node[draw, rectangle split, rectangle split parts=3, rounded corners=2pt, fill=white,
-      font=\tiny, inner sep=0.8mm] (res6) at (140, -137) {new\nodepart{two}old\nodepart{three}H};
-\draw[u arr] (yt.east)--(lr.west); \draw[u arr] (yt.east)--(ts.west);
-\draw[u arr] (lr)--node[u dim]{3/5/8}(p6); \draw[u arr] (b6)--(p6);
-\draw[u arr] (p6)--(mod6); \draw[u arr] (mod6)--(h6); \draw[u arr] (h6.east) -- (h6.east -| res6.west);
-\draw[u arr, densely dotted] (ts.south) |- (140, -151) -- (res6.south);
-\node[u small, anchor=west] at (60, -149.5) {unseen videos, used only for testing};
+      rectangle split part fill={white,blue!8}, rounded corners=1.5pt, minimum height=5mm,
+      inner sep=0.7mm, font=\tiny] (s5m) at (145.5,-21.5) {lower\nodepart{two}last 4};
+\node[c net]  (s5l) at (145.5,-29) {LSTM};
+\node[c head] (s5h) at (145.5,-36.5) {head};
+\node[c meta] (s5o) at (145.5,-44) {re-fit head 30};
+\draw[c arr] (s5d)--(s5e); \draw[c arr] (s5e)--(s5m); \draw[c arr] (s5m)--(s5l); \draw[c arr] (s5l)--(s5h); \draw[c arr] (s5h)--(s5o);
+\draw[red!65, densely dashed, thick] ($(s5m.one split north)+(0,1)$) -- ($(s5m.one split south)+(0,-1)$);
+\draw[violet!75, densely dashed, thick, rounded corners=2pt] (136.5,-18) rectangle (155.8,-39.8);
+\node[font=\tiny, text=violet!80, rotate=90] at (157.6,-29) {MAML loop};
+% ======== Capstone: real video ========
+\node[c title] at (178.5,0.5) {Capstone: real video};
+\node[c data, minimum width=22mm] (s6y) at (178.5,-6.5) {YouTube, 5 new sports};
+\node[c clip, minimum width=9mm] (s6l) at (172,-13.5) {learn};
+\node[c clip, minimum width=8mm] (s6t) at (185,-13.5) {test};
+\node[c op]  (s6p) at (172,-20.5) {$+$};
+\node[c buf] (s6b) at (182.5,-20.5) {old};
+\node[c net, minimum width=19mm] (s6m) at (178.5,-28) {MAML student};
+\colhead{s6h}{178.5,-35.5}{30}{+5}
+\node[draw, rectangle split, rectangle split horizontal, rectangle split parts=3, rounded corners=1.5pt,
+      fill=white, inner sep=0.7mm, font=\tiny] (s6r) at (178.5,-43) {new\nodepart{two}old\nodepart{three}H};
+\node[c note] at (178.5,-48.5) {10 clips, 1/2/3/5 passes};
+\draw[c arr] (s6y.south) -- ++(0,-1.4) -| (s6l.north); \draw[c arr] (s6y.south) -- ++(0,-1.4) -| (s6t.north);
+\draw[c arr] (s6l)--(s6p); \draw[c arr] (s6b)--(s6p); \draw[c arr] (s6p) |- (s6m.west);
+\draw[c arr] (s6m)--(s6h); \draw[c arr] (s6h)--(s6r);
+\draw[c arr, densely dotted] (s6t.east) -| (190.8,-43) -- (s6r.east);
+% ======== hand-over between the stages ========
+\draw[u hand] (s1c.east) -- (29.5,-32) -- (29.5,-6.5) -- (s2c.west);
+\node[font=\tiny\itshape, text=black!55, rotate=90] at (31.4,-20) {clips};
+\draw[u hand] (s2o.east) -- (62.5,-44) -- (62.5,-19) -- (s3r.west);
+\node[font=\tiny\itshape, text=black!55, rotate=90] at (64.4,-31.5) {teacher (10)};
+\draw[u hand] (s3o.east) -- (95.5,-44) -- (95.5,-14.5) -- (s4tr.west);
+\node[font=\tiny\itshape, text=black!55, rotate=90] at (97.4,-29) {teacher (30)};
+\draw[u hand] (s4o.east) -- (128.5,-44) -- (128.5,-21.5) -- (s5m.west);
+\node[font=\tiny\itshape, text=black!55, rotate=90] at (130.4,-32.5) {student (30)};
+\draw[u hand] (s5o.east) -- (161.5,-44) -- (161.5,-28) -- (s6m.west);
+\node[font=\tiny\itshape, text=black!55, rotate=90] at (163.4,-36) {MAML student};
 \end{tikzpicture}}
-\caption{\textbf{The ULAL architecture.} One panel per stage; the grey arrows show what each
-stage hands to the next. Every panel uses the winner of its study
-(Sections~\ref{sec:data}--\ref{sec:meta}) and Section~\ref{sec:ulal} walks through the
-whole pipeline. Grey: data; blue: trained; dashed: frozen; orange: stored old clips; violet:
-meta-learning; green: classifier head; red dashed: freeze boundary.}
+\caption{\textbf{The ULAL architecture.} One column per stage, read top to bottom; the grey
+arrows hand the result of each stage to the part of the next stage it feeds (clips to the
+teacher, the 10-class teacher to continual learning, the 30-class teacher to distillation, the
+student to meta-learning, the MAML student to the real-video test). Every column uses the
+winner of its study (Sections~\ref{sec:data}--\ref{sec:meta}); Section~\ref{sec:ulal} walks
+through the whole pipeline. Grey: data; blue: trained; dashed: frozen; orange: stored old
+clips; violet: meta-learning; green: classifier head; red dashed: freeze boundary.}
 \label{fig:pipeline}
 \end{figure*}
 
@@ -339,16 +376,20 @@ Backbone (S2)     & Adam, lr $10^{-4}$, 5 epochs \\
 Continual (S3)    & Adam, lr $10^{-4}$, 5 epochs/task; replay 15/class; \\
                   & LwF weight 3.0, $T{=}5$; EWC $\lambda{=}2800$ \\
 Distillation (S4) & Adam, lr $10^{-4}$, 15 epochs; \\
-                  & $T{=}2$; CE/transfer $0.75/0.25$ \\
+                  & $T{=}2$; CE/transfer $0.75/0.25$; \\
+                  & S4.4: proto 0.5, 3 KMeans prototypes/class; \\
+                  & reduced set: 32 clips/class \\
 Meta-train (S5)   & 5-way 3-shot, 60 episodes $\times$ 8 epochs; \\
                   & 40 sports; inner SGD 5 steps @ $0.05$; \\
                   & meta-lr $10^{-4}$; last 4 blocks trained \\
 Adaptation (S5)   & 8 clips/class, 5 epochs, lr $3\!\times\!10^{-4}$; \\
                   & replay 8/class; LwF $0.5$, $T{=}2$ \\
+CLIP (S6)         & ViT-B/32 frozen; $k\in\{0,1,2,4,8\}$; hybrid 0.4/0.6; \\
+                  & probe $C{=}0.01$; MLP Adam $10^{-3}$, 30 epochs \\
 Capstone          & replay 15/class ($10\!\to\!20\!\to\!30$); \\
                   & cosine KD, 10 epochs; \\
-                  & MAML 5-way 3-shot, 35 sports (1 clip/video); \\
-                  & YouTube: 3/5/8 clips, 5 epochs, \\
+                  & MAML 5-way 5-shot, 35 sports (1 clip/video); \\
+                  & YouTube: 10 clips/sport, 1/2/3/5 epochs, \\
                   & lr $3\!\times\!10^{-4}$, replay 8/class \\
 \bottomrule
 \end{tabular}
@@ -462,82 +503,76 @@ new batch, $\mathcal{L}=\mathcal{L}_{\text{CE}}(\text{new}\cup\text{old})$.
 \centering
 \resizebox{\textwidth}{!}{%
 \begin{tikzpicture}[ulal]
+\foreach \x in {0,35,70,140} \draw[u panel] (\x,4) rectangle ++(33,-56);
+\draw[u best] (105,4) rectangle ++(33,-56);
 % ---- S3.0 Naive ----
-\draw[u panel] (0, 0) rectangle (152, -14);   \node[u stage] at (-2, -7) {S3.0 Naive};
-\node[u clip] (a0) at (12, -7) {new\\clips};
-\node[u net]  (a1) at (55, -7) {ResNet50};
-\node[u net]  (a2) at (80, -7) {LSTM};
-\headsplit{a3}{104,-7}{old}{new}
-\node[u loss] (a4) at (124, -7) {CE};
-\node[u res] at (151, -7) {26.0\%};
-\draw[u arr] (a0)--(a1); \draw[u arr] (a1)--(a2); \draw[u arr] (a2)--(a3); \draw[u arr] (a3)--(a4);
+\node[c title] at (16.5,0.5) {S3.0 Naive};
+\node[c clip] (a0) at (16.5,-6.5) {new clips};
+\node[c net]  (a1) at (16.5,-17) {ResNet50};
+\node[c net]  (a2) at (16.5,-24.5) {LSTM};
+\colhead{a3}{16.5,-32.5}{old}{new}
+\node[c loss] (a4) at (16.5,-40.5) {CE};
+\node[c res]  at (16.5,-47.5) {26.0\%};
+\draw[c arr] (a0)--(a1); \draw[c arr] (a1)--(a2); \draw[c arr] (a2)--(a3); \draw[c arr] (a3)--(a4);
 % ---- S3.1 EWC ----
-\draw[u panel] (0, -18) rectangle (152, -36); \node[u stage] at (-2, -27) {S3.1 EWC};
-\node[u clip] (b0) at (12, -23) {new\\clips};
-\node[u net]  (b1) at (55, -23) {ResNet50};
-\node[u net]  (b2) at (80, -23) {LSTM};
-\headsplit{b3}{104,-23}{old}{new}
-\node[u loss] (b4) at (124, -23) {CE};
-\node[u loss] (b5) at (67.5, -32) {$+\,\lambda\sum F\,(\theta-\theta^{\star})^2$};
-\node[u small, anchor=west] at (78, -32) {$\theta^{\star}$ = old weights};
-\node[u res] at (151, -27) {62.0\%};
-\draw[u arr] (b0)--(b1); \draw[u arr] (b1)--(b2); \draw[u arr] (b2)--(b3); \draw[u arr] (b3)--(b4);
-\draw[densely dashed, red!50] (b5.north) -- (b1.south); \draw[densely dashed, red!50] (b5.north) -- (b2.south);
+\node[c title] at (51.5,0.5) {S3.1 EWC};
+\node[c clip] (b0) at (46.5,-6.5) {new clips};
+\node[c net]  (b1) at (46.5,-17) {ResNet50};
+\node[c net]  (b2) at (46.5,-24.5) {LSTM};
+\colhead{b3}{46.5,-32.5}{old}{new}
+\node[c loss] (b4) at (46.5,-40.5) {CE};
+\node[c op]   (b5) at (61,-20.75) {$\Omega$};
+\node[c note] at (61,-27) {weight\\penalty};
+\node[c res]  at (51.5,-47.5) {62.0\%};
+\draw[c arr] (b0)--(b1); \draw[c arr] (b1)--(b2); \draw[c arr] (b2)--(b3); \draw[c arr] (b3)--(b4);
+\draw[densely dashed, red!55] (b5.west) -- (b1.east); \draw[densely dashed, red!55] (b5.west) -- (b2.east);
 % ---- S3.2 LwF ----
-\draw[u panel] (0, -40) rectangle (152, -62); \node[u stage] at (-2, -51) {S3.2 LwF};
-\node[u clip] (c0) at (12, -51) {new\\clips};
-\node[u frz]  (c1t) at (55, -45) {ResNet50};
-\node[u frz]  (c2t) at (80, -45) {LSTM};
-\node[u box, densely dashed, fill=white, minimum width=11mm] (c3t) at (104, -45) {old};
-\node[u net]  (c1) at (55, -57) {ResNet50};
-\node[u net]  (c2) at (80, -57) {LSTM};
-\headsplit{c3}{104,-57}{old}{new}
-\node[u loss] (c4) at (124, -57) {CE};
-\node[u loss] (c5) at (124, -45) {KD};
-\node[u small, anchor=east] at (44, -44) {old model (frozen)};
-\node[u res] at (151, -51) {30.5\%};
-\draw[u arr] (c0.east)--(c1t.west); \draw[u arr] (c0.east)--(c1.west);
-\draw[u arr] (c1t)--(c2t); \draw[u arr] (c2t)--(c3t); \draw[u arr] (c3t)--(c5);
-\draw[u arr] (c1)--(c2); \draw[u arr] (c2)--(c3); \draw[u arr] (c3)--(c4);
-\draw[u arr] (c3.one north) to[out=90, in=200] (c5.south west);
+\node[c title] at (86.5,0.5) {S3.2 LwF};
+\node[c clip] (c0) at (81.5,-6.5) {new clips};
+\node[c net]  (c1) at (81.5,-17) {ResNet50};
+\node[c net]  (c2) at (81.5,-24.5) {LSTM};
+\colhead{c3}{81.5,-32.5}{old}{new}
+\node[c loss] (c4) at (81.5,-40.5) {CE};
+\node[c frz, minimum height=12.5mm, minimum width=9mm] (c5) at (96,-20.75) {old\\model};
+\node[c loss] (c6) at (96,-32.5) {KD};
+\node[c res]  at (86.5,-47.5) {30.5\%};
+\draw[c arr] (c0)--(c1); \draw[c arr] (c1)--(c2); \draw[c arr] (c2)--(c3); \draw[c arr] (c3)--(c4);
+\draw[c arr] (c0.east) -| (c5.north); \draw[c arr] (c5)--(c6); \draw[c arr] (c3.east) -- (c6.west);
 % ---- S3.3 Replay (selected) ----
-\draw[u best] (0, -66) rectangle (152, -84);  \node[u stage] at (-2, -75) {S3.3 Replay};
-\node[u pick] at (150.5, -81) {selected};
-\node[u clip] (d0) at (12, -70.5) {new\\clips};
-\node[u buf]  (d5) at (12, -79.5) {old};
-\node[u op]   (d6) at (30, -75) {$+$};
-\node[u net]  (d1) at (55, -75) {ResNet50};
-\node[u net]  (d2) at (80, -75) {LSTM};
-\headsplit{d3}{104,-75}{old}{new}
-\node[u loss] (d4) at (124, -75) {CE};
-\node[u res] at (151, -74) {89.8\%};
-\draw[u arr] (d0.east)--(d6); \draw[u arr] (d5.east)--(d6);
-\draw[u arr] (d6)--(d1); \draw[u arr] (d1)--(d2); \draw[u arr] (d2)--(d3); \draw[u arr] (d3)--(d4);
+\node[c title] at (121.5,0.5) {S3.3 Replay};
+\node[c clip, minimum width=8mm] (d0) at (115,-6.5) {new};
+\node[c buf]  (d7) at (128,-6.5) {old};
+\node[c op]   (d8) at (121.5,-11.5) {$+$};
+\node[c net]  (d1) at (121.5,-17) {ResNet50};
+\node[c net]  (d2) at (121.5,-24.5) {LSTM};
+\colhead{d3}{121.5,-32.5}{old}{new}
+\node[c loss] (d4) at (121.5,-40.5) {CE};
+\node[c res]  at (121.5,-47.5) {89.8\%};
+\node[c pick] at (121.5,-51) {selected};
+\draw[c arr] (d0.south) |- (d8.west); \draw[c arr] (d7.south) |- (d8.east);
+\draw[c arr] (d8)--(d1); \draw[c arr] (d1)--(d2); \draw[c arr] (d2)--(d3); \draw[c arr] (d3)--(d4);
 % ---- S3.4 Replay + LwF ----
-\draw[u panel] (0, -88) rectangle (152, -112); \node[u stage] at (-2, -100) {S3.4 Replay\\+ LwF};
-\node[u clip] (e0) at (12, -95.5) {new\\clips};
-\node[u buf]  (e5) at (12, -104.5) {old};
-\node[u op]   (e6) at (30, -100) {$+$};
-\node[u frz]  (e1t) at (55, -94) {ResNet50};
-\node[u frz]  (e2t) at (80, -94) {LSTM};
-\node[u box, densely dashed, fill=white, minimum width=11mm] (e3t) at (104, -94) {old};
-\node[u net]  (e1) at (55, -106) {ResNet50};
-\node[u net]  (e2) at (80, -106) {LSTM};
-\headsplit{e3}{104,-106}{old}{new}
-\node[u loss] (e4) at (124, -106) {CE};
-\node[u loss] (e7) at (124, -94) {KD};
-\node[u res] at (151, -100) {87.0\%};
-\draw[u arr] (e0.east)--(e6); \draw[u arr] (e5.east)--(e6);
-\draw[u arr] (e6.east)--(e1t.west); \draw[u arr] (e6.east)--(e1.west);
-\draw[u arr] (e1t)--(e2t); \draw[u arr] (e2t)--(e3t); \draw[u arr] (e3t)--(e7);
-\draw[u arr] (e1)--(e2); \draw[u arr] (e2)--(e3); \draw[u arr] (e3)--(e4);
-\draw[u arr] (e3.one north) to[out=90, in=200] (e7.south west);
+\node[c title] at (156.5,0.5) {S3.4 Replay+LwF};
+\node[c clip, minimum width=8mm] (e0) at (145,-6.5) {new};
+\node[c buf]  (e7) at (157.5,-6.5) {old};
+\node[c op]   (e8) at (151.5,-11.5) {$+$};
+\node[c net]  (e1) at (151.5,-17) {ResNet50};
+\node[c net]  (e2) at (151.5,-24.5) {LSTM};
+\colhead{e3}{151.5,-32.5}{old}{new}
+\node[c loss] (e4) at (151.5,-40.5) {CE};
+\node[c frz, minimum height=12.5mm, minimum width=9mm] (e5) at (166,-20.75) {old\\model};
+\node[c loss] (e6) at (166,-32.5) {KD};
+\node[c res]  at (156.5,-47.5) {87.0\%};
+\draw[c arr] (e0.south) |- (e8.west); \draw[c arr] (e7.south) |- (e8.east);
+\draw[c arr] (e8)--(e1); \draw[c arr] (e1)--(e2); \draw[c arr] (e2)--(e3); \draw[c arr] (e3)--(e4);
+\draw[c arr] (e8.east) -| (e5.north); \draw[c arr] (e5)--(e6); \draw[c arr] (e3.east) -- (e6.west);
 \end{tikzpicture}}
-\caption{\textbf{Stage 3: the five continual-learning methods.} All train the same
-network (blue) with a head that grows by the new classes; they differ only in what
-protects the old classes: nothing (S3.0), a weight penalty (S3.1), the scores of a frozen
-copy of the old model (S3.2, dashed), stored old clips (S3.3, orange), or both (S3.4). Right:
-final accuracy on all 20 classes (Table~\ref{tab:cl}). Replay is used in the pipeline.}
+\caption{\textbf{Stage 3: the five continual-learning methods}, top to bottom from the input
+clips to the loss. All train the same network (blue) with a head that grows by the new
+classes; they differ only in what protects the old classes: nothing (S3.0), a weight penalty
+$\Omega=\tfrac{\lambda}{2}\sum_i F_i(\theta_i-\theta_i^\star)^2$ (S3.1), the scores of a frozen
+copy of the old model (S3.2, dashed), stored old clips (S3.3, orange), or both (S3.4).
+Bottom: final accuracy on all 20 classes (Table~\ref{tab:cl}).}
 \label{fig:cl}
 \end{figure*}
 
@@ -610,9 +645,9 @@ storing a few clips beats every data-free method.
 \section{Stage 4 --- Knowledge Distillation}
 \label{sec:kd}
 \textbf{Design.} The 25.9M-parameter teacher is too big for a small device, so we train a
-MobileNetV3-Small+LSTM student ($\approx$1.8M parameters, $14\times$ smaller). The four
-objectives of Fig.~\ref{fig:kd} share the student, data, budget and seed, and all use
-$\mathcal{L}=0.75\,\mathcal{L}_{\text{CE}}+0.25\,\mathcal{L}_{\text{transfer}}$:
+MobileNetV3-Small+LSTM student ($\approx$1.8M parameters, $14\times$ smaller). The five
+objectives of Fig.~\ref{fig:kd} share the ImageNet-pretrained student, data, budget and
+seed, and all use $\mathcal{L}=0.75\,\mathcal{L}_{\text{CE}}+0.25\,\mathcal{L}_{\text{transfer}}$:
 \begin{itemize}
 \item \textbf{S4.0 CE only}: $\mathcal{L}_{\text{transfer}}=0$ (no teacher, the baseline).
 \item \textbf{S4.1 KD}~\cite{hinton2015kd}: match the teacher's softened scores,
@@ -622,96 +657,174 @@ $1-\cos(h_s,h_t)$.
 \item \textbf{S4.3 MSE}~\cite{romero2015fitnets}: a learnable regressor $g$ maps $h_s$ onto
 the teacher's feature before an $\ell_2$ match, $\lVert g(h_s)-h_t\rVert_2^2$ ($g$ is
 dropped at inference).
+\item \textbf{S4.4 Proto-align} (new): before training, the teacher's clip features of every
+class are clustered with KMeans into 3 \emph{prototypes}; during training each student feature
+is pulled to the nearest prototype of its own class,
+$\min_j\lVert h_s-\mu_{y,j}\rVert_2^2$, on top of CE and KD:
+$\mathcal{L}=0.75\,\mathcal{L}_{\text{CE}}+0.25\,\mathrm{KD}+0.5\,\mathcal{L}_{\text{proto}}$.
+The target is a class-level summary of the teacher (in the spirit of prototypical
+networks~\cite{snell2017proto}) rather than the teacher's feature of each single clip.
 \end{itemize}
+Because a pretrained student already learns most of what it needs from the labels, we also
+repeat the study with a \emph{reduced training set}: 32 clips per class (640 clips, about one
+third of the full 1{,}917), with the same test set. The teacher is the same Stage-3 model,
+trained on the full set, so it knows more than the student sees---the situation in which
+distillation should help most. Fig.~\ref{fig:proto} shows proto-align in detail.
 
 % ============================ FIG. 4: KD OBJECTIVES ============================
 \begin{figure*}[t]
 \centering
 \resizebox{\textwidth}{!}{%
 \begin{tikzpicture}[ulal]
+\foreach \x in {0,35,105,140} \draw[u panel] (\x,4) rectangle ++(33,-56);
+\draw[u best] (70,4) rectangle ++(33,-56);
 % ---- S4.0 CE only ----
-\draw[u panel] (0, 0) rectangle (152, -14);  \node[u stage] at (-2, -7) {S4.0 CE only};
-\node[u clip] (a0) at (30, -7) {clip};
-\node[u net]  (a1) at (55, -7) {MobileNet};
-\node[u net]  (a2) at (80, -7) {LSTM};
-\node[u head] (a3) at (104, -7) {head};
-\node[u loss] (a4) at (124, -7) {CE};
-\node[u res] at (151, -7) {80.6\%};
-\draw[u arr] (a0)--(a1); \draw[u arr] (a1)--(a2); \draw[u arr] (a2)--(a3); \draw[u arr] (a3)--(a4);
-% ---- S4.1 KD (logits) ----
-\draw[u panel] (0, -18) rectangle (152, -40); \node[u stage] at (-2, -29) {S4.1 KD};
-\node[u clip] (b0) at (30, -29) {clip};
-\node[u frz]  (b1t) at (55, -23) {ResNet50};
-\node[u frz]  (b2t) at (80, -23) {LSTM};
-\node[u box, densely dashed, fill=white, minimum width=11mm] (b3t) at (104, -23) {head};
-\node[u net]  (b1) at (55, -35) {MobileNet};
-\node[u net]  (b2) at (80, -35) {LSTM};
-\node[u head] (b3) at (104, -35) {head};
-\node[u loss] (b4) at (124, -35) {CE};
-\node[u loss] (b5) at (124, -23) {KL on $z/T$};
-\node[u small, anchor=east] at (21, -22) {teacher (frozen)};
-\node[u res] at (151, -29) {79.7\%};
-\draw[u arr] (b0.east)--(b1t.west); \draw[u arr] (b0.east)--(b1.west);
-\draw[u arr] (b1t)--(b2t); \draw[u arr] (b2t)--(b3t); \draw[u arr] (b3t)--node[u dim]{$z_t$}(b5);
-\draw[u arr] (b1)--(b2); \draw[u arr] (b2)--(b3); \draw[u arr] (b3)--(b4);
-\draw[u arr] (b3.north east) to[out=60, in=250] node[u small, pos=0.35, right]{$z_s$} (b5.south);
+\node[c title] at (16.5,0.5) {S4.0 CE only};
+\node[c clip] (a0) at (16.5,-6.5) {clip};
+\node[c net]  (a1) at (16.5,-15.5) {MobileNet};
+\node[c net]  (a2) at (16.5,-23) {LSTM};
+\node[c head] (a3) at (16.5,-30.5) {head};
+\node[c loss] (a4) at (16.5,-38.5) {CE};
+\node[c res]  at (16.5,-46.5) {80.6 $|$ 61.5};
+\draw[c arr] (a0)--(a1); \draw[c arr] (a1)--(a2); \draw[c arr] (a2)--(a3); \draw[c arr] (a3)--(a4);
+% ---- S4.1 KD ----
+\node[c title] at (51.5,0.5) {S4.1 KD};
+\node[c clip] (b0) at (51.5,-6.5) {clip};
+\node[c net]  (b1) at (45.5,-15.5) {MobileNet};
+\node[c net]  (b2) at (45.5,-23) {LSTM};
+\node[c head] (b3) at (45.5,-30.5) {head};
+\node[c loss] (b4) at (45.5,-38.5) {CE};
+\node[c frz]  (t1) at (61,-15.5) {ResNet50};
+\node[c frz]  (t2) at (61,-23) {LSTM};
+\node[c frz]  (t3) at (61,-30.5) {head};
+\node[c loss] (b5) at (61,-38.5) {KL};
+\node[c res]  at (51.5,-46.5) {79.7 $|$ 62.0};
+\draw[c arr] (b0.south) -- ++(0,-1.5) -| (b1.north); \draw[c arr] (b0.south) -- ++(0,-1.5) -| (t1.north);
+\draw[c arr] (b1)--(b2); \draw[c arr] (b2)--(b3); \draw[c arr] (b3)--(b4);
+\draw[c arr] (t1)--(t2); \draw[c arr] (t2)--(t3); \draw[c arr] (t3)--(b5); \draw[c arr] (b3.east)--(b5.west);
 % ---- S4.2 Cosine (selected) ----
-\draw[u best] (0, -44) rectangle (152, -66);  \node[u stage] at (-2, -55) {S4.2 Cosine};
-\node[u pick] at (150.5, -62) {selected};
-\node[u clip] (c0) at (30, -55) {clip};
-\node[u frz]  (c1t) at (55, -49) {ResNet50};
-\node[u frz]  (c2t) at (80, -49) {LSTM};
-\node[u net]  (c1) at (55, -61) {MobileNet};
-\node[u net]  (c2) at (80, -61) {LSTM};
-\node[u head] (c3) at (108, -61) {head};
-\node[u loss] (c4) at (124, -61) {CE};
-\node[u op]   (c5) at (97, -55) {$\cos$};
-\node[u res] at (151, -54) {82.7\%};
-\draw[u arr] (c0.east)--(c1t.west); \draw[u arr] (c0.east)--(c1.west);
-\draw[u arr] (c1t)--(c2t); \draw[u arr] (c2t.east) -| node[u small, pos=0.25, above]{$h_t$} (c5.north);
-\draw[u arr] (c1)--(c2); \draw[u arr] (c2)--(c3); \draw[u arr] (c3)--(c4);
-\draw[u arr] (92, -61) |- (c5.west); \node[u small] at (94.5, -63.2) {$h_s$};
-% ---- S4.3 MSE with regressor ----
-\draw[u panel] (0, -70) rectangle (152, -92); \node[u stage] at (-2, -81) {S4.3 MSE};
-\node[u clip] (d0) at (30, -81) {clip};
-\node[u frz]  (d1t) at (55, -75) {ResNet50};
-\node[u frz]  (d2t) at (80, -75) {LSTM};
-\node[u net]  (d1) at (55, -87) {MobileNet};
-\node[u net]  (d2) at (80, -87) {LSTM};
-\node[u head] (d3) at (116, -87) {head};
-\node[u loss] (d4) at (134, -87) {CE};
-\node[u meta, minimum height=5mm, minimum width=6mm, inner sep=0.6mm] (d6) at (96, -81) {$g$};
-\node[u op]   (d5) at (108, -81) {MSE};
-\node[u res] at (151, -80) {75.9\%};
-\draw[u arr] (d0.east)--(d1t.west); \draw[u arr] (d0.east)--(d1.west);
-\draw[u arr] (d1t)--(d2t); \draw[u arr] (d2t.east) -| node[u small, pos=0.2, above]{$h_t$} (d5.north);
-\draw[u arr] (d1)--(d2); \draw[u arr] (d2)--(d3); \draw[u arr] (d3)--(d4);
-\draw[u arr] (91, -87) |- (d6.west); \draw[u arr] (d6)--(d5);
-\node[u small] at (93.5, -89.2) {$h_s$};
+\node[c title] at (86.5,0.5) {S4.2 Cosine};
+\node[c clip] (c0) at (86.5,-6.5) {clip};
+\node[c net]  (c1) at (80.5,-15.5) {MobileNet};
+\node[c net]  (c2) at (80.5,-23) {LSTM};
+\node[c head] (c3) at (80.5,-30.5) {head};
+\node[c loss] (c4) at (80.5,-38.5) {CE};
+\node[c frz]  (u1) at (96,-15.5) {ResNet50};
+\node[c frz]  (u2) at (96,-23) {LSTM};
+\node[c op]   (c5) at (96,-30.5) {$\cos$};
+\node[c res]  at (86.5,-46.5) {82.7 $|$ 59.7};
+\node[c pick] at (86.5,-50.8) {selected (full data)};
+\draw[c arr] (c0.south) -- ++(0,-1.5) -| (c1.north); \draw[c arr] (c0.south) -- ++(0,-1.5) -| (u1.north);
+\draw[c arr] (c1)--(c2); \draw[c arr] (c2)--(c3); \draw[c arr] (c3)--(c4);
+\draw[c arr] (u1)--(u2); \draw[c arr] (u2)--(c5); \draw[c arr] (c2.east)--(c5.west);
+% ---- S4.3 MSE ----
+\node[c title] at (121.5,0.5) {S4.3 MSE};
+\node[c clip] (d0) at (121.5,-6.5) {clip};
+\node[c net]  (d1) at (115.5,-15.5) {MobileNet};
+\node[c net]  (d2) at (115.5,-23) {LSTM};
+\node[c head] (d3) at (115.5,-30.5) {head};
+\node[c loss] (d4) at (115.5,-38.5) {CE};
+\node[c frz]  (v1) at (131,-15.5) {ResNet50};
+\node[c frz]  (v2) at (131,-23) {LSTM};
+\node[c meta, minimum width=4mm, inner sep=0.4mm] (d6) at (124.8,-30.5) {$g$};
+\node[c op]   (d5) at (131,-38.5) {MSE};
+\node[c res]  at (121.5,-46.5) {75.9 $|$ 61.3};
+\draw[c arr] (d0.south) -- ++(0,-1.5) -| (d1.north); \draw[c arr] (d0.south) -- ++(0,-1.5) -| (v1.north);
+\draw[c arr] (d1)--(d2); \draw[c arr] (d2)--(d3); \draw[c arr] (d3)--(d4);
+\draw[c arr] (v1)--(v2); \draw[c arr] (v2)--(d5); \draw[c arr] (d2.east) -| (d6.north); \draw[c arr] (d6.south) |- (d5.west);
+% ---- S4.4 Proto-align (new) ----
+\node[c title] at (156.5,0.5) {S4.4 Proto-align};
+\node[c clip] (e0) at (156.5,-6.5) {clip};
+\node[c net]  (e1) at (150.5,-15.5) {MobileNet};
+\node[c net]  (e2) at (150.5,-23) {LSTM};
+\node[c head] (e3) at (150.5,-30.5) {head};
+\node[c loss] (e4) at (150.5,-38.5) {CE + KD};
+\node[c frz]  (w1) at (166,-15.5) {ResNet50};
+\node[c frz]  (w2) at (166,-23) {LSTM};
+\node[c meta] (e6) at (166,-30.5) {KMeans\\3/class};
+\node[c loss] (e5) at (166,-38.5) {nearest};
+\node[c res]  at (156.5,-46.5) {\textcolor{red!65!black}{TODO} $|$ \textbf{67.9}};
+\node[c pick] at (156.5,-50.8) {best with 32 clips/class};
+\draw[c arr] (e0.south) -- ++(0,-1.5) -| (e1.north); \draw[c arr] (e0.south) -- ++(0,-1.5) -| (w1.north);
+\draw[c arr] (e1)--(e2); \draw[c arr] (e2)--(e3); \draw[c arr] (e3)--(e4);
+\draw[c arr] (w1)--(w2); \draw[c arr] (w2)--(e6); \draw[c arr] (e6)--(e5);
+\draw[c arr] (e2.east) -- ++(1.2,0) |- (e5.west);
 \end{tikzpicture}}
-\caption{\textbf{Stage 4: the four distillation objectives.} The student (blue) always
-learns from the labels (CE); the frozen teacher (dashed) adds nothing (S4.0), its softened
-scores (S4.1), its clip feature by direction (S4.2), or its clip feature through a
-learnable regressor $g$ (S4.3). Right: student test accuracy (Table~\ref{tab:kd}). Cosine
-is used in the pipeline.}
+\caption{\textbf{Stage 4: the five distillation objectives}, top to bottom. The pretrained
+student (blue, left of each panel) always learns from the labels (CE); the frozen teacher
+(dashed, right) adds nothing (S4.0), its softened scores (S4.1), its clip feature by
+direction (S4.2), its clip feature through a learnable regressor $g$ (S4.3), or KD plus the
+nearest of 3 KMeans prototypes of the student's class (S4.4, new; detail in
+Fig.~\ref{fig:proto}). Bottom: student test accuracy (\%) with the full training set $|$ with
+32 clips per class (Table~\ref{tab:kd}).}
 \label{fig:kd}
 \end{figure*}
 
+% ============================ FIG.: PROTO-ALIGN IN DETAIL ============================
+\begin{figure}[t]
+\centering
+\resizebox{\columnwidth}{!}{%
+\begin{tikzpicture}[ulal]
+\draw[u panel] (0,4) rectangle (41,-52);
+\draw[u panel] (44,4) rectangle (90,-52);
+% ---- 1. before training (once) ----
+\node[c title] at (20.5,0.5) {1. Before training (once)};
+\node[c clip, minimum width=27mm] (p0) at (20.5,-6.5) {training clips of class $c$};
+\node[c frz, minimum width=30mm] (p1) at (20.5,-15) {teacher (ResNet50 + LSTM)};
+\node[c data, minimum width=24mm] (p2) at (20.5,-23) {256-d features $h_t$};
+\node[c meta, minimum width=24mm] (p3) at (20.5,-31) {KMeans, 3 clusters};
+\node[c box, fill=white, minimum width=30mm, minimum height=9mm] (p4) at (20.5,-40.5) {};
+\foreach \dx/\dy in {-2/1,-1/-1.5,1/1.2,1.5/-1,-0.5/0.3}{
+  \fill[black!35] (11.5+\dx*0.9,-40.5+\dy*0.9) circle (0.35);
+  \fill[black!35] (20.5+\dx*0.9,-40.5-\dy*0.9) circle (0.35);
+  \fill[black!35] (29.5-\dx*0.9,-40.5+\dy*0.9) circle (0.35);}
+\foreach \cx in {11.5,20.5,29.5} \node[text=violet!85, font=\small, inner sep=0pt] at (\cx,-40.5) {$\star$};
+\node[c note] at (20.5,-48) {3 prototypes $\mu_{c,1},\mu_{c,2},\mu_{c,3}$ per class};
+\draw[c arr] (p0)--(p1); \draw[c arr] (p1)--(p2); \draw[c arr] (p2)--(p3); \draw[c arr] (p3)--(p4);
+% ---- 2. every training step ----
+\node[c title] at (67,0.5) {2. Every training step};
+\node[c clip, minimum width=16mm] (q0) at (62,-6.5) {clip, label $y$};
+\node[c net]  (q1) at (62,-15) {MobileNet};
+\node[c frz]  (qt) at (82,-15) {teacher};
+\node[c net]  (q2) at (62,-23) {LSTM};
+\node[c head] (q3) at (62,-31) {head};
+\node[c loss] (lp) at (51,-40.5) {nearest\\$\mu_{y,j}$};
+\node[c loss] (lc) at (62,-40.5) {CE};
+\node[c loss] (lk) at (82,-40.5) {KD};
+\node[c note] at (67,-48) {$\mathcal{L}=0.75\,\mathrm{CE}+0.25\,\mathrm{KD}+0.5\,\mathrm{proto}$};
+\draw[c arr] (q0)--(q1); \draw[c arr] (q1)--(q2); \draw[c arr] (q2)--(q3); \draw[c arr] (q3)--(lc);
+\draw[c arr] (q0.east) -| (qt.north); \draw[c arr] (qt)--node[c note, right]{$z_t$}(lk);
+\draw[c arr] (q3.east) -- node[c note, above, sloped]{$z_s$} (lk.north west);
+\draw[c arr] (q2.west) -| node[c note, pos=0.25, above]{$h_s$} (lp.north);
+\draw[c arr] (p4.east) -- (lp.west);
+\end{tikzpicture}}
+\caption{\textbf{S4.4 Proto-align in detail.} (1) Once, before training, the frozen teacher
+encodes the training clips of every class and KMeans groups their 256-d features into 3
+prototypes per class (stars). (2) At every step the student learns from the label (CE), from
+the teacher's softened scores (KD), and from a prototype term that pulls its clip feature
+$h_s$ to the nearest prototype of its own class $y$, $\min_j\lVert h_s-\mu_{y,j}\rVert^2$. The
+teacher and the prototypes are never updated; only the student (blue) trains.}
+\label{fig:proto}
+\end{figure}
+
 \begin{table}[t]
 \centering
-\caption{Distillation into the MobileNetV3-Small student (20-class group-disjoint test).
-Same student, budget, seed and initialisation; only the transfer term differs.}
+\caption{Distillation into the MobileNetV3-Small student (20-class group-disjoint test, \%).
+Same pretrained student, budget, seed and initialisation; only the transfer term differs.
+Full: all 1{,}917 training clips ($\approx$96 per class); 32/class: 640 training clips.}
 \label{tab:kd}
 \renewcommand{\arraystretch}{1.1}
-\begin{tabular}{lcc}
+\setlength{\tabcolsep}{4pt}
+\begin{tabular}{lccc}
 \toprule
-Model & Test acc.\ (\%) & Params (M) \\
+Model & Full & 32/class & Params (M) \\
 \midrule
-Teacher (ResNet50, Replay+LwF)  & 87.0 & 25.9 \\
-S4.0 Student, CE only           & 80.6 & 1.8 \\
-S4.1 Student, CE + KD           & 79.7 & 1.8 \\
-\textbf{S4.2 Student, CE + cosine} & \textbf{82.7} & 1.8 \\
-S4.3 Student, CE + MSE ($g$)    & 75.9 & 1.8 \\
+Teacher (ResNet50, Replay+LwF)   & 87.0 & 86.8 & 25.9 \\
+S4.0 Student, CE only            & 80.6 & 61.5 & 1.8 \\
+S4.1 Student, CE + KD            & 79.7 & 62.0 & 1.8 \\
+\textbf{S4.2 Student, CE + cosine} & \textbf{82.7} & 59.7 & 1.8 \\
+S4.3 Student, CE + MSE ($g$)     & 75.9 & 61.3 & 1.8 \\
+\textbf{S4.4 Student, proto-align} (new) & \todo & \textbf{67.9} & 1.8 \\
 \bottomrule
 \end{tabular}
 \end{table}
@@ -731,6 +844,26 @@ fights the label loss. The gap between the objectives is modest (single seed, 43
 clips), so the headline of this stage is compression, with cosine as the best transfer
 term. \textbf{Choice for the pipeline: cosine distillation} (panel S4 of
 Fig.~\ref{fig:pipeline}).
+
+\textbf{With few training clips: proto-align wins.} With 32 clips per class every student
+loses about 19 points (CE: 80.6\% $\to$ 61.5\%) and overfits: training accuracy reaches 97--99\%
+while test accuracy stays near 60\%. This is where the teacher---trained on the full set---
+should help, and the right half of Table~\ref{tab:kd} shows which kind of help works.
+\emph{Per-clip targets add little}: KD (62.0\%) and MSE (61.3\%) stay at the level of CE, and
+cosine (59.7\%) is even slightly below it. They copy what the teacher says about \emph{each}
+training clip; with only 32 clips per class these are 32 more targets to fit, not new
+information about the class. \emph{Proto-align is the clear winner at 67.9\%}, +6.4 points over
+CE and +5.9 over KD, well above the noise of a single run (one standard error is about 2.3
+points on 439 test clips); it also narrows the gap to the teacher from 25.3 to 18.9 points.
+Its target is different in kind: a \emph{class-level} summary of how the teacher sees each
+class, built from all its clips. Pulling every student feature to the nearest of three class
+prototypes makes the clips of a class gather around a few centres---exactly the regularisation
+an overfitting student needs---while three prototypes instead of one still leave room for
+different ways of performing the same action. In short, when data is scarce the teacher helps
+most by showing the student \emph{where each class lives} in feature space, not what each
+single clip looks like. With the full training set cosine remains the measured best and stays
+in the pipeline; \todo\ proto-align with the full training set---if it also beats cosine there,
+it should replace cosine in panel S4 of Fig.~\ref{fig:pipeline}.
 
 %------------------------------------------------------------------------------
 \section{Stage 5 --- Few-Shot Meta-Adaptation}
@@ -762,64 +895,70 @@ Eq.~\eqref{eq:harm}.
 \centering
 \resizebox{\textwidth}{!}{%
 \begin{tikzpicture}[ulal]
-% ---- S5.0 plain start ----
-\draw[u panel] (0, 0) rectangle (152, -12);  \node[u stage] at (-2, -6) {S5.0 Plain};
-\node[u net, minimum width=26mm] (a0) at (18, -6) {student (20)};
-\node[u small, fill=black!2.5, inner sep=0.8pt] at (80, -6) {no extra training};
-\node[u box, fill=white] (a9) at (140, -6) {start};
-\draw[u arr] (a0)--(a9);
-% ---- S5.1 fine-tune start ----
-\draw[u panel] (0, -16) rectangle (152, -28); \node[u stage] at (-2, -22) {S5.1 Fine-tune};
-\node[u net, minimum width=26mm] (b0) at (18, -22) {student (20)};
-\node[u data] (b1) at (46, -22) {40 other\\sports};
+\draw[u panel] (0,4) rectangle ++(26,-56);
+\draw[u panel] (28,4) rectangle ++(33,-56);
+\draw[u panel] (63,4) rectangle ++(33,-56);
+\draw[u best]  (98,4) rectangle ++(75,-56);
+% ---- S5.0 Plain ----
+\node[c title] at (13,0.5) {S5.0 Plain};
+\node[c net, minimum width=18mm] (a0) at (13,-6.5) {student (20)};
+\node[c note, fill=black!2.5, inner sep=0.6pt] at (13,-24) {no extra\\training};
+\node[c box, fill=white] (a9) at (13,-43) {start};
+\draw[c arr] (a0) -- (a9);
+% ---- S5.1 Fine-tune ----
+\node[c title] at (44.5,0.5) {S5.1 Fine-tune};
+\node[c net, minimum width=18mm] (b0) at (44.5,-6.5) {student (20)};
+\node[c data] (b1) at (44.5,-13.5) {40 other sports};
 \node[draw, rectangle split, rectangle split horizontal, rectangle split parts=2,
-      rectangle split part fill={white,blue!8}, rounded corners=2pt, minimum height=7mm,
-      align=center, font=\tiny] (b2) at (72, -22) {lower\nodepart{two}last 4};
-\node[u box, fill=white, font=\tiny] (b3) at (94, -22) {normal\\training};
-\node[u meta] (b4) at (117, -22) {re-fit\\head 20};
-\node[u box, fill=white] (b9) at (140, -22) {start};
-\draw[u arr] (b0)--(b1); \draw[u arr] (b1)--(b2); \draw[u arr] (b2)--(b3); \draw[u arr] (b3)--(b4); \draw[u arr] (b4)--(b9);
-\draw[red!65, densely dashed, thick] ($(b2.one split north)+(0,1.2)$) -- ($(b2.one split south)+(0,-1.2)$);
-% ---- S5.2 MAML start ----
-\draw[u panel] (0, -32) rectangle (152, -48); \node[u stage] at (-2, -40) {S5.2 MAML};
-\node[u net, minimum width=26mm] (c0) at (18, -40) {student (20)};
-\node[draw, rectangle split, rectangle split parts=2, rounded corners=2pt, fill=gray!12,
-      align=center, font=\tiny, inner sep=1mm] (c1) at (46, -40) {support\nodepart{two}query};
+      rectangle split part fill={white,blue!8}, rounded corners=1.5pt, minimum height=5mm,
+      inner sep=0.8mm, font=\tiny] (b2) at (44.5,-21) {lower\nodepart{two}last 4};
+\node[c box, fill=white] (b3) at (44.5,-28.5) {normal training};
+\node[c meta] (b4) at (44.5,-36) {re-fit head 20};
+\node[c box, fill=white] (b9) at (44.5,-43) {start};
+\draw[c arr] (b0)--(b1); \draw[c arr] (b1)--(b2); \draw[c arr] (b2)--(b3); \draw[c arr] (b3)--(b4); \draw[c arr] (b4)--(b9);
+\draw[red!65, densely dashed, thick] ($(b2.one split north)+(0,1)$) -- ($(b2.one split south)+(0,-1)$);
+% ---- S5.2 MAML ----
+\node[c title] at (79.5,0.5) {S5.2 MAML};
+\node[c net, minimum width=18mm] (c0) at (79.5,-6.5) {student (20)};
+\node[draw, rectangle split, rectangle split horizontal, rectangle split parts=2, rounded corners=1.5pt,
+      fill=gray!12, inner sep=0.8mm, font=\tiny] (c1) at (79.5,-13.5) {support\nodepart{two}query};
 \node[draw, rectangle split, rectangle split horizontal, rectangle split parts=2,
-      rectangle split part fill={white,blue!8}, rounded corners=2pt, minimum height=7mm,
-      align=center, font=\tiny] (c2) at (72, -40) {lower\nodepart{two}last 4};
-\node[u meta, font=\tiny] (c3) at (94, -40) {episodes\\(40 sports)};
-\node[u meta] (c4) at (117, -40) {re-fit\\head 20};
-\node[u box, fill=white] (c9) at (140, -40) {start};
-\draw[u arr] (c0)--(c1); \draw[u arr] (c1)--(c2); \draw[u arr] (c2)--(c3); \draw[u arr] (c3)--(c4); \draw[u arr] (c4)--(c9);
-\draw[red!65, densely dashed, thick] ($(c2.one split north)+(0,1.2)$) -- ($(c2.one split south)+(0,-1.2)$);
-\draw[u arr, violet!75, thick] (77, -36) to[bend left=35] node[font=\tiny, above=-0.5mm]{inner} (90, -36);
-\draw[u arr, violet!75, thick] (90, -44) to[bend left=35] node[font=\tiny, below=-0.5mm]{outer} (77, -44);
+      rectangle split part fill={white,blue!8}, rounded corners=1.5pt, minimum height=5mm,
+      inner sep=0.8mm, font=\tiny] (c2) at (79.5,-21) {lower\nodepart{two}last 4};
+\node[c meta, minimum width=15mm] (c3) at (79.5,-28.5) {episodes};
+\node[c meta] (c4) at (79.5,-36) {re-fit head 20};
+\node[c box, fill=white] (c9) at (79.5,-43) {start};
+\draw[c arr] (c0)--(c1); \draw[c arr] (c1)--(c2); \draw[c arr] (c2)--(c3); \draw[c arr] (c3)--(c4); \draw[c arr] (c4)--(c9);
+\draw[red!65, densely dashed, thick] ($(c2.one split north)+(0,1)$) -- ($(c2.one split south)+(0,-1)$);
+\draw[c arr, violet!75, thick] (87.5,-22) to[bend left=55] node[right, font=\tiny, inner sep=0.5pt]{inner} (87.5,-27.5);
+\draw[c arr, violet!75, thick] (71.5,-27.5) to[bend left=55] node[left, font=\tiny, inner sep=0.5pt]{outer} (71.5,-22);
 % ---- shared adaptation ----
-\draw[u best] (0, -54) rectangle (152, -80.5); \node[u stage] at (-2, -67) {Adaptation\\(all arms)};
-\draw[black!45, thick] (a9.east) -- (148, -6); \draw[black!45, thick] (b9.east) -- (148, -22); \draw[black!45, thick] (c9.east) -- (148, -40);
-\draw[u hand] (148, -6) -- (148, -57.5) -- (64, -57.5) -- (64, -62.3);
-\node[u handlab, anchor=south] at (106, -57.3) {one of the three starts};
-\node[u clip] (s1) at (12, -60) {8 clips\\5 new};
-\node[u buf]  (s2) at (12, -72) {old};
-\node[u small, anchor=west] at (18, -72) {replay (opt.)};
-\node[u op]   (s3) at (34, -66) {$+$};
-\node[u net, minimum width=40mm] (s4) at (64, -66) {start network};
-\node[u frz, minimum width=22mm] (s5) at (64, -75.3) {frozen copy};
-\node[u small, anchor=east] at (52, -75.3) {LwF (opt.)};
-\headsplit{s6}{100,-66}{20}{+5}
-\node[draw, rectangle split, rectangle split parts=3, rounded corners=2pt, fill=white,
-      font=\tiny, inner sep=0.8mm] (s7) at (122, -66) {new\nodepart{two}base\nodepart{three}H};
-\draw[u arr] (s1.east)--(s3); \draw[u arr] (s2.east)--(s3);
-\draw[u arr] (s3)--(s4); \draw[u arr] (s4)--(s6); \draw[u arr] (s6)--(s7);
-\draw[u arr, densely dashed] (s5.east) -| (s6.south);
-\node[u pick] at (150.5, -77.5) {best: MAML + replay};
+\node[c title] at (135.5,0.5) {Adaptation (all nine arms)};
+\node[c clip, minimum width=18mm] (s1) at (115,-6.5) {8 clips $\times$ 5 new};
+\node[c buf] (s2) at (135,-6.5) {old};
+\node[c note, anchor=west] at (139.5,-6.5) {replay (optional)};
+\node[c op] (s3) at (125,-13) {$+$};
+\node[c net, minimum width=26mm] (s4) at (125,-21) {start network};
+\node[c frz, minimum width=13mm] (s5) at (155,-21) {frozen copy};
+\node[c note] at (155,-26) {LwF (optional)};
+\colhead{s6}{125,-29.5}{20}{+5}
+\node[draw, rectangle split, rectangle split horizontal, rectangle split parts=3, rounded corners=1.5pt,
+      fill=white, inner sep=0.8mm, font=\tiny] (s7) at (125,-37.5) {new\nodepart{two}base\nodepart{three}H};
+\node[c pick] at (135.5,-45) {best: MAML + replay};
+\draw[c arr] (s1.south) |- (s3.west); \draw[c arr] (s2.south) |- (s3.east);
+\draw[c arr] (s3)--(s4); \draw[c arr] (s4)--(s6); \draw[c arr] (s6)--(s7);
+\draw[c arr, densely dashed] (s5.south) |- (s6.east);
+% the three starts feed the adaptation
+\draw[thick, black!45] (a9.south) -- (13,-49); \draw[thick, black!45] (b9.south) -- (44.5,-49);
+\draw[thick, black!45] (c9.south) -- (79.5,-49); \draw[thick, black!45] (13,-49) -- (106,-49);
+\draw[u hand] (106,-49) |- (s4.west);
+\node[c note, anchor=south] at (60,-48.8) {one of the three starts};
 \end{tikzpicture}}
-\caption{\textbf{Stage 5: three starting points and one shared adaptation.} The plain
-student (S5.0), the student after normal training on 40 other sports (S5.1, the control),
-and the student after MAML on the same sports (S5.2, violet: inner/outer loop) are each
-adapted in the same way: 8 clips of 5 new sports, a head grown from 20 to 25 classes, with
-optional replay (orange) and optional LwF (dashed). Red dashed: only the last 4 blocks,
+\caption{\textbf{Stage 5: three starting points and one shared adaptation}, top to bottom. The
+plain student (S5.0), the student after normal training on 40 other sports (S5.1, the
+control), and the student after MAML on the same sports (S5.2, violet: inner/outer loop) are
+each adapted in the same way: 8 clips of 5 new sports, a head grown from 20 to 25 classes,
+with optional replay (orange) and optional LwF (dashed). Red dashed: only the last 4 blocks,
 LSTM and head are trained before adaptation.}
 \label{fig:meta}
 \end{figure*}
@@ -890,6 +1029,137 @@ largest with 1 clip (0.26 against 0.00--0.03) and disappears by 10 clips (0.65 a
 Fig.~\ref{fig:pipeline}).
 
 %------------------------------------------------------------------------------
+\section{Stage 6 --- Few-Shot Learning with a Frozen CLIP Encoder}
+\label{sec:clip}
+\textbf{The question.} Stage~5 teaches our own small student to learn fast. A different route
+is to borrow a \emph{foundation model} that already knows a very wide range of images and
+keep it frozen: CLIP~\cite{radford2021clip} (ViT-B/32) was trained on 400M image--text pairs.
+Can it learn our actions from a handful of clips, or even from their names alone? This study
+is a reference for Stage~5; it is not part of the pipeline of Fig.~\ref{fig:pipeline}.
+
+\textbf{Design} (Fig.~\ref{fig:clip}). Every one of the 16 frames goes through the frozen CLIP
+image encoder; the 16 frame embeddings are averaged into one normalised 512-d clip feature
+$f$. The task is the 10 base classes with $k\in\{0,1,2,4,8\}$ training clips per class, tested
+on the group-disjoint test set. Five methods are compared:
+\begin{itemize}
+\item \textbf{S6.0 Baseline}: our ResNet50+LSTM with the ImageNet backbone frozen and the LSTM
+and head trained on the same $k$ clips (5 epochs).
+\item \textbf{S6.1 Zero-shot} ($k=0$): each class name becomes the prompt ``a video of a person
+performing $\langle$class$\rangle$'', encoded by the CLIP text encoder into a text prototype
+$t_c$; a clip gets the class with the highest $\cos(f,t_c)$. No training clip is used.
+\item \textbf{S6.2 Hybrid prototypes}: the text prototype is mixed with the mean feature $m_c$
+of the $k$ clips of the class, $p_c=0.4\,t_c+0.6\,m_c$ (normalised); classify by
+$\cos(f,p_c)$. Nothing is trained.
+\item \textbf{S6.3 Linear probe}: logistic regression on $f$ ($C=0.01$), trained on the $k$
+clips per class.
+\item \textbf{S6.4 MLP adapter}: a small MLP (512$\to$256, batch norm, ReLU, dropout 0.3, then
+the classes) on $f$, trained on the $k$ clips per class (Adam $10^{-3}$, 30 epochs).
+\end{itemize}
+
+% ============================ FIG. 6: CLIP FEW-SHOT ============================
+\begin{figure*}[t]
+\centering
+\resizebox{\textwidth}{!}{%
+\begin{tikzpicture}[ulal]
+\draw[u panel] (0,4) rectangle ++(30,-56);
+\draw[u panel] (32,4) rectangle ++(141,-56);
+% ---- S6.0 baseline ----
+\node[c title] at (15,0.5) {S6.0 Baseline};
+\node[c clip] (a0) at (15,-6.5) {$k$ clips};
+\node[c frz, minimum width=15mm] (a1) at (15,-15) {ResNet50};
+\node[c net]  (a2) at (15,-23) {LSTM};
+\node[c head] (a3) at (15,-31) {head};
+\node[c note] at (15,-38.5) {LSTM + head\\trained, 5 ep.};
+\node[c todo] at (15,-47.5) {TODO};
+\draw[c arr] (a0)--(a1); \draw[c arr] (a1)--(a2); \draw[c arr] (a2)--(a3);
+% ---- shared frozen CLIP trunk ----
+\node[c title] at (102.5,0.5) {S6.1--S6.4: frozen CLIP image encoder + four classifiers};
+\node[c clip] (t0) at (43,-7) {clip};
+\node[c frz, minimum width=44mm] (t1) at (80,-7) {CLIP image encoder (ViT-B/32), every frame};
+\node[c box, fill=white] (t2) at (118,-7) {mean of 16 frames};
+\node[c data] (t3) at (148,-7) {512-d clip feature $f$};
+\draw[c arr] (t0)--(t1); \draw[c arr] (t1)--(t2); \draw[c arr] (t2)--(t3);
+\draw[thick, black!45] (t3.south) -- (148,-12.5); \draw[thick, black!45] (66,-12.5) -- (171,-12.5);
+\foreach \x in {68,103,138} \draw[black!20, densely dashed] (\x,-14.5) -- (\x,-51);
+% ---- S6.1 zero-shot ----
+\node[c title] at (50.5,-17) {S6.1 Zero-shot};
+\node[c data, minimum width=26mm] (z1) at (50.5,-24) {``a video of a person\\performing $\langle$class$\rangle$''};
+\node[c frz, minimum width=17mm] (z2) at (50.5,-32) {CLIP text enc.};
+\node[c op] (z3) at (50.5,-39.5) {$\cos$};
+\node[c todo] at (50.5,-47.5) {TODO};
+\draw[c arr] (z1)--(z2); \draw[c arr] (z2)--node[c note, right]{$t_c$}(z3); \draw[c arr] (66,-12.5) |- (z3.east);
+% ---- S6.2 hybrid prototypes ----
+\node[c title] at (85.5,-17) {S6.2 Hybrid prototypes};
+\node[c frz, minimum width=17mm] (h1) at (85.5,-24) {text protos $t_c$};
+\node[c meta, minimum width=21mm] (h2) at (85.5,-32) {$0.4\,t_c+0.6\,m_c$};
+\node[c op] (h3) at (85.5,-39.5) {$\cos$};
+\node[c todo] at (85.5,-47.5) {TODO};
+\draw[c arr] (h1)--(h2); \draw[c arr] (h2)--(h3); \draw[c arr] (101,-12.5) |- (h3.east);
+% ---- S6.3 linear probe ----
+\node[c title] at (120.5,-17) {S6.3 Linear probe};
+\node[c note] at (120.5,-23.5) {trained on $k$ clips};
+\node[c net, minimum width=20mm] (l1) at (120.5,-31) {logistic regression};
+\node[c box, fill=white] (l2) at (120.5,-39.5) {class};
+\node[c todo] at (120.5,-47.5) {TODO};
+\draw[c arr] (136,-12.5) |- (l1.east); \draw[c arr] (l1)--(l2);
+% ---- S6.4 MLP adapter ----
+\node[c title] at (155.5,-17) {S6.4 MLP adapter};
+\node[c net, minimum width=22mm] (m1) at (155.5,-24.5) {MLP 512$\to$256\\BN, ReLU, dropout};
+\node[c head] (m2) at (155.5,-33) {head};
+\node[c note] at (155.5,-39.5) {trained on $k$ clips};
+\node[c todo] at (155.5,-47.5) {TODO};
+\draw[c arr] (171,-12.5) |- (m1.east); \draw[c arr] (m1)--(m2);
+\end{tikzpicture}}
+\caption{\textbf{Stage 6: few-shot learning with a frozen CLIP encoder}, top to bottom. Left:
+our ResNet50+LSTM trained on the same $k$ clips. Right: the frozen CLIP image encoder (dashed)
+turns every clip into one 512-d feature $f$ (average of its 16 frames), and four classifiers
+use it: text prototypes $t_c$ only (S6.1, no clips), text + visual prototypes (S6.2; $m_c$ is the mean feature of the $k$ clips of class $c$), a linear
+probe (S6.3), and a small MLP adapter (S6.4). Blue: trained on the $k$ clips.}
+\label{fig:clip}
+\end{figure*}
+
+\begin{table}[t]
+\centering
+\caption{Stage 6: test accuracy (\%) on the 10 base classes with $k$ clips per class
+(\todo: fill from \texttt{few\_shot\_learning.ipynb}). ``Trained'' counts the trainable
+parameters; the CLIP image encoder ($\approx$88M) is frozen.}
+\label{tab:clip}
+\renewcommand{\arraystretch}{1.1}
+\setlength{\tabcolsep}{3.2pt}
+\begin{tabular}{lcccccc}
+\toprule
+Method & Trained & $k{=}0$ & 1 & 2 & 4 & 8 \\
+\midrule
+S6.0 ResNet50+LSTM   & 2.4M  & --    & \todo & \todo & \todo & \todo \\
+S6.1 Zero-shot CLIP  & 0     & \todo & --    & --    & --    & --    \\
+S6.2 Hybrid proto.   & 0     & --    & \todo & \todo & \todo & \todo \\
+S6.3 Linear probe    & 5k    & --    & \todo & \todo & \todo & \todo \\
+S6.4 MLP adapter     & 0.13M & --    & \todo & \todo & \todo & \todo \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+\textbf{Results.} \todo (Table~\ref{tab:clip}).
+
+\textbf{MAML (Stage 5) or CLIP (Stage 6)?} The two answer the same need---learning a class
+from a few clips---in opposite ways, and each wins on different criteria:
+\begin{itemize}
+\item \emph{Prior knowledge.} CLIP brings what it learned from 400M web images and captions, so
+it can recognise many actions from few clips, and even from the class name alone. MAML only
+knows the UCF101 sports it was meta-trained on, and must still update the network.
+\item \emph{Forgetting.} With frozen CLIP features, adding a class means adding a prototype (or
+a row of a small classifier); the old classes are untouched, so nothing is forgotten and no
+replay buffer is needed. MAML updates the network and needs replay to keep the old classes.
+\item \emph{Size.} The frozen CLIP image encoder has $\approx$88M parameters, about $50\times$
+the 1.8M distilled student and more than the 25.9M teacher: it gives up the compression that
+Stage~4 was built for.
+\item \emph{Time.} Averaging frame features ignores their order, while our recogniser has an
+LSTM; actions defined mostly by the order of movements may suffer.
+\end{itemize}
+A like-for-like answer needs the same task for both: \todo\ evaluate S6.2 and S6.4 on the
+YouTube test of Section~\ref{sec:ulal}, next to the MAML student.
+
+%------------------------------------------------------------------------------
 \section{The ULAL Pipeline on Real Video}
 \label{sec:ulal}
 \textbf{Building the pipeline from the winners.} The final notebook chains the selected
@@ -902,16 +1172,18 @@ to bottom, now on a longer $10\!\to\!20\!\to\!30$ stream:
 mixes new clips with stored old clips (15 per class).
 \item \textbf{S4 Cosine distillation}: the frozen 30-class teacher is distilled into the
 MobileNet student with CE + cosine.
-\item \textbf{S5 MAML}: the student is meta-trained on 35 other sports---the 40 meta sports of Stage~5 minus the 5 that are among the 30 known classes---(5-way 3-shot, only
+\item \textbf{S5 MAML}: the student is meta-trained on 35 other sports---the 40 meta sports of Stage~5 minus the 5 that are among the 30 known classes---(5-way 5-shot, only
 its last 4 blocks, LSTM and head); each meta clip comes from a different source video, so
 the query clips are always from other videos than the support clips. Its 30-class head is
 then re-fitted on 12 clips per class.
 \item \textbf{Real-video test}: 5 sports that no model has seen (golf swing, front crawl,
 hammer throw, handstand push-ups, handstand walking) are taken from YouTube, 4 videos
 each: 2 videos to learn from and 2 kept only for testing. Each model grows its head from
-30 to 35 classes and learns from 3, 5 or 8 clips per sport with replay (8 old clips per
-class). We adapt the MAML student and, as references, the teacher and the plain distilled
-student, with the same clips, seed and budget. We report the accuracy on the unseen test
+30 to 35 classes and learns from the same 10 clips per sport, with replay (8 old clips per
+class), in 1, 2, 3 or 5 passes over the clips (13, 26, 39 or 65 updates): few passes mean
+that learning must be fast, the case MAML is built for. We adapt the MAML student and, as
+references, the teacher and the plain distilled student, with the same clips, seed and
+budget. We report the accuracy on the unseen test
 videos (new), the accuracy kept on the 30 UCF classes (old), and their harmonic mean.
 \end{enumerate}
 
@@ -929,32 +1201,29 @@ S2 & ResNet50 teacher          & 10 & 93.9 & 25.9M \\
 S3 & teacher + replay          & 30 & 79.7 & 25.9M \\
    & \quad old / new classes   &    & 78.8 / 81.4 & \\
 S4 & student, cosine KD        & 30 & 67.2 & 1.8M \\
-S5 & MAML student (re-fitted)  & 30 & 59.9 & 1.8M \\
+S5 & MAML student (re-fitted)  & 30 & 60.8 & 1.8M \\
 \bottomrule
 \end{tabular}
 \end{table}
 
 \begin{table}[t]
 \centering
-\caption{Learning 5 unseen sports from YouTube clips (with replay). New: accuracy on the
-unseen YouTube test videos; Old: accuracy kept on the 30 UCF classes; H: harmonic mean.}
+\caption{Learning 5 unseen sports from 10 YouTube clips per sport (with replay), by number of
+passes over the clips (\todo). New: accuracy on the unseen YouTube test videos; Old:
+accuracy kept on the 30 UCF classes.}
 \label{tab:youtube}
 \renewcommand{\arraystretch}{1.1}
-\begin{tabular}{llccc}
+\setlength{\tabcolsep}{3pt}
+\begin{tabular}{ccccccccc}
 \toprule
-Clips/sport & Model & New & Old & H \\
+ & & \multicolumn{2}{c}{Teacher} & \multicolumn{2}{c}{KD student} & \multicolumn{2}{c}{MAML student} \\
+\cmidrule(lr){3-4}\cmidrule(lr){5-6}\cmidrule(lr){7-8}
+Epochs & Updates & New & Old & New & Old & New & Old \\
 \midrule
-3 & teacher      & 0.31 & 0.73 & 0.44 \\
-  & KD student   & 0.04 & 0.62 & 0.08 \\
-  & MAML student & 0.30 & 0.53 & 0.38 \\
-\midrule
-5 & teacher      & 0.28 & 0.79 & 0.41 \\
-  & KD student   & 0.49 & 0.55 & 0.52 \\
-  & MAML student & 0.40 & 0.56 & 0.47 \\
-\midrule
-8 & teacher      & 0.51 & 0.79 & 0.62 \\
-  & KD student   & 0.62 & 0.62 & 0.62 \\
-  & MAML student & 0.42 & 0.53 & 0.47 \\
+1 & 13 & \todo & \todo & \todo & \todo & \todo & \todo \\
+2 & 26 & \todo & \todo & \todo & \todo & \todo & \todo \\
+3 & 39 & \todo & \todo & \todo & \todo & \todo & \todo \\
+5 & 65 & \todo & \todo & \todo & \todo & \todo & \todo \\
 \bottomrule
 \end{tabular}
 \end{table}
@@ -964,29 +1233,20 @@ the model balanced: after two tasks of ten classes each the teacher scores 79.7\
 30 classes, with old (78.8\%) and new classes (81.4\%) close together---no collapse
 towards the newest task. The distilled student keeps 67.2\% at $14\times$ fewer
 parameters; the gap to the teacher is larger than in Stage~4 (30 classes instead of 20,
-and 10 instead of 15 epochs). MAML meta-training costs the student 7.3 points on the known
-classes (59.9\%): moving the last blocks towards fast adaptation, and re-fitting the head on
+and 10 instead of 15 epochs). MAML meta-training costs the student 6.4 points on the known
+classes (60.8\%): moving the last blocks towards fast adaptation, and re-fitting the head on
 only 12 clips per class, trades some old-class accuracy for plasticity, as in Stage~5.
 
-\textbf{Results on real video and why.} Table~\ref{tab:youtube}. \emph{With 3 clips per
-sport} the MAML student learns the new sports far better than the plain distilled student
-(0.30 against 0.04): this is exactly the regime MAML was trained for---a few clips and few
-update steps---and it matches the Stage-5 finding that the meta-learned start helps most
-when data is scarcest. \emph{With 5 and 8 clips} the plain student catches up and passes it
-(0.49 and 0.62 against 0.40 and 0.42) and also keeps more of the old classes. Three reasons
-explain this: more clips mean more update steps, so the start matters less (as in
-Table~\ref{tab:shots}); the MAML student starts weaker on the known classes (59.9\% against
-67.2\%); and adaptation here trains every layer with Adam for 5 epochs, further from the 5
-small inner steps that MAML prepared for. \emph{The teacher} keeps the old classes best
-(0.73--0.79) thanks to its larger capacity and 2048-d features, but learns the new sports
-slowly at the same small learning rate; at 8 clips it ties the plain student on H (0.62).
-Two limits of this test matter when reading it: there are only 10 test videos (2 per
-sport), so one video changes the new-sport accuracy by 0.10 and differences below that are
-within noise; and some sports change setting between videos---the handstand push-up
-learning videos are filmed in a white studio and the test videos in a gym, and at 8 clips
-the MAML student gets none of those test clips right. The clear, repeatable result is the
-3-clip one: \emph{meta-learning pays off when only a handful of clips exist}, while with
-more data the plain distilled student is the better deployable choice.
+\textbf{Results on real video and why.} \todo\ (Table~\ref{tab:youtube}). In pilot runs
+the ranking depended mainly on the \emph{number of updates}: with about 20 updates the MAML
+student learned the new sports clearly better than the plain student (0.11--0.17 against
+0.02--0.09), at about 30 updates the two tied, and with 35 or more updates the plain student
+caught up and passed it, while the teacher kept the old classes best. This is why the final
+test fixes the clips and varies only the number of passes. Two limits hold for any reading
+of this test: there are only 10 test videos, so one video changes the new-sport accuracy by
+0.10 and smaller differences are within noise; and some sports change setting between
+videos (the handstand push-up learning videos are filmed in a studio, the test videos in a
+gym).
 
 %------------------------------------------------------------------------------
 \section{Discussion and Limitations}
@@ -996,7 +1256,8 @@ harmonic mean the few-shot ranking would reward models that learn nothing new.
 \emph{Data beats cleverness for retention:} on video, rehearsal of a few clips per class
 outperforms every data-free method (EWC, LwF); LwF in particular is designed for a setting
 where the task is known at test time and collapses when one head must choose among all
-classes. \emph{Each tool has a regime:} distillation's win is compression, and
+classes. \emph{Each tool has a regime:} distillation's win is compression---and with scarce data, a
+teacher helps most through class-level prototypes rather than per-clip targets---and
 meta-learning's win is learning from very few clips---with more clips the simpler student
 catches up, both in Stage~5 and on real video.
 
@@ -1012,7 +1273,8 @@ ULAL is a compact, honest, real-video pipeline for lifelong action recognition o
 free GPU. A leakage-free split makes the numbers trustworthy; a ResNet50+LSTM is a strong
 teacher (93.9\%); rehearsal is the strongest continual learner (89.8\% against 26.0\% for
 naive fine-tuning); cosine distillation gives a $14\times$ smaller student that keeps
-82.7\%; and, scored with a harmonic metric and a fine-tune control, MAML+replay is the
+82.7\%, and with scarce data the new prototype alignment is the best way to use the teacher
+(+6.4 points); and, scored with a harmonic metric and a fine-tune control, MAML+replay is the
 best-balanced few-shot adapter (H 0.60). Chained into one pipeline and tested on unseen
 YouTube videos, the meta-trained student learns new sports from 3 clips far better than the
 plain student (0.30 against 0.04), confirming that each chosen tool adds the ability it was
@@ -1051,7 +1313,7 @@ and real-video test; the evaluation protocol and metrics. \\
 \end{table}
 
 %------------------------------------------------------------------------------
-\begin{thebibliography}{9}
+\begin{thebibliography}{99}
 \bibitem{kirkpatrick2017ewc} J. Kirkpatrick \emph{et al.}, ``Overcoming catastrophic
 forgetting in neural networks,'' \emph{PNAS}, 2017.
 \bibitem{zenke2017si} F. Zenke, B. Poole, and S. Ganguli, ``Continual learning through
@@ -1074,6 +1336,10 @@ for fast adaptation of deep networks,'' \emph{ICML}, 2017.
 recognition,'' \emph{CVPR}, 2016.
 \bibitem{howard2019mobilenetv3} A. Howard \emph{et al.}, ``Searching for MobileNetV3,''
 \emph{ICCV}, 2019.
+\bibitem{radford2021clip} A. Radford \emph{et al.}, ``Learning transferable visual models from
+natural language supervision,'' \emph{ICML}, 2021.
+\bibitem{snell2017proto} J. Snell, K. Swersky, and R. Zemel, ``Prototypical networks for
+few-shot learning,'' \emph{NeurIPS}, 2017.
 \bibitem{soomro2012ucf101} K. Soomro, A. R. Zamir, and M. Shah, ``UCF101: A dataset of 101
 human action classes from videos in the wild,'' \emph{arXiv:1212.0402}, 2012.
 \end{thebibliography}
