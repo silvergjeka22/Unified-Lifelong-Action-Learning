@@ -64,7 +64,7 @@ def prototype_alignment_loss(student_feats, targets, teacher_prototypes, device)
 def train_student(student, teacher, train_loader, val_loader, device, mode="kd",
                   epochs=10, lr=1e-3, T=2.0, ce_weight=0.75, distill_weight=0.25,
                   proto_weight=0.5, num_classes=None, n_clusters=1, seed=42,
-                  freeze_backbone=False):
+                  freeze_backbone=True):
     """
     Distil a trained teacher into the student on real clips. Returns (best_student_model, history)
     where best_student_model is the deep-copied model instance that achieved the highest validation accuracy.
