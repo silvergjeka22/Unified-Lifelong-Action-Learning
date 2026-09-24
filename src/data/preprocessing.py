@@ -195,6 +195,22 @@ def build_group_split(target_classes=None, input_root=None, splits=None,
     return split_map
 
 
+def one_video_per_group(split_map, split="train"):
+    """
+    Keep only the first video of every group in one split, so each kept clip comes from a
+    different source video. Used for the MAML pool: support and query then never share a video.
+    """
+    for cls, paths in split_map[split].items():
+        seen, keep = set(), []
+        for p in paths:
+            key = "_".join(os.path.basename(p).split("_")[:3])
+            if key not in seen:
+                seen.add(key)
+                keep.append(p)
+        split_map[split][cls] = keep
+    return split_map
+
+
 def describe_group_split(split_map, target_classes=None):
     """Print clip counts per split and confirm the group assignment is disjoint."""
     target_classes = target_classes or sorted(split_map["train"])

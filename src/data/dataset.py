@@ -1,8 +1,18 @@
 import os
 import torch
 import matplotlib.pyplot as plt
-from torch.utils.data import Dataset
+from torch.utils.data import Dataset, Subset
 from glob import glob
+
+
+def per_class_subset(dataset, k):
+    """The first k clips of every class of a UCF101Clips dataset, as a Subset (nothing is loaded)"""
+    counts, keep = {}, []
+    for i, (_, label) in enumerate(dataset.samples):
+        if counts.get(label, 0) < k:
+            keep.append(i)
+            counts[label] = counts.get(label, 0) + 1
+    return Subset(dataset, keep)
 
 
 class UCF101Clips(Dataset):
