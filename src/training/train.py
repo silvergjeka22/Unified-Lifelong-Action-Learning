@@ -52,12 +52,9 @@ def task_accs(model, loaders, device):
 
 def train_model(model, train_loader, val_loader, num_epochs=5, lr=1e-4, device="cuda",
                 track_loaders=None, track_history=None):
-    """
-    Train a model, printing train/val accuracy each epoch. Returns a history dict.
+    """Train a model and print train/val accuracy per epoch. Returns a history dict.
 
-    If track_loaders ({task_name: test_loader}) and track_history (a list) are given, one
-    {task_name: accuracy} snapshot is appended per epoch (plus a baseline before the first
-    epoch when the list is empty) so plot_forgetting_history can chart the whole stream.
+    track_loaders and track_history add one {task: accuracy} snapshot per epoch for the forgetting plot.
     """
     model.to(device)
     free_gpu(device)
@@ -84,8 +81,7 @@ def train_model(model, train_loader, val_loader, num_epochs=5, lr=1e-4, device="
 
 
 def test_model(model, test_loader, device="cuda", verbose=True):
-    """Run inference on the test set. Returns (accuracy, preds, labels). verbose=False mutes the
-    Test Accuracy print (used when scoring many models in a loop for a single table)."""
+    """Test a model. Returns (accuracy, preds, labels); verbose=False hides the print."""
     model.eval()
     preds, labels = [], []
     with torch.no_grad():

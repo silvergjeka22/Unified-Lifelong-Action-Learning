@@ -23,7 +23,7 @@ class UCF101Clips(Dataset):
         self.samples = []
 
         for cls_name in self.classes:
-            # Look up the GLOBAL ID instead of using a local loop index
+            # global class id
             if cls_name in self.class_to_idx:
                 cls_idx = self.class_to_idx[cls_name]
 

@@ -56,11 +56,9 @@ class ResNet18LSTM(nn.Module):
 
 
 class ResNet50LSTM(nn.Module):
-    """
-    ResNet50 (layer4 unfrozen) + LSTM. The teacher used in every later stage.
+    """ResNet50 (layer4 trainable) + LSTM: the teacher.
 
-    forward(x)  -> logits
-    features(x) -> the 256-d LSTM state (for feature distillation in stage 4)
+    forward(x) -> logits, features(x) -> 256-d LSTM state
     """
 
     def __init__(self, num_classes=NUM_CLASSES, hidden_size=HIDDEN_SIZE, dropout_p=DROPOUT_P):

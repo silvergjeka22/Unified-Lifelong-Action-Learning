@@ -13,18 +13,15 @@ import torch.optim as optim
 from torch.utils.data import DataLoader, TensorDataset
 from sklearn.linear_model import LogisticRegression
 
-# -------------------------------------------------------------------------
-# Feature Extraction Utilities
-# -------------------------------------------------------------------------
+# Features
 def extract_clip_video_features(loader, clip_model, device):
-    """Passes video clips through the frozen CLIP image encoder and calculates
-    temporally-averaged 512-dim normalized video feature vectors."""
+    """Encode every frame with the frozen CLIP image encoder and average them into one 512-d feature per clip."""
     all_features, all_labels = [], []
 
     with torch.no_grad():
         for videos, labels in loader:
             if videos.ndim == 5:
-                if videos.shape[1] == 3:  # Convert (B, C, T, H, W) -> (B, T, C, H, W)
+                if videos.shape[1] == 3:  # (B, C, T, H, W) -> (B, T, C, H, W)
                     videos = videos.permute(0, 2, 1, 3, 4)
                 
                 B, T, C, H, W = videos.shape
@@ -44,7 +41,7 @@ def extract_clip_video_features(loader, clip_model, device):
     return X, y
 
 def get_text_prototypes(class_names, clip_model, device):
-    """Extracts normalized 512-dim CLIP text prompt embeddings for target classes."""
+    """CLIP text feature of every class name (normalised)."""
     import clip
     prompts = [f"a video of a person performing {cls.replace('_', ' ')}" for cls in class_names]
     tokens = clip.tokenize(prompts).to(device)
@@ -53,11 +50,9 @@ def get_text_prototypes(class_names, clip_model, device):
         text_feats = F.normalize(text_feats, p=2, dim=-1)
     return text_feats.cpu().numpy()
 
-# -------------------------------------------------------------------------
-# CLIP Evaluation Helper (Method 1)
-# -------------------------------------------------------------------------
+# Hybrid prototypes
 def evaluate_hybrid_prototypes(X_train, y_train, X_eval, y_eval, text_proto, alpha=0.4):
-    """Blends zero-shot CLIP text prototypes with few-shot visual centroids."""
+    """Classify by cosine to prototypes that mix the text feature and the mean clip feature. Returns accuracy in %."""
     num_classes = len(text_proto)
     visual_centroids = []
     
@@ -79,9 +74,7 @@ def evaluate_hybrid_prototypes(X_train, y_train, X_eval, y_eval, text_proto, alp
     preds = np.argmax(cosine_sims, axis=1)
     return np.mean(preds == y_eval) * 100.0
 
-# -------------------------------------------------------------------------
-# CLIP-MLP Adapter Architecture
-# -------------------------------------------------------------------------
+# MLP adapter
 class CLIPMLPAdapter(nn.Module):
     def __init__(self, in_dim=512, hidden_dim=256, num_classes=101, dropout=0.3):
         super().__init__()

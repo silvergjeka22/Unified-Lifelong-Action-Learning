@@ -64,17 +64,7 @@ def fill_buffer(buffer, loader, per_class=None):
 def train_continual(model, train_loader, val_loader, device, buffer=None, teacher=None,
                     num_old_classes=10, lambda_distill=1.0, T=5.0, epochs=5, lr=1e-4,
                     track_loaders=None, track_history=None, verbose=True):
-    """
-    Train on a new task with optional replay and optional LwF distillation.
-
-        buffer only          -> replay
-        teacher only         -> LwF (soft targets on old-class logits)
-        buffer + teacher     -> replay + LwF
-        neither              -> naive (use train_model instead)
-
-    track_loaders / track_history: see train_model fills a per epoch forgetting timeline.
-    Returns a history dict
-    """
+    """Train on a new task with replay (buffer), LwF (teacher) or both. Returns a history dict."""
     model.to(device)
     free_gpu(device)
     optimizer = torch.optim.Adam(model.parameters(), lr=lr)

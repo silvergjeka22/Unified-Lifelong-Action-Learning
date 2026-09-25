@@ -7,13 +7,7 @@ from src.config.config import DATASET_ROOT
 
 
 class DatasetStudy:
-    """
-    Summarise the UCF101 CSV split files: class distribution, balance, outliers.
-
-    Usage:
-        study = DatasetStudy()
-        study.run_all()
-    """
+    """Summarise the UCF101 split files: class sizes, balance and outliers. Use study.run_all()."""
 
     def __init__(self, dataset_root=DATASET_ROOT):
         self.dataset_root = dataset_root

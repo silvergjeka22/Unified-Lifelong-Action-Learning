@@ -11,8 +11,7 @@ from src.training.train import evaluate_model
 
 
 def build_pool(datasets, per_class):
-    """Load up to per_class clips per class from one or more UCF101Clips datasets into RAM tensors.
-    Returns (clips, labels) so episodes are sampled fast without re-reading disk."""
+    """Load up to per_class clips per class into RAM. Returns (clips, labels)."""
     by_class = {}
     for ds in datasets:
         for path, label in ds.samples:
@@ -26,8 +25,7 @@ def build_pool(datasets, per_class):
 
 
 def make_task(clips, labels, class_ids, k_shot, k_query, device):
-    """Build one support/query split from the given class ids, relabelled 0..n-1.
-    Returns support_x, support_y, query_x, query_y."""
+    """One episode: support and query sets from the given classes, labels 0..n-1."""
     sx, sy, qx, qy = [], [], [], []
     for new_label, c in enumerate(class_ids):
         idx  = (labels == c).nonzero(as_tuple=True)[0]
@@ -45,8 +43,7 @@ def sample_episode(clips, labels, class_pool, n_way, k_shot, k_query, device):
 
 
 def _adapt(model, sx, sy, inner_lr, inner_steps):
-    """Copy the model and take inner_steps of SGD on the support set (only the trainable params -
-    a frozen backbone stays put). Returns the copy."""
+    """Copy the model and take inner_steps SGD steps on the support set (trainable weights only)."""
     adapted = copy.deepcopy(model)
     params = [p for p in adapted.parameters() if p.requires_grad]
     opt = torch.optim.SGD(params, lr=inner_lr, momentum=0.9)
@@ -66,14 +63,11 @@ def few_shot_adapt(model, sx, sy, inner_lr, inner_steps):
 def meta_train_maml(model, clips, labels, class_pool, n_way, k_shot, k_query,
                     epochs, episodes, inner_lr, inner_steps, meta_lr, device,
                     freeze_backbone=False, unfreeze_layer4=False, train_last=0):
-    """First-order MAML: adapt on support, take the query gradient at the adapted weights, and apply it
-    to the meta-weights. Returns (model, history).
+    """First-order MAML on episodes. Returns (model, history).
 
-    freeze_backbone with train_last=N keeps only the LAST N backbone blocks trainable (plus LSTM + head):
-    the lower blocks stay frozen so the OLD classes' features are preserved, while the upper blocks
-    reshape for the new task. unfreeze_layer4 is the ResNet-only shorthand (layer4 = backbone[-2]) and is
-    ignored when train_last > 0. On return the same partial freeze is restored, so no-meta and MAML adapt
-    the same parameters at meta-test - a fair comparison."""
+    freeze_backbone with train_last=N trains only the last N backbone blocks, the LSTM and the head.
+    unfreeze_layer4 is the ResNet shortcut, ignored when train_last > 0.
+    """
     model.to(device)
     if freeze_backbone:
         for p in model.backbone.parameters():
@@ -118,11 +112,7 @@ def meta_train_maml(model, clips, labels, class_pool, n_way, k_shot, k_query,
 
 def finetune_on_pool(model, clips, labels, class_ids, device, epochs, lr, batch_size,
                      freeze_backbone=False, train_last=0):
-    """The matched, non-meta control for MAML: plain supervised fine-tuning of the model on the same pool
-    of clips (the meta classes), training the SAME parameters MAML meta-trains (last train_last backbone
-    blocks + LSTM + head, when freeze_backbone) - just ordinary minibatch training instead of episodes.
-    A fresh head over the pool's classes (labels relabelled 0..n-1) is used and left in place for the
-    caller to replace via recalibrate_head. All parameters are trainable on return. Returns the model."""
+    """Control for MAML: ordinary training on the same clips and the same weights. Returns the model."""
     model = model.to(device)
     if freeze_backbone:
         for p in model.backbone.parameters():
@@ -151,12 +141,7 @@ def finetune_on_pool(model, clips, labels, class_ids, device, epochs, lr, batch_
 
 
 def recalibrate_head(model, loader, n_classes, device, epochs=3, lr=1e-3):
-    """Re-fit a FRESH n_classes linear head to the model's CURRENT features (backbone + LSTM frozen), so
-    the head matches a backbone that meta-training has shifted. Meta-training moves the features but
-    leaves the old head calibrated to the OLD features, which collapses old-class accuracy; a short linear
-    probe on the old-class data restores it without touching the meta-learned features. This only puts the
-    meta init on equal footing with the plain init. All parameters are left trainable on return. Returns
-    the model."""
+    """Fit a new head on the current features (backbone and LSTM frozen). Returns the model."""
     model = model.to(device)
     for p in model.parameters():
         p.requires_grad_(False)
@@ -177,14 +162,10 @@ def recalibrate_head(model, loader, n_classes, device, epochs=3, lr=1e-3):
 def adapt_and_eval(model, train_loader, base_test_loader, new_test_loader, n_base, n_new, device,
                    buffer=None, teacher=None, epochs=3, lr=1e-4,
                    lambda_distill=cfg.LAMBDA_DISTILL, T=cfg.KD_TEMPERATURE, verbose=True, track=True):
-    """The ONE adaptation every study arm uses: grow the head to n_base + n_new and fully fine-tune on the
-    new classes for `epochs` epochs, with optional replay (buffer) and LwF (teacher). Arms differ only in
-    the init (plain vs MAML) and whether buffer / teacher are passed.
+    """Grow the head and train on the new classes, with optional replay (buffer) and LwF (teacher).
 
-    Returns (model, new_acc, base_acc, new_curve, base_curve): the adapted model (for a confusion matrix),
-    the final new-class and base accuracy, and - when track is True - the per-epoch new/base test accuracy
-    (index 0 = before adapting) for the adaptation-curve plot. verbose=False hides the per-epoch log (used
-    by the shots sweep so it prints one line per shot); track=False skips the per-epoch evaluation."""
+    Returns (model, new_acc, base_acc, new_curve, base_curve); the curves are filled when track is True.
+    """
     model = model.to(device)
     model = expand_classifier(model, n_base + n_new).to(device)
     if track:
@@ -207,9 +188,7 @@ def adapt_and_eval(model, train_loader, base_test_loader, new_test_loader, n_bas
 
 
 def proto_accuracy(model, train_loader, test_loader, device):
-    """Nearest-class-mean accuracy from the model's frozen features: build one prototype (mean feature)
-    per class from train_loader, then classify each test clip by the nearest prototype (cosine). A higher
-    score means the features separate these classes better - a probe of what meta-training reshaped."""
+    """Nearest-class-mean accuracy with the model's features (cosine): higher means better separated classes."""
     model = model.to(device).eval()
     sums, counts = {}, {}
     with torch.no_grad():

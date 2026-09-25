@@ -8,14 +8,9 @@ NUM_CLASSES = len(SELECTED_CLASSES)
 
 
 class MobileNetV3SmallLSTMStudent(nn.Module):
-    """
-    MobileNetV3-Small + LSTM. The compact student for knowledge distillation.
+    """MobileNetV3-Small + LSTM: the small student, with the same 256-d LSTM as the teacher.
 
-    Same hidden size as the teacher (256), so the LSTM state can be matched directly
-    for feature distillation - the size saving comes from the backbone, not the head.
-
-    forward(x)  -> logits
-    features(x) -> the 256-d LSTM state (for cosine / MSE distillation)
+    forward(x) -> logits, features(x) -> 256-d LSTM state
     """
 
     BACKBONE_DIM = 576
