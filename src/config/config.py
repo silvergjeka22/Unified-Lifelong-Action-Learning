@@ -60,7 +60,7 @@ FINEGRAIN = [
     "TaiChi", "ShavingBeard", "Haircut", "HeadMassage", "MoppingFloor", "HandstandWalking",
 ]
 
-# sports MAML meta trains
+# sports for MAML meta-training
 SPORTS_META = [
     "BaseballPitch", "Basketball", "BasketballDunk", "BenchPress", "Biking",
     "Billiards", "BodyWeightSquats", "Bowling", "BreastStroke", "CleanAndJerk",
@@ -72,9 +72,8 @@ SPORTS_META = [
     "Punch", "Rafting", "RockClimbingIndoor", "RopeClimbing", "Rowing"
 ]
 
-# NEW MAML EXAM
+# new sports for the MAML test
 SPORTS_EXAM = [
-    #"Shotput", "SkateBoarding", "Skijet", "SkyDiving", "SoccerJuggling"
     "FrontCrawl", "GolfSwing", "HammerThrow", "HandstandPushups", "HandstandWalking",
 ]
 

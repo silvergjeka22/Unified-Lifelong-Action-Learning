@@ -10,7 +10,7 @@ from src.cl.rehearsal import distillation_loss
 
 
 def extract_features_and_labels(model, loader, device):
-    """Passes dataset through model to extract intermediate features and class labels."""
+    """Features and labels of every clip in the loader."""
     model.eval()
     all_features, all_labels = [], []
 
@@ -27,7 +27,7 @@ def extract_features_and_labels(model, loader, device):
 
 
 def compute_kmeans_prototypes(features, labels, num_classes, n_clusters=1, seed=42):
-    """Computes feature prototypes for each class using KMeans clustering."""
+    """KMeans prototypes (n_clusters) of every class."""
     prototypes = {}
     for c in range(num_classes):
         cls_mask = (labels == c)
@@ -42,7 +42,7 @@ def compute_kmeans_prototypes(features, labels, num_classes, n_clusters=1, seed=
 
 
 def prototype_alignment_loss(student_feats, targets, teacher_prototypes, device):
-    """Computes alignment loss between student mini-batch features and target class KMeans prototypes."""
+    """MSE between each student feature and the nearest prototype of its class."""
     loss = torch.tensor(0.0, device=device)
     valid_count = 0
 
@@ -51,7 +51,7 @@ def prototype_alignment_loss(student_feats, targets, teacher_prototypes, device)
             t_proto = teacher_prototypes[target_cls].to(device)  # shape: (k, feature_dim)
             s_feat = student_feats[i].unsqueeze(0)                # shape: (1, feature_dim)
 
-            # MSE distance to nearest class prototype center
+            # MSE to the nearest prototype
             dist = F.mse_loss(s_feat.expand_as(t_proto), t_proto, reduction='none').mean(dim=-1)
             loss = loss + torch.min(dist)
             valid_count += 1
@@ -65,20 +65,15 @@ def train_student(student, teacher, train_loader, val_loader, device, mode="kd",
                   epochs=10, lr=1e-3, T=2.0, ce_weight=0.75, distill_weight=0.25,
                   proto_weight=0.5, num_classes=None, n_clusters=1, seed=42,
                   freeze_backbone=False):
-    """
-    Distil a trained teacher into the student on real clips. Returns (best_student_model, history)
-    where best_student_model is the deep-copied model instance that achieved the highest validation accuracy.
+    """Train the student with one of the modes below. Returns (best student by val accuracy, history).
 
-        "ce"          cross-entropy only, no teacher
-        "kd"          CE + KL on softened logits
-        "cosine"      CE + cosine distance between student and teacher features
-        "mse"         CE + MSE between a learnable regressor of the student features and the
-                      teacher features - the tutorial's RegressorMSE.
-        "proto_align" CE + KD + KMeans Prototype Alignment between student features and 
-                      teacher class prototypes.
+        ce           cross-entropy only, no teacher
+        kd           CE + KL on softened logits
+        cosine       CE + cosine distance between student and teacher features
+        mse          CE + MSE between a learned projection of the student features and the teacher features
+        proto_align  CE + KD + MSE to the nearest teacher class prototype (KMeans)
 
-    freeze_backbone: train only the LSTM + head (backbone frozen). Lighter and faster, and
-    it isolates the small head so the teacher's contribution (KD vs CE) is clearly visible.
+    freeze_backbone: train only the LSTM and the head.
     """
     student.to(device)
     if freeze_backbone:
@@ -96,12 +91,12 @@ def train_student(student, teacher, train_loader, val_loader, device, mode="kd",
     optimizer = torch.optim.Adam(params, lr=lr)
     history = {"train_losses": [], "val_losses": [], "train_accs": [], "val_accs": []}
     
-    # Initialize best accuracy tracking and copy initial model as fallback
+    # best model so far (starts with the initial one)
     best_acc = 0.0
     best_state = copy.deepcopy(student.state_dict())
     best_model = copy.deepcopy(student)
 
-    # Pre-compute teacher class prototypes if using prototype alignment
+    # teacher prototypes, computed once
     teacher_prototypes = None
     if mode == "proto_align":
         print("[proto_align] Extracting teacher feature prototypes using KMeans...")
@@ -158,13 +153,13 @@ def train_student(student, teacher, train_loader, val_loader, device, mode="kd",
         history["val_losses"].append(val_loss)
         print(f"[{mode:>11}] epoch {epoch+1:02d}/{epochs} | Train Acc: {train_acc:.4f} | Val Acc: {val_acc:.4f}")
 
-        # Check for best validation accuracy and save model copy
+        # keep the best model
         if val_acc > best_acc:
             best_acc = val_acc
             best_state = copy.deepcopy(student.state_dict())
             best_model = copy.deepcopy(student)
 
-    # Ensure best state dict is loaded onto the returned best model instance
+    # return the best weights
     best_model.load_state_dict(best_state)
     print(f"  best [{mode}] val {best_acc:.4f}")
     

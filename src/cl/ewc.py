@@ -12,11 +12,7 @@ def theta_star(model):
 
 
 def get_fisher(train_loader, model, device):
-    """
-    Diagonal Fisher information: the mean squared gradient per weight over the task's
-    data, then normalised per layer to [0, 1] so the most important weights sit near 1.
-    Without that normalisation the raw values are tiny and the EWC penalty is insufficient to prevent forgetting
-    """
+    """Diagonal Fisher information: mean squared gradient per weight, scaled per layer to [0, 1]."""
     fisher = {n: torch.zeros_like(p) for n, p in model.named_parameters() if p.requires_grad}
     model.train().to(device)
     for m in model.modules():
@@ -48,7 +44,7 @@ def ewc_loss(model, star, fisher, ewc_lambda, device):
         if n in star and n in fisher:
             old = star[n].to(device)
             f   = fisher[n].to(device)
-            c   = old.shape[0]                 # the classifier row count may have grown
+            c   = old.shape[0]                 # the head may have grown
             loss = loss + (f[:c] * (p[:c] - old).pow(2)).sum()
     return ewc_lambda * loss
 
@@ -56,12 +52,7 @@ def ewc_loss(model, star, fisher, ewc_lambda, device):
 def train_ewc(model, train_loader, val_loader, old_val_loader, star, fisher,
               device, num_epochs=10, lr=1e-5, ewc_lambda=5000.0,
               track_loaders=None, track_history=None):
-    """
-    Train on a new task with the EWC penalty. Prints new-task and old-task validation
-    accuracy each epoch so the protection is visible. Returns a history dict.
-
-    track_loaders / track_history: see train_model fills a per epoch forgetting timeline
-    """
+    """Train on a new task with the EWC penalty. Returns a history dict."""
     model.to(device)
     free_gpu(device)
     optimizer = torch.optim.Adam([p for p in model.parameters() if p.requires_grad], lr=lr)
@@ -72,7 +63,7 @@ def train_ewc(model, train_loader, val_loader, old_val_loader, star, fisher,
         track_history.append(task_accs(model, track_loaders, device))
 
     for epoch in range(num_epochs):
-        model.train()   # dropout ON during training, same as every other arm
+        model.train()   # dropout on
         correct, total = 0, 0
         ce_sum, pen_sum, nb = 0.0, 0.0, 0
         for clips, y in tqdm(train_loader, desc="  train", leave=False):

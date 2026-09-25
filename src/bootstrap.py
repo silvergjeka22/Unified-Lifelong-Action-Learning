@@ -10,7 +10,7 @@ def mount_drive():
     try:
         from google.colab import drive
     except ImportError:
-        print("Not on Colab — skipping Drive mount.")
+        print("Not on Colab: Drive not mounted.")
         return False
     if not os.path.isdir("/content/drive/MyDrive"):
         drive.mount("/content/drive")
@@ -20,12 +20,7 @@ def mount_drive():
 
 # Dataset
 def setup_dataset(kaggle_version: str = "4"):
-    """
-    Download UCF101 via kagglehub and export the paths as env vars.
-
-    Sets ULAL_DATASET_ROOT / ULAL_OUTPUT_ROOT, which config.py reads. No file is
-    modified and no kernel restart is needed.
-    """
+    """Download UCF101 with kagglehub and set the path variables that config.py reads."""
     if not (os.environ.get("KAGGLE_USERNAME") and os.environ.get("KAGGLE_KEY")):
         raise RuntimeError("Set KAGGLE_USERNAME and KAGGLE_KEY before calling setup_dataset().")
 
@@ -49,13 +44,13 @@ def setup_dataset(kaggle_version: str = "4"):
     return dataset_root, output_root
 
 
-# One-call setup
+# Setup
 def setup(drive: bool = True, dataset: bool = True, data_root: str = "/content/UCF101",
           drive_project: str = "/content/drive/MyDrive/apai", kaggle_version: str = "4"):
     """Mount Drive, download the dataset, export every path config.py reads."""
     os.environ.setdefault("ULAL_DATA_ROOT", data_root)
     os.environ.setdefault("ULAL_DRIVE_PROJECT", drive_project)
-    # Free-Colab GPU: reduce allocator fragmentation (set before torch touches CUDA).
+    # less GPU memory fragmentation (must be set before CUDA starts)
     os.environ.setdefault("PYTORCH_CUDA_ALLOC_CONF", "expandable_segments:True")
 
     if drive:
@@ -69,4 +64,4 @@ def setup(drive: bool = True, dataset: bool = True, data_root: str = "/content/U
 
     print(f"ULAL_DATA_ROOT     = {data_root}")
     print(f"ULAL_DRIVE_PROJECT = {drive_project}")
-    print("Setup complete — no config.py edit, no kernel restart.")
+    print("Setup complete.")

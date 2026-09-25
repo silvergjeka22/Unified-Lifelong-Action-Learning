@@ -20,10 +20,7 @@ def _group_metrics(labels, preds, classes_list, span, name):
 
 def print_detailed_metrics(all_labels, all_preds, num_classes=None, classes_list=None,
                            split_old=None, split_new=None):
-    """
-    Print overall accuracy / F1, the per-class report, and (for CL) the old vs new
-    class split. Reporting is this function's job, so it prints.
-    """
+    """Print accuracy, F1, the per-class report and, for CL, old vs new classes."""
     if classes_list is None:
         classes_list = SELECTED_CLASSES
     if num_classes is None:

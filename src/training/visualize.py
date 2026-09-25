@@ -51,9 +51,7 @@ def plot_confusion_matrix(all_labels, all_preds, num_classes=None, classes_list=
 
 
 def plot_old_new_confusion(all_labels, all_preds, n_base, name=""):
-    """Row-normalised 2x2 old-vs-new confusion: how often a true OLD (label < n_base) or NEW clip is
-    predicted as old vs new. A readable, realistic stand-in for a big per-class matrix when there are
-    many base classes - it shows the drift toward the new classes at a glance."""
+    """2x2 confusion of old vs new classes (rows normalised)."""
     labels = np.array(all_labels)
     preds  = np.array(all_preds)
     true_new = (labels >= n_base).astype(int)
@@ -71,11 +69,7 @@ def plot_old_new_confusion(all_labels, all_preds, n_base, name=""):
 
 
 def plot_old_vs_new(class_names, base_old, base_new, maml_old, maml_new, k_shot=5):
-    """
-    Compare no-meta vs MAML on OLD (support-video) and NEW (held-out-video) clips. Each *_old /
-    *_new is a per-class list of accuracies. Left panel: overall seen-vs-unseen. Right panel:
-    per-class accuracy on the NEW videos - the real generalisation test where MAML should win.
-    """
+    """Accuracy on old and new videos, no-meta vs MAML."""
     n = len(class_names)
     x2, xc, w = np.arange(2), np.arange(n), 0.38
     fig, (ax_o, ax_c) = plt.subplots(1, 2, figsize=(13, 5))
@@ -97,12 +91,7 @@ def plot_old_vs_new(class_names, base_old, base_new, maml_old, maml_new, k_shot=
 
 
 def plot_forgetting_history(history, epochs_per_task=5):
-    """
-    Line timeline of each task's test accuracy over the whole CL stream. `history` is a
-    list of {task_name: accuracy} dicts, one per epoch (index 0 = before any CL task),
-    as filled by the trainers' track_history. A line rising then falling is a task being
-    learned then forgotten; a line staying high is a task being retained.
-    """
+    """Accuracy of every task over the whole CL stream, one point per epoch."""
     tasks = []
     for entry in history:
         for k in entry:

@@ -6,10 +6,7 @@ import src.config.config as cfg
 
 
 def extract_frames(video_path, target_fps=cfg.FRAME_RATE, max_frames=None):
-    """
-    Extract video frames at the target FPS and return them as RGB arrays,
-    use max_frames to limit the number of frames stored in memory
-    """
+    """Read a video at the target fps and return its RGB frames (at most max_frames)."""
     cap = cv2.VideoCapture(video_path)
     original_fps = cap.get(cv2.CAP_PROP_FPS) or target_fps
     frame_interval = max(int(original_fps // target_fps), 1)
@@ -44,14 +41,11 @@ def save_clip_tensor(frames, output_path):
 
 
 def sample_spread_clips(video_path, n_clips, clip_len=cfg.CLIP_LEN, target_fps=cfg.FRAME_RATE):
-    """
-    Return n_clips short clips from different parts of the video.
-    Read one clip at a time to save memory.
-    """
+    """Return n_clips clips spread over the video, reading one clip at a time."""
     cap = cv2.VideoCapture(video_path)
     total        = int(cap.get(cv2.CAP_PROP_FRAME_COUNT) or 0)
     original_fps = cap.get(cv2.CAP_PROP_FPS) or target_fps
-    step         = max(int(original_fps // target_fps), 1)     # keep ~target_fps within a clip
+    step         = max(int(original_fps // target_fps), 1)     # about target_fps frames per second
     last_start   = max(total - clip_len * step, 0)
 
     windows = []
@@ -120,13 +114,7 @@ def check_group_leakage(target_classes=None, input_root=None, splits=None):
 
 
 def leakage_example(class_name, input_root=None, splits=None):
-    """
-    One class's group -> split table from the shipped split. Returns a DataFrame with
-    columns (group, clip, split, group_leaks), leaking groups first.
-
-    Makes the leakage concrete: rows where group_leaks is True are clips cut from the
-    SAME source video that the shipped split scattered across train / val / test.
-    """
+    """Table of one class's groups in the shipped split, leaking groups first."""
     import pandas as pd
 
     splits     = splits or ["train", "val", "test"]
@@ -155,16 +143,7 @@ def leakage_example(class_name, input_root=None, splits=None):
 
 def build_group_split(target_classes=None, input_root=None, splits=None,
                       train_groups=18, val_groups=3):
-    """
-    Group-disjoint split. Returns {split: {class: [video paths]}}.
-
-    Pools every video regardless of which folder the dataset shipped it in, groups them
-    by their v_Class_gXX key, and assigns WHOLE groups to one split. Because one group
-    is one source video, no frame of a test video can appear in training.
-
-    Groups are ordered by name and cut by index, so the split is deterministic and needs
-    no seed. UCF101 has 25 groups per class: 18/3/4 gives roughly 72/12/16 percent.
-    """
+    """Group-disjoint split: every group (source video) goes to one split. Returns {split: {class: [paths]}}."""
     target_classes = target_classes or cfg.SELECTED_CLASSES
     splits         = splits or ["train", "val", "test"]
     input_root     = input_root or cfg.DATASET_ROOT
@@ -196,10 +175,7 @@ def build_group_split(target_classes=None, input_root=None, splits=None,
 
 
 def one_video_per_group(split_map, split="train"):
-    """
-    Keep only the first video of every group in one split, so each kept clip comes from a
-    different source video. Used for the MAML pool: support and query then never share a video.
-    """
+    """Keep the first video of every group, so each clip comes from a different source video."""
     for cls, paths in split_map[split].items():
         seen, keep = set(), []
         for p in paths:
@@ -246,12 +222,9 @@ def describe_group_split(split_map, target_classes=None):
 
 def preprocess_group_split(split_map, target_classes=None, output_root=None, max_samples=None,
                            max_test_samples=None):
-    """
-    Save clips from a group-disjoint split map as .pt files.
+    """Save the clips of a split as .pt files.
 
-    max_samples limits the number of training clips per class.
-    max_test_samples limits validation and test clips per class.
-    Leave either value as None to keep all clips.
+    max_samples caps the train clips per class, max_test_samples the val/test clips (None = all).
     """
     target_classes = target_classes or sorted(split_map["train"])
     output_root    = output_root or cfg.OUTPUT_ROOT
@@ -269,7 +242,7 @@ def preprocess_group_split(split_map, target_classes=None, output_root=None, max
 
         for cls in target_classes:
             paths = split_map[split].get(cls, [])
-            # memory/speed saver: cap clips per class - train via max_samples, val/test via max_test_samples
+            # cap the clips per class
             if max_samples is not None and split == "train":
                 paths = paths[:max_samples]
             elif max_test_samples is not None and split in ("val", "test"):
@@ -296,11 +269,7 @@ def preprocess_group_split(split_map, target_classes=None, output_root=None, max
 
 
 def plot_split_leakage(target_classes=None, input_root=None, train_groups=18, val_groups=3):
-    """
-    Stacked bar chart comparing the two splits by how many groups (source videos) leak
-    across train/val/test: the shipped split vs the group-disjoint one. Returns a dict
-    of counts.
-    """
+    """Bar chart of leaking groups: shipped split vs group-disjoint split. Returns the counts."""
     import matplotlib.pyplot as plt
 
     target_classes = target_classes or cfg.SELECTED_CLASSES
