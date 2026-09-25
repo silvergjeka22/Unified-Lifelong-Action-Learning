@@ -97,11 +97,10 @@ and Few-Shot Meta-Adaptation on UCF101}
 \maketitle
 
 \begin{abstract}
-% TODO: add the S6 (CLIP) and final capstone results.
 We present \emph{Unified Lifelong Action Learning} (ULAL), an end-to-end pipeline that
 studies how a single video action recogniser can keep learning new actions over time
 without forgetting the old ones, trained directly on real video frames. The pipeline is
-built as five linked studies, each answering one question and each comparing several
+built as five linked studies and a reference study, each answering one question and each comparing several
 methods under one shared budget. (i) \emph{How do we measure honestly?} UCF101's shipped
 split leaks 80\% of its source groups across train and test; we replace it with a
 group-disjoint split that leaks none. (ii) \emph{Which backbone?} A five-way bake-off
@@ -112,11 +111,17 @@ do we shrink the model?} Cosine feature distillation gives a MobileNetV3-Small s
 that keeps 82.7\% at $14\times$ fewer parameters; with only 32 training clips per class, a new
 class-prototype alignment objective raises the student from 61.5\% to 67.9\%. (v) \emph{How do we learn new classes
 from a few clips?} A nine-arm comparison with a matched fine-tune control shows
-MAML+replay is the best-balanced few-shot adapter (harmonic mean 0.60). A final capstone
+MAML+replay is the best-balanced few-shot adapter (harmonic mean 0.60). (vi) \emph{What does
+a frozen foundation model give?} On frozen CLIP features, a small adapter trained on one
+clip per class reaches 75.0\% on the base classes against 17.9\% for our ResNet50+LSTM, and
+with 16 clips training-free text + visual prototypes reach 90.1\%---at the cost of an 88M-parameter
+encoder, $50\times$ the student. A final capstone
 chains the winner of every stage into one pipeline and tests it on real YouTube videos of
-five unseen sports: from only 3 clips per sport the MAML student reaches 0.30 accuracy on
-unseen videos against 0.04 for the plain distilled student, while with 5--8 clips the
-plain student catches up---meta-learning pays off exactly in the few-shot regime. The whole
+five unseen sports, each learned from 10 clips: after 13 updates the MAML student
+recognises 0.16 of the clips of unseen test videos where the plain distilled student
+recognises none, and after 26 updates 0.36, as much as the $14\times$ larger teacher (0.37)
+and above the plain student (0.23); with 65 updates the plain student catches up and passes
+it (0.57 against 0.47)---meta-learning pays off exactly when learning must be fast. The whole
 pipeline runs on a single free Colab T4 GPU.
 \end{abstract}
 
@@ -161,7 +166,8 @@ own schematic and compared under one shared budget and seed.
 \item \textbf{A fine-tune control that isolates meta-learning}: the MAML start is compared
 with an ordinary fine-tune start that saw the \emph{same} extra data.
 \item \textbf{A foundation-model reference}: few-shot learning with a frozen CLIP encoder
-(zero-shot, prototypes, linear probe, MLP adapter) against the meta-learned student.
+(text + visual prototypes, linear probe, MLP adapter) against our ResNet50+LSTM trained on
+the same few clips.
 \item \textbf{A real-video capstone}: the winners of all stages are chained into one
 pipeline and taught five unseen sports from a few YouTube clips, tested on YouTube videos
 they never saw.
@@ -384,8 +390,9 @@ Meta-train (S5)   & 5-way 3-shot, 60 episodes $\times$ 8 epochs; \\
                   & meta-lr $10^{-4}$; last 4 blocks trained \\
 Adaptation (S5)   & 8 clips/class, 5 epochs, lr $3\!\times\!10^{-4}$; \\
                   & replay 8/class; LwF $0.5$, $T{=}2$ \\
-CLIP (S6)         & ViT-B/32 frozen; $k\in\{0,1,2,4,8\}$; hybrid 0.4/0.6; \\
-                  & probe $C{=}0.01$; MLP Adam $10^{-3}$, 30 epochs \\
+CLIP (S6)         & ViT-B/32 frozen; $k\in\{1,2,4,8,16\}$; hybrid 0.4/0.6; \\
+                  & probe $C{=}0.01$; MLP AdamW $10^{-3}$, 50 epochs; \\
+                  & baseline Adam $10^{-4}$, 10 epochs \\
 Capstone          & replay 15/class ($10\!\to\!20\!\to\!30$); \\
                   & cosine KD, 10 epochs; \\
                   & MAML 5-way 5-shot, 35 sports (1 clip/video); \\
@@ -1039,114 +1046,138 @@ is a reference for Stage~5; it is not part of the pipeline of Fig.~\ref{fig:pipe
 
 \textbf{Design} (Fig.~\ref{fig:clip}). Every one of the 16 frames goes through the frozen CLIP
 image encoder; the 16 frame embeddings are averaged into one normalised 512-d clip feature
-$f$. The task is the 10 base classes with $k\in\{0,1,2,4,8\}$ training clips per class, tested
-on the group-disjoint test set. Five methods are compared:
+$f$. The task is the 10 base classes, learned from $k\in\{1,2,4,8,16\}$ training clips per
+class and tested on the 212 clips of the group-disjoint test set (one clip is 0.47 points;
+chance is 10\%). The $k$ clips are the first $k$ of each class in group order, so for
+$k\le4$ they all come from one source recording, for $k=8$ from two and for $k=16$ from
+three or four. Four methods are compared:
 \begin{itemize}
 \item \textbf{S6.0 Baseline}: our ResNet50+LSTM with the ImageNet backbone frozen and the LSTM
-and head trained on the same $k$ clips (5 epochs).
-\item \textbf{S6.1 Zero-shot} ($k=0$): each class name becomes the prompt ``a video of a person
+and head trained on the same $k$ clips (Adam $10^{-4}$, 10 epochs). It is not the Stage-2
+teacher: it sees only the $k$ clips.
+\item \textbf{S6.1 Hybrid prototypes}: each class name becomes the prompt ``a video of a person
 performing $\langle$class$\rangle$'', encoded by the CLIP text encoder into a text prototype
-$t_c$; a clip gets the class with the highest $\cos(f,t_c)$. No training clip is used.
-\item \textbf{S6.2 Hybrid prototypes}: the text prototype is mixed with the mean feature $m_c$
-of the $k$ clips of the class, $p_c=0.4\,t_c+0.6\,m_c$ (normalised); classify by
+$t_c$; it is mixed with the mean feature $m_c$ of the $k$ clips of the class,
+$p_c=0.4\,t_c+0.6\,m_c$ (normalised), and a clip gets the class with the highest
 $\cos(f,p_c)$. Nothing is trained.
-\item \textbf{S6.3 Linear probe}: logistic regression on $f$ ($C=0.01$), trained on the $k$
+\item \textbf{S6.2 Linear probe}: logistic regression on $f$ ($C=0.01$), trained on the $k$
 clips per class.
-\item \textbf{S6.4 MLP adapter}: a small MLP (512$\to$256, batch norm, ReLU, dropout 0.3, then
-the classes) on $f$, trained on the $k$ clips per class (Adam $10^{-3}$, 30 epochs).
+\item \textbf{S6.3 MLP adapter}: a small MLP (512$\to$256, batch norm, ReLU, dropout 0.3, then
+the classes) on $f$, trained on the $k$ clips per class (AdamW $10^{-3}$, weight decay
+$10^{-2}$, 50 epochs).
 \end{itemize}
+S6.0 and S6.3 are run for every $k$; S6.1 and S6.2 only for $k=16$.
 
-% ============================ FIG. 6: CLIP FEW-SHOT ============================
+% ============================ FIG. 7: CLIP FEW-SHOT ============================
 \begin{figure*}[t]
 \centering
 \resizebox{\textwidth}{!}{%
 \begin{tikzpicture}[ulal]
-\draw[u panel] (0,4) rectangle ++(30,-56);
-\draw[u panel] (32,4) rectangle ++(141,-56);
+\draw[u panel] (0,4) rectangle ++(30,-62);
+\draw[u panel] (32,4) rectangle ++(141,-62);
 % ---- S6.0 baseline ----
 \node[c title] at (15,0.5) {S6.0 Baseline};
 \node[c clip] (a0) at (15,-6.5) {$k$ clips};
 \node[c frz, minimum width=15mm] (a1) at (15,-15) {ResNet50};
 \node[c net]  (a2) at (15,-23) {LSTM};
 \node[c head] (a3) at (15,-31) {head};
-\node[c note] at (15,-38.5) {LSTM + head\\trained, 5 ep.};
-\node[c todo] at (15,-47.5) {TODO};
+\node[c note] at (15,-38.5) {LSTM + head\\trained, 10 ep.};
+\node[c res]  at (15,-51) {17.9 $\to$ 61.3};
+\node[c note] at (15,-55) {$k=1\to16$};
 \draw[c arr] (a0)--(a1); \draw[c arr] (a1)--(a2); \draw[c arr] (a2)--(a3);
 % ---- shared frozen CLIP trunk ----
-\node[c title] at (102.5,0.5) {S6.1--S6.4: frozen CLIP image encoder + four classifiers};
+\node[c title] at (102.5,0.5) {S6.1--S6.3: frozen CLIP image encoder + three classifiers};
 \node[c clip] (t0) at (43,-7) {clip};
 \node[c frz, minimum width=44mm] (t1) at (80,-7) {CLIP image encoder (ViT-B/32), every frame};
 \node[c box, fill=white] (t2) at (118,-7) {mean of 16 frames};
 \node[c data] (t3) at (148,-7) {512-d clip feature $f$};
 \draw[c arr] (t0)--(t1); \draw[c arr] (t1)--(t2); \draw[c arr] (t2)--(t3);
-\draw[thick, black!45] (t3.south) -- (148,-12.5); \draw[thick, black!45] (66,-12.5) -- (171,-12.5);
-\foreach \x in {68,103,138} \draw[black!20, densely dashed] (\x,-14.5) -- (\x,-51);
-% ---- S6.1 zero-shot ----
-\node[c title] at (50.5,-17) {S6.1 Zero-shot};
-\node[c data, minimum width=26mm] (z1) at (50.5,-24) {``a video of a person\\performing $\langle$class$\rangle$''};
-\node[c frz, minimum width=17mm] (z2) at (50.5,-32) {CLIP text enc.};
-\node[c op] (z3) at (50.5,-39.5) {$\cos$};
-\node[c todo] at (50.5,-47.5) {TODO};
-\draw[c arr] (z1)--(z2); \draw[c arr] (z2)--node[c note, right]{$t_c$}(z3); \draw[c arr] (66,-12.5) |- (z3.east);
-% ---- S6.2 hybrid prototypes ----
-\node[c title] at (85.5,-17) {S6.2 Hybrid prototypes};
-\node[c frz, minimum width=17mm] (h1) at (85.5,-24) {text protos $t_c$};
-\node[c meta, minimum width=21mm] (h2) at (85.5,-32) {$0.4\,t_c+0.6\,m_c$};
-\node[c op] (h3) at (85.5,-39.5) {$\cos$};
-\node[c todo] at (85.5,-47.5) {TODO};
-\draw[c arr] (h1)--(h2); \draw[c arr] (h2)--(h3); \draw[c arr] (101,-12.5) |- (h3.east);
-% ---- S6.3 linear probe ----
-\node[c title] at (120.5,-17) {S6.3 Linear probe};
-\node[c note] at (120.5,-23.5) {trained on $k$ clips};
-\node[c net, minimum width=20mm] (l1) at (120.5,-31) {logistic regression};
-\node[c box, fill=white] (l2) at (120.5,-39.5) {class};
-\node[c todo] at (120.5,-47.5) {TODO};
-\draw[c arr] (136,-12.5) |- (l1.east); \draw[c arr] (l1)--(l2);
-% ---- S6.4 MLP adapter ----
-\node[c title] at (155.5,-17) {S6.4 MLP adapter};
-\node[c net, minimum width=22mm] (m1) at (155.5,-24.5) {MLP 512$\to$256\\BN, ReLU, dropout};
-\node[c head] (m2) at (155.5,-33) {head};
-\node[c note] at (155.5,-39.5) {trained on $k$ clips};
-\node[c todo] at (155.5,-47.5) {TODO};
-\draw[c arr] (171,-12.5) |- (m1.east); \draw[c arr] (m1)--(m2);
+\draw[thick, black!45] (t3.south) -- (148,-12.5); \draw[thick, black!45] (75,-12.5) -- (167,-12.5);
+\foreach \x in {79.5,126.5} \draw[black!20, densely dashed] (\x,-14.5) -- (\x,-56.5);
+% ---- S6.1 hybrid prototypes ----
+\node[c title] at (55.5,-17) {S6.1 Hybrid prototypes};
+\node[c data, minimum width=26mm] (h0) at (55.5,-24) {``a video of a person\\performing $\langle$class$\rangle$''};
+\node[c frz, minimum width=17mm] (h1) at (55.5,-32) {CLIP text enc.};
+\node[c meta, minimum width=21mm] (h2) at (55.5,-39.5) {$0.4\,t_c+0.6\,m_c$};
+\node[c op] (h3) at (55.5,-46) {$\cos$};
+\node[c res]  at (55.5,-51) {\textbf{90.1}};
+\node[c pick] at (55.5,-55) {best at $k=16$, nothing trained};
+\draw[c arr] (h0)--(h1); \draw[c arr] (h1)--node[c note, right]{$t_c$}(h2); \draw[c arr] (h2)--(h3);
+\draw[c arr] (75,-12.5) |- (h3.east);
+\draw[c arr] (75,-39.5) -- node[c note, above]{$m_c$} (h2.east);
+% ---- S6.2 linear probe ----
+\node[c title] at (103,-17) {S6.2 Linear probe};
+\node[c note] at (103,-23.5) {trained on $k$ clips};
+\node[c net, minimum width=20mm] (l1) at (103,-31) {logistic regression};
+\node[c box, fill=white] (l2) at (103,-39.5) {class};
+\node[c res]  at (103,-51) {89.6};
+\node[c note] at (103,-55) {$k=16$};
+\draw[c arr] (121,-12.5) |- (l1.east); \draw[c arr] (l1)--(l2);
+% ---- S6.3 MLP adapter ----
+\node[c title] at (150,-17) {S6.3 MLP adapter};
+\node[c net, minimum width=22mm] (m1) at (150,-24.5) {MLP 512$\to$256\\BN, ReLU, dropout};
+\node[c head] (m2) at (150,-33) {head};
+\node[c note] at (150,-39.5) {trained on $k$ clips};
+\node[c res]  at (150,-51) {\textbf{75.0} $\to$ 86.8};
+\node[c pick] at (150,-55) {best at $k=1$--$8$};
+\draw[c arr] (167,-12.5) |- (m1.east); \draw[c arr] (m1)--(m2);
 \end{tikzpicture}}
 \caption{\textbf{Stage 6: few-shot learning with a frozen CLIP encoder}, top to bottom. Left:
-our ResNet50+LSTM trained on the same $k$ clips. Right: the frozen CLIP image encoder (dashed)
-turns every clip into one 512-d feature $f$ (average of its 16 frames), and four classifiers
-use it: text prototypes $t_c$ only (S6.1, no clips), text + visual prototypes (S6.2; $m_c$ is the mean feature of the $k$ clips of class $c$), a linear
-probe (S6.3), and a small MLP adapter (S6.4). Blue: trained on the $k$ clips.}
+our ResNet50+LSTM, its LSTM and head trained on the same $k$ clips. Right: the frozen CLIP
+image encoder (dashed) turns every clip into one 512-d feature $f$ (average of its 16
+frames), and three classifiers use it: text + visual prototypes (S6.1; $t_c$ from the class
+name, $m_c$ the mean feature of the $k$ clips of class $c$), a linear probe (S6.2), and a
+small MLP adapter (S6.3). Blue: trained on the $k$ clips. Bottom: test accuracy (\%), from
+1 to 16 clips per class where the whole sweep was run.}
 \label{fig:clip}
 \end{figure*}
 
 \begin{table}[t]
 \centering
-\caption{Stage 6: test accuracy (\%) on the 10 base classes with $k$ clips per class
-(\todo: fill from \texttt{few\_shot\_learning.ipynb}). ``Trained'' counts the trainable
-parameters; the CLIP image encoder ($\approx$88M) is frozen.}
+\caption{Stage 6: test accuracy (\%) on the 10 base classes (212 test clips, chance 10\%)
+with $k$ training clips per class. ``Trained'' counts the trainable parameters; the CLIP
+image encoder ($\approx$88M) is frozen. --: not run.}
 \label{tab:clip}
 \renewcommand{\arraystretch}{1.1}
 \setlength{\tabcolsep}{3.2pt}
 \begin{tabular}{lcccccc}
 \toprule
-Method & Trained & $k{=}0$ & 1 & 2 & 4 & 8 \\
+Method & Trained & $k{=}1$ & 2 & 4 & 8 & 16 \\
 \midrule
-S6.0 ResNet50+LSTM   & 2.4M  & --    & \todo & \todo & \todo & \todo \\
-S6.1 Zero-shot CLIP  & 0     & \todo & --    & --    & --    & --    \\
-S6.2 Hybrid proto.   & 0     & --    & \todo & \todo & \todo & \todo \\
-S6.3 Linear probe    & 5k    & --    & \todo & \todo & \todo & \todo \\
-S6.4 MLP adapter     & 0.13M & --    & \todo & \todo & \todo & \todo \\
+S6.0 ResNet50+LSTM & 2.4M  & 17.9 & 15.1 & 36.3 & 50.9 & 61.3 \\
+S6.1 Hybrid proto. & 0     & --   & --   & --   & --   & \textbf{90.1} \\
+S6.2 Linear probe  & 5k    & --   & --   & --   & --   & 89.6 \\
+S6.3 MLP adapter   & 0.13M & \textbf{75.0} & \textbf{73.1} & \textbf{74.1} & \textbf{79.2} & 86.8 \\
 \bottomrule
 \end{tabular}
 \end{table}
 
-\textbf{Results.} \todo (Table~\ref{tab:clip}).
+\textbf{Results} (Table~\ref{tab:clip}). \emph{With CLIP features one clip is enough to
+start.} From a single clip per class the MLP adapter reaches 75.0\%, against 17.9\% for our
+ResNet50+LSTM trained on the same clip. The baseline has to learn a 2.4M-parameter LSTM from
+10--40 clips: up to $k=4$ its validation loss stays above 2.0, close to a uniform guess
+($\ln 10\approx2.3$), and with 16 clips it reaches only 61.3\%, 25.5 points below the
+adapter. The two are not trained for the same number of steps (10 epochs against 50), so at
+small $k$ part of the gap is under-training; at $k=16$, where the baseline fits all its
+training clips, the gap comes from the features.
+
+\emph{More clips help only when they come from new recordings.} The adapter is flat from 1
+to 4 clips (75.0, 73.1, 74.1\%, a spread of 4 test clips): these clips all come from the
+same recording, so they add almost no new information. It rises once the clips come from
+new recordings: 79.2\% with 8 (two recordings) and 86.8\% with 16 (three or four).
+
+\emph{With 16 clips the simplest classifiers win.} The hybrid prototypes, which train
+nothing, reach 90.1\% and the linear probe 89.6\%, both above the MLP adapter (86.8\%) and
+only about 4 points below the Stage-2 teacher trained end-to-end on all the training clips
+(93.9\%). On 160 clips the 0.13M-parameter MLP overfits more than a 5k-parameter probe or a
+class mean.
 
 \textbf{MAML (Stage 5) or CLIP (Stage 6)?} The two answer the same need---learning a class
 from a few clips---in opposite ways, and each wins on different criteria:
 \begin{itemize}
-\item \emph{Prior knowledge.} CLIP brings what it learned from 400M web images and captions, so
-it can recognise many actions from few clips, and even from the class name alone. MAML only
-knows the UCF101 sports it was meta-trained on, and must still update the network.
+\item \emph{Prior knowledge.} CLIP brings what it learned from 400M web images and captions,
+which is why one clip per class already gives 75.0\% here. MAML only knows the UCF101
+sports it was meta-trained on, and must still update the network.
 \item \emph{Forgetting.} With frozen CLIP features, adding a class means adding a prototype (or
 a row of a small classifier); the old classes are untouched, so nothing is forgotten and no
 replay buffer is needed. MAML updates the network and needs replay to keep the old classes.
@@ -1154,10 +1185,15 @@ replay buffer is needed. MAML updates the network and needs replay to keep the o
 the 1.8M distilled student and more than the 25.9M teacher: it gives up the compression that
 Stage~4 was built for.
 \item \emph{Time.} Averaging frame features ignores their order, while our recogniser has an
-LSTM; actions defined mostly by the order of movements may suffer.
+LSTM. The 10 base classes can largely be told apart from the scene and objects of a single
+frame (a horse, a pommel horse, a tabla), which suits CLIP; actions that differ mainly in
+their motion would test this limit.
 \end{itemize}
-A like-for-like answer needs the same task for both: \todo\ evaluate S6.2 and S6.4 on the
-YouTube test of Section~\ref{sec:ulal}, next to the MAML student.
+The two studies do not share a task (Stage~5 adds 5 new sports to 20 known classes and is
+scored with the harmonic mean; Stage~6 learns 10 classes from nothing), so their numbers
+cannot be compared directly. A like-for-like answer needs the same task for both: \todo\
+evaluate S6.1 and S6.3 on the YouTube test of Section~\ref{sec:ulal}, next to the MAML
+student.
 
 %------------------------------------------------------------------------------
 \section{The ULAL Pipeline on Real Video}
@@ -1178,7 +1214,8 @@ the query clips are always from other videos than the support clips. Its 30-clas
 then re-fitted on 12 clips per class.
 \item \textbf{Real-video test}: 5 sports that no model has seen (golf swing, front crawl,
 hammer throw, handstand push-ups, handstand walking) are taken from YouTube, 4 videos
-each: 2 videos to learn from and 2 kept only for testing. Each model grows its head from
+each, cut into 10 clips per video: 2 videos to learn from and 2 kept only for testing (one
+front-crawl video could not be downloaded, so front crawl learns from a single video). Each model grows its head from
 30 to 35 classes and learns from the same 10 clips per sport, with replay (8 old clips per
 class), in 1, 2, 3 or 5 passes over the clips (13, 26, 39 or 65 updates): few passes mean
 that learning must be fast, the case MAML is built for. We adapt the MAML student and, as
@@ -1209,21 +1246,24 @@ S5 & MAML student (re-fitted)  & 30 & 60.8 & 1.8M \\
 \begin{table}[t]
 \centering
 \caption{Learning 5 unseen sports from 10 YouTube clips per sport (with replay), by number of
-passes over the clips (\todo). New: accuracy on the unseen YouTube test videos; Old:
-accuracy kept on the 30 UCF classes.}
+passes over the clips (updates in brackets). New: accuracy on the 100 clips of the 10
+unseen YouTube test videos; Old: accuracy kept on the 30 UCF classes (before adaptation:
+teacher 0.797, KD student 0.672, MAML student 0.608); H: harmonic mean. Bold: best per row.
+The teacher has 25.9M parameters, each student 1.8M.}
 \label{tab:youtube}
 \renewcommand{\arraystretch}{1.1}
-\setlength{\tabcolsep}{3pt}
-\begin{tabular}{ccccccccc}
+\setlength{\tabcolsep}{2.2pt}
+\footnotesize
+\begin{tabular}{lccccccccc}
 \toprule
- & & \multicolumn{2}{c}{Teacher} & \multicolumn{2}{c}{KD student} & \multicolumn{2}{c}{MAML student} \\
-\cmidrule(lr){3-4}\cmidrule(lr){5-6}\cmidrule(lr){7-8}
-Epochs & Updates & New & Old & New & Old & New & Old \\
+ & \multicolumn{3}{c}{Teacher} & \multicolumn{3}{c}{KD student} & \multicolumn{3}{c}{MAML student} \\
+\cmidrule(lr){2-4}\cmidrule(lr){5-7}\cmidrule(lr){8-10}
+Epochs & New & Old & H & New & Old & H & New & Old & H \\
 \midrule
-1 & 13 & \todo & \todo & \todo & \todo & \todo & \todo \\
-2 & 26 & \todo & \todo & \todo & \todo & \todo & \todo \\
-3 & 39 & \todo & \todo & \todo & \todo & \todo & \todo \\
-5 & 65 & \todo & \todo & \todo & \todo & \todo & \todo \\
+1 (13) & \textbf{0.21} & 0.768 & \textbf{0.330} & 0.00 & 0.583 & 0.000 & 0.16 & 0.545 & 0.247 \\
+2 (26) & \textbf{0.37} & 0.773 & \textbf{0.500} & 0.23 & 0.644 & 0.339 & 0.36 & 0.544 & 0.433 \\
+3 (39) & \textbf{0.49} & 0.744 & \textbf{0.591} & 0.42 & 0.614 & 0.499 & 0.47 & 0.533 & 0.499 \\
+5 (65) & 0.35 & 0.776 & 0.482 & \textbf{0.57} & 0.586 & \textbf{0.578} & 0.47 & 0.542 & 0.503 \\
 \bottomrule
 \end{tabular}
 \end{table}
@@ -1237,20 +1277,41 @@ and 10 instead of 15 epochs). MAML meta-training costs the student 6.4 points on
 classes (60.8\%): moving the last blocks towards fast adaptation, and re-fitting the head on
 only 12 clips per class, trades some old-class accuracy for plasticity, as in Stage~5.
 
-\textbf{Results on real video and why.} \todo\ (Table~\ref{tab:youtube}). In pilot runs
-the ranking depended mainly on the \emph{number of updates}: with about 20 updates the MAML
-student learned the new sports clearly better than the plain student (0.11--0.17 against
-0.02--0.09), at about 30 updates the two tied, and with 35 or more updates the plain student
-caught up and passed it, while the teacher kept the old classes best. This is why the final
-test fixes the clips and varies only the number of passes. Two limits hold for any reading
-of this test: there are only 10 test videos, so one video changes the new-sport accuracy by
-0.10 and smaller differences are within noise; and some sports change setting between
-videos (the handstand push-up learning videos are filmed in a studio, the test videos in a
-gym).
+\textbf{Results on real video and why} (Table~\ref{tab:youtube}). \emph{Few updates: the
+MAML student is the faster of the two students.} After one pass (13 updates) the plain KD
+student has learned nothing of the new sports (0.00), while the MAML student already
+recognises 0.16 of the unseen test clips. After two passes (26 updates) it reaches 0.36
+against 0.23, as much as the $14\times$ larger teacher (0.37). This is the ability MAML was
+selected for in Stage~5: a starting point that moves towards a new class in a few steps.
+
+\emph{More updates: the plain student catches up and passes.} At three passes the three
+models are within 0.07 of each other (0.42--0.49), less than one test video. At five passes
+the plain student is best both on the new sports (0.57) and on the balance (H 0.578), while
+the MAML student stays at 0.47. The same trend appeared in pilot runs and, as the number of
+clips grows, in Stage~5 (Table~\ref{tab:shots}, without protection): meta-learning buys
+speed, not a higher final accuracy.
+
+\emph{Old classes.} Replay keeps every model close to its starting level on the 30 UCF
+classes: the teacher stays at 0.74--0.78 (from 0.80), the KD student at 0.58--0.64 (from
+0.67), and the MAML student at 0.53--0.55 (from 0.61). The MAML student has the lowest old
+accuracy throughout because it starts lower (meta-training cost it 6.4 points,
+Table~\ref{tab:ulal}). Its balance is still better than the plain student's with one or two
+passes (H 0.247 and 0.433 against 0.000 and 0.339), equal at three and lower at five.
+
+\emph{Teacher.} The large teacher keeps the old classes best and has the best balance up to
+three passes (H 0.591). At five passes its new-sport accuracy falls from 0.49 to 0.35 while
+its old accuracy holds. We read this as over-fitting to the two learning videos of each
+sport, but the drop is only slightly larger than one test video.
+
+Three limits hold for any reading of this test. There are only 10 test videos (100 clips),
+so one video changes the new-sport accuracy by up to 0.10 and smaller differences are
+within noise. One front-crawl video could not be downloaded, so front crawl is learned from
+a single video. And some sports change setting between videos (the handstand push-up
+learning videos are filmed in a studio, the test videos in a gym).
 
 %------------------------------------------------------------------------------
 \section{Discussion and Limitations}
-Three themes recur across the pipeline. \emph{Measurement matters:} without the
+Four themes recur across the pipeline. \emph{Measurement matters:} without the
 group-disjoint split every number would be inflated by scene memorisation, and without the
 harmonic mean the few-shot ranking would reward models that learn nothing new.
 \emph{Data beats cleverness for retention:} on video, rehearsal of a few clips per class
@@ -1258,14 +1319,17 @@ outperforms every data-free method (EWC, LwF); LwF in particular is designed for
 where the task is known at test time and collapses when one head must choose among all
 classes. \emph{Each tool has a regime:} distillation's win is compression---and with scarce data, a
 teacher helps most through class-level prototypes rather than per-clip targets---and
-meta-learning's win is learning from very few clips---with more clips the simpler student
-catches up, both in Stage~5 and on real video.
+meta-learning's win is learning from very few clips in very few updates---with more clips
+or more updates the simpler student catches up, both in Stage~5 and on real video. \emph{Prior knowledge is the strongest
+few-shot tool, but it costs size:} frozen CLIP features learn the base classes from one clip
+(75.0\%) where our recogniser needs far more, yet the encoder is $50\times$ the student, so
+it answers a different deployment (no size limit) than the one ULAL targets.
 
 \textbf{Limitations.} All results use a single seed and one dataset, with short streams
 (up to 30 classes). Rehearsal stores real clips, so its memory cost grows with the number
 of classes. The real-video test is small (5 sports, 10 test videos) and depends on
-downloadable YouTube videos; a larger set of videos and several seeds would make its
-differences at 5--8 clips conclusive.
+downloadable YouTube videos (one of the 20 could not be downloaded); a larger set of videos
+and several seeds would make its differences at three and five passes conclusive.
 
 %------------------------------------------------------------------------------
 \section{Conclusion}
@@ -1275,10 +1339,13 @@ teacher (93.9\%); rehearsal is the strongest continual learner (89.8\% against 2
 naive fine-tuning); cosine distillation gives a $14\times$ smaller student that keeps
 82.7\%, and with scarce data the new prototype alignment is the best way to use the teacher
 (+6.4 points); and, scored with a harmonic metric and a fine-tune control, MAML+replay is the
-best-balanced few-shot adapter (H 0.60). Chained into one pipeline and tested on unseen
-YouTube videos, the meta-trained student learns new sports from 3 clips far better than the
-plain student (0.30 against 0.04), confirming that each chosen tool adds the ability it was
-selected for.
+best-balanced few-shot adapter (H 0.60). As a reference, a frozen CLIP encoder learns the
+base classes from a single clip (75.0\%, 90.1\% with 16 clips and no training), the best
+choice when model size does not matter. Chained into one pipeline and tested on unseen
+YouTube videos, the meta-trained student is the fastest learner of the two students: after
+26 updates it matches the $14\times$ larger teacher on the new sports (0.36 against 0.37)
+and beats the plain student (0.23), which catches up only with more updates. Each chosen
+tool adds the ability it was selected for.
 
 %------------------------------------------------------------------------------
 \section*{Author Contributions}
