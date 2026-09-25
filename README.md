@@ -96,7 +96,8 @@ Unified-Lifelong-Action-Learning/
 |       |-- 1_dataset/
 |       |   `-- dataset_study.ipynb       leakage of the shipped split, group-disjoint split
 |       |-- 2_choose_model/
-|       |   `-- backbone_transfer.ipynb   compares 5 backbones, saves the ResNet50 teacher
+|       |   |-- backbone_transfer.ipynb   compares 5 backbones, saves the ResNet50 teacher
+|       |   `-- Fine_tune_ViT.ipynb       ViT-B/16 + LSTM (earlier pipeline, shipped split; runs from main)
 |       |-- 3_continual_learning/
 |       |   |-- naive.ipynb               plain fine-tuning (the forgetting reference)
 |       |   |-- ewc.ipynb                 EWC: penalty on important weights
