@@ -1,4 +1,4 @@
-This is pdfTeX, Version 3.141592653-2.6-1.40.22 (TeX Live 2021) (preloaded format=pdflatex 2022.3.19)  24 SEP 2026 23:44
+This is pdfTeX, Version 3.141592653-2.6-1.40.22 (TeX Live 2021) (preloaded format=pdflatex 2022.3.19)  25 SEP 2026 23:56
 entering extended mode
  restricted \write18 enabled.
  %&-line parsing enabled.
@@ -812,53 +812,69 @@ LaTeX Info: Redefining \nameref on input line 80.
 \@outlinefile=\write4
 \openout4 = `ulal_paper.out'.
 
-LaTeX Font Info:    Trying to load font information for U+msa on input line 108
+LaTeX Font Info:    Trying to load font information for U+msa on input line 117
 .
 
 (/usr/local/texlive/2021/texmf-dist/tex/latex/amsfonts/umsa.fd
 File: umsa.fd 2013/01/14 v3.01 AMS symbols A
 )
-LaTeX Font Info:    Trying to load font information for U+msb on input line 108
+LaTeX Font Info:    Trying to load font information for U+msb on input line 117
 .
 
 (/usr/local/texlive/2021/texmf-dist/tex/latex/amsfonts/umsb.fd
 File: umsb.fd 2013/01/14 v3.01 AMS symbols B
 )
-Underfull \hbox (badness 3769) in paragraph at lines 99--126
+Underfull \hbox (badness 3769) in paragraph at lines 99--145
 []\T1/ptm/b/it/9 Abstract\T1/ptm/b/n/9 ---We present \T1/ptm/b/it/9 Uni-fied Li
 fe-long Ac-tion Learn-ing
  []
 
 
-Underfull \vbox (badness 1024) has occurred while \output is active []
+Underfull \vbox (badness 10000) has occurred while \output is active []
 
  [1{/usr/local/texlive/2021/texmf-var/fonts/map/pdftex/updmap/pdftex.map}
 
 
 ]
-LaTeX Font Info:    Trying to load font information for T1+pcr on input line 42
-1.
-
-(/usr/local/texlive/2021/texmf-dist/tex/latex/psnfss/t1pcr.fd
-File: t1pcr.fd 2001/06/04 font definitions for T1/pcr.
-)
-Underfull \hbox (badness 10000) in paragraph at lines 421--427
-[]\T1/ptm/b/n/10 Why this comes first. \T1/ptm/m/n/10 A UCF101 file-name
- []
-
-
-Underfull \hbox (badness 3536) in paragraph at lines 421--427
-\T1/pcr/m/n/10 v_Class_gXX_cYY.avi \T1/ptm/m/n/10 en-codes a \T1/ptm/m/it/10 gr
-oup \T1/pcr/m/n/10 gXX \T1/ptm/m/n/10 (one
+Underfull \hbox (badness 1783) in paragraph at lines 298--312
+[]\T1/ptm/b/n/10 Continual learn-ing (CL). \T1/ptm/m/n/10 Tra-di-tional CL ap-p
+roaches
  []
 
 [2] [3]
-Underfull \hbox (badness 1424) in paragraph at lines 660--662
-[]\T1/ptm/b/n/10 S4.1 KD \T1/ptm/m/n/10 [[]]: match the teacher's soft-ened sco
-res,
+Underfull \hbox (badness 1424) in paragraph at lines 503--509
+\T1/ptm/m/n/10 split the same mod-els score 4.3 to 36.7 points higher
  []
 
-[4] [5] [6] [7] [8] [9]
+
+Underfull \hbox (badness 10000) in paragraph at lines 533--537
+[]\T1/ptm/b/n/10 S3.2 LwF \T1/ptm/m/n/10 [[]]: adds the dis-til-la-tion loss
+ []
+
+
+Underfull \hbox (badness 4254) in paragraph at lines 533--537
+\OML/cmm/m/it/10 ^^U [][]z[];  z[][]$\T1/ptm/m/n/10 . On the new-class clips, t
+his
+ []
+
+[4]
+Underfull \hbox (badness 10000) in paragraph at lines 703--706
+[]\T1/ptm/b/n/10 S4.1 KD \T1/ptm/m/n/10 [[]]: matches the soft-ened out-put
+ []
+
+
+Underfull \hbox (badness 10000) in paragraph at lines 703--706
+\T1/ptm/m/n/10 dis-tri-bu-tions of the teacher and stu-dent us-ing
+ []
+
+[5] [6] [7] [8]
+Underfull \vbox (badness 10000) has occurred while \output is active []
+
+ [9]
+[10]
+
+LaTeX Warning: `h' float specifier changed to `ht'.
+
 
 ** Conference Paper **
 Before submitting the final camera ready copy, remember to:
@@ -870,18 +886,16 @@ Before submitting the final camera ready copy, remember to:
  uses only Type 1 fonts and that every step in the generation
  process uses the appropriate paper size.
 
-[10
-
-] (./ulal_paper.aux)
+[11] (./ulal_paper.aux)
 Package rerunfilecheck Info: File `ulal_paper.out' has not changed.
-(rerunfilecheck)             Checksum: 25E40D45C0EF95767A9F3D3C7E629533;3116.
+(rerunfilecheck)             Checksum: A3930CC4E739DCCB6BA5C71A5A00AE73;3092.
  ) 
 Here is how much of TeX's memory you used:
- 23361 strings out of 478994
- 437551 string characters out of 5858184
- 885079 words of memory out of 5000000
- 40377 multiletter control sequences out of 15000+600000
- 525702 words of font info for 154 fonts, out of 8000000 for 9000
+ 23329 strings out of 478994
+ 437093 string characters out of 5858184
+ 879898 words of memory out of 5000000
+ 40349 multiletter control sequences out of 15000+600000
+ 525081 words of font info for 152 fonts, out of 8000000 for 9000
  1141 hyphenation exceptions out of 8191
  113i,10n,116p,811b,902s stack positions out of 5000i,500n,10000p,200000b,80000s
 {/usr/local/texlive/2021/texmf-dist/fonts/enc/dvips/base/8r.enc}</usr/local/t
@@ -906,14 +920,13 @@ pe1/public/amsfonts/cm/cmsy7.pfb></usr/local/texlive/2021/texmf-dist/fonts/type
 1/public/amsfonts/cm/cmsy8.pfb></usr/local/texlive/2021/texmf-dist/fonts/type1/
 public/amsfonts/cm/cmsy9.pfb></usr/local/texlive/2021/texmf-dist/fonts/type1/pu
 blic/amsfonts/symbols/msbm10.pfb></usr/local/texlive/2021/texmf-dist/fonts/type
-1/urw/courier/ucrr8a.pfb></usr/local/texlive/2021/texmf-dist/fonts/type1/urw/ti
-mes/utmb8a.pfb></usr/local/texlive/2021/texmf-dist/fonts/type1/urw/times/utmbi8
-a.pfb></usr/local/texlive/2021/texmf-dist/fonts/type1/urw/times/utmr8a.pfb></us
-r/local/texlive/2021/texmf-dist/fonts/type1/urw/times/utmri8a.pfb>
-Output written on ulal_paper.pdf (10 pages, 359953 bytes).
+1/urw/times/utmb8a.pfb></usr/local/texlive/2021/texmf-dist/fonts/type1/urw/time
+s/utmbi8a.pfb></usr/local/texlive/2021/texmf-dist/fonts/type1/urw/times/utmr8a.
+pfb></usr/local/texlive/2021/texmf-dist/fonts/type1/urw/times/utmri8a.pfb>
+Output written on ulal_paper.pdf (11 pages, 358807 bytes).
 PDF statistics:
- 380 PDF objects out of 1000 (max. 8388607)
- 316 compressed objects within 4 object streams
- 70 named destinations out of 1000 (max. 500000)
+ 381 PDF objects out of 1000 (max. 8388607)
+ 317 compressed objects within 4 object streams
+ 71 named destinations out of 1000 (max. 500000)
  245 words of extra memory for PDF output out of 10000 (max. 10000000)
 
