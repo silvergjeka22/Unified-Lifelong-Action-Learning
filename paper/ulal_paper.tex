@@ -97,80 +97,85 @@ and Few-Shot Meta-Adaptation on UCF101}
 \maketitle
 
 \begin{abstract}
-We present \emph{Unified Lifelong Action Learning} (ULAL), an end-to-end pipeline that
-studies how a single video action recogniser can keep learning new actions over time
-without forgetting the old ones, trained directly on real video frames. The pipeline is
-built as five linked studies and a reference study, each answering one question and each comparing several
-methods under one shared budget. (i) \emph{How do we measure honestly?} UCF101's shipped
-split leaks 80\% of its source groups across train and test; we replace it with a
-group-disjoint split that leaks none. (ii) \emph{Which backbone?} A five-way bake-off
-selects a ResNet50+LSTM teacher (93.9\% on the base classes). (iii) \emph{How do we stop
-forgetting?} On a $10\!\to\!15\!\to\!20$ class stream, rehearsal keeps 89.8\% while naive
-fine-tuning collapses to 26.0\% and the data-free methods (EWC, LwF) trail. (iv) \emph{How
-do we shrink the model?} Cosine feature distillation gives a MobileNetV3-Small student
-that keeps 82.7\% at $14\times$ fewer parameters; with only 32 training clips per class, a new
-class-prototype alignment objective raises the student from 61.5\% to 67.9\%. (v) \emph{How do we learn new classes
-from a few clips?} A nine-arm comparison with a matched fine-tune control shows
-MAML+replay is the best-balanced few-shot adapter (harmonic mean 0.60). (vi) \emph{What does
-a frozen foundation model give?} On frozen CLIP features, a small adapter trained on one
-clip per class reaches 75.0\% on the base classes against 17.9\% for our ResNet50+LSTM, and
-with 16 clips training-free text + visual prototypes reach 90.1\%---at the cost of an 88M-parameter
-encoder, $50\times$ the student. A final capstone
-chains the winner of every stage into one pipeline and tests it on real YouTube videos of
-five unseen sports, each learned from 10 clips: after 13 updates the MAML student
-recognises 0.16 of the clips of unseen test videos where the plain distilled student
+We present \emph{Unified Lifelong Action Learning} (ULAL), an end-to-end pipeline that illustrates how one 
+can construct and train a powerful video action recogniser, extend its knowledge over time to new classes 
+without forgetting old ones, adapting to new scenarios, compress it into a lighter model mitigating performance
+degradation, and learn new classes under a few-shot regime. The proposed pipeline is composed of five linked 
+studies plus a reference study. Each module answers one of the following questions, comparing
+several methodologies aiming to find the most suitable one for the current framework. 
+(i) \emph{How do we avoid data leakage?} UCF101's native train-test split leaks 80\% of its data across train and test,
+meaning that different frames from the same video clip are present in both sets. This setting pollutes training, 
+as train and test sets must be completely disjoint. We replace this mechanism with a new
+group-disjoint split that avoids leakage completely. 
+(ii) \emph{Which backbone should we select?} To select the most suitable backbone (i.e., feature extractor) for the pipeline, 
+we compare five pretrained-CNN-based architectures (ResNet50, MobileNetV3-Small, EfficientNet-B0, ShuffleNetV2, and MnasNet-A1 TODO) 
+against a vision transformer-based architecture, all of which are fine-tuned on the current dataset, against a light, custom CNN
+trained from scratch. All architectures are attached a LSTM module to capture temporal dependencies. Through this comparison, 
+we select a ResNet50+LSTM model (93.9\% on the base classes). 
+(iii) \emph{How do we prevent forgetting?} To prevent forgetting on a $10\!\to\!15\!\to\!20$ class stream, we tested several 
+continual learning strategies, including reharsal, EWC, and LwF. The best-performing method, rehearsal, obtaines an overall accuracy of 89.8\%,
+while naive fine-tuning on new classes collapses to 26.0\%. This demonstrates the effectiveness of continual learning approaches when extending knowledge of a
+model. 
+(iv) \emph{How do we shrink the model?} To transfer knowledge from the large ResNet50+LSTM teacher to a smaller MobileNetV3-Small+LSTM student, 
+we compare three distillation objectives: logits alignment, features alignment (both through cosine similarity and MSE), 
+and a new class-prototype alignment objective, which extracts and aligns class prototypes instead of the whole feature maps.
+Under full-data regime, cosine feature distillation allows the MobileNetV3-Small student
+to achieve an accuracy of 82.7\%, at $14\times$ fewer parameters than the teacher model; with only 32 training clips per class, 
+the new class-prototype alignment objective raises the student's accuracy from 61.5\% to 67.9\%. 
+(v) \emph{How do we learn new classes from a few clips?} 
+A nine-arm comparison with a matched fine-tune control shows
+MAML+replay is the best-balanced few-shot adapter (harmonic mean 0.60) (TODO). 
+(vi) \emph{How can we exploit frozen foundation models?} Vision-language models such as CLIP have been shown to be extremely effective
+under few-shot regimes. We compare our ResNet50+LSTM against a frozen CLIP encoder with a small MLP adapter. We evaluate the comparison under 1, 2, 4, 8, and 16 
+samples per class during training. During 1-shot learning, the CLIP+MLP architecture easily achieves an accuracy of 75.0\%, 
+against 17.9\% for our ResNet50+LSTM, showing the power of these foundation models. 
+To test generalization abilities of our approach, a final capstone combines the best strategy of each stage into a single pipeline 
+and tests it on real YouTube videos of five unseen sports, using 10 clips per class for trainng. 
+(TODO)
+After 13 updates the MAML student recognises 0.16 of the clips of unseen test videos where the plain distilled student
 recognises none, and after 26 updates 0.36, as much as the $14\times$ larger teacher (0.37)
 and above the plain student (0.23); with 65 updates the plain student catches up and passes
-it (0.57 against 0.47)---meta-learning pays off exactly when learning must be fast. The whole
-pipeline runs on a single free Colab T4 GPU.
+it (0.57 against 0.47)---meta-learning pays off exactly when learning must be fast. 
+The whole pipeline runs on a single free Colab T4 GPU.
 \end{abstract}
 
 \begin{IEEEkeywords}
-continual learning, catastrophic forgetting, action recognition, knowledge
+action-recognition, continual learning, catastrophic forgetting, knowledge
 distillation, meta-learning, few-shot learning, model compression.
 \end{IEEEkeywords}
 
 %------------------------------------------------------------------------------
 \section{Introduction}
-Deep video models forget. Fine-tuning a trained action recogniser on a set of new
-classes collapses its accuracy on the classes it already knew---\emph{catastrophic
-forgetting}~\cite{kirkpatrick2017ewc}. Lifelong, or continual, learning aims to add
-classes over time while preserving what was already learned~\cite{delange2021survey}.
-Video makes this markedly harder than images: a clip is a large spatio-temporal tensor,
-so storing and replaying past data is expensive, and the temporal model on top of the
-per-frame features adds a second place for representations to drift.
+Deep video models are prone to forget old classes when fine-tuned on a set of new ones, as models' parameters for old knowledge get overwritten. This phenomenon is know as {catastrophic
+forgetting}~\cite{kirkpatrick2017ewc}. 
+Continual training (or lifelong training) aims to mitigate this issue, extending current knowledge to new classes while preserving what was already learned~\cite{delange2021survey}. 
+Videos make this remarbably harder than images: a clip is a large spatio-temporal tensor, therefore storing and replaying past data is expensive, and the temporal model on top of the
+per-frame spatial feature extractor adds a second layer subjected to representation drift.
 
-A realistic deployment needs several abilities at once. It must (a) be measured on data
-it has never seen, (b) start from strong features, (c) retain old classes as new ones
-arrive, (d) be small enough to run on a modest device, and (e) still pick up a brand-new
-class from only a handful of examples. Each of these is usually studied in isolation. We
-study them \emph{together}, as one pipeline on one dataset, trained \emph{directly on
-real video frames}, so every reported number reflects the model that would actually be
-deployed.
+A realistic deployment demands several capabilities at once. A model must (a) be
+evaluated on data it has never seen, (b) begin with strong features, (c) retain existing
+classes as new ones arrive, (d) remain compact enough to run on modest hardware, and (e) be able to learn a new class from only a handful of examples. Although these capabilities are
+typically studied in isolation, we examine them \emph{together} within a single pipeline
+and on a common dataset. The models are trained \emph{directly on real video frames}, so
+each reported result reflects the model that would ultimately be deployed.
 
-The pipeline (Fig.~\ref{fig:pipeline}) is built on UCF101~\cite{soomro2012ucf101} as five
-linked studies (S1--S5), each a notebook answering one question, and a capstone that
-chains the winner of every study. A sixth study (S6) compares meta-learning with a
-different route to few-shot learning: a frozen CLIP foundation model. The organising idea is a \emph{moving freeze boundary}:
-the recogniser is one shared network (a CNN applied to every frame, an LSTM over the frame
-features, and a classifier head that \emph{grows} as classes arrive), and each stage
-decides which of its parts may still change.
+Our pipeline (Fig.~\ref{fig:pipeline}) is built on UCF101~\cite{soomro2012ucf101} and it is composed of five
+linked studies (S1--S5), each of them answering one of the proposed questions by comparing different strategies. 
+We include a sixth study (S6), which compares meta-learning with a
+different route to few-shot learning: a frozen CLIP foundation model used as backbone.
 
-\textbf{Contributions.}
+Our base method follows a \emph{moving freeze boundary} strategy: it is composed of a CNN backbone used to extract spatial features from each frame, of a LSTM used to extract temporal dependencies, and and a classifier head that \emph{grows} as classes arrive.
+
+\textbf{Main Contributions.}
 \begin{itemize}
-\item \textbf{An honest measurement protocol.} We quantify the 80\% source-group leakage
-in UCF101's shipped split and replace it with a group-disjoint split that leaks nothing.
-\item \textbf{A controlled study per stage}: five backbones, five continual-learning
-methods, four distillation objectives, and nine meta-adaptation arms, each drawn as its
-own schematic and compared under one shared budget and seed.
+\item \textbf{An fair measurement protocol.} We quantify the 80\% source-group leakage in UCF101's native train-test split and replace it with a group-disjoint split that avoids leakage.
+\item \textbf{A comprehnsive study for each stage}: five backbones to select the best feature extractor, five continual-learning
+strategies, four distillation objectives, and nine meta-adaptation arms.
 \item \textbf{A fine-tune control that isolates meta-learning}: the MAML start is compared
-with an ordinary fine-tune start that saw the \emph{same} extra data.
-\item \textbf{A foundation-model reference}: few-shot learning with a frozen CLIP encoder
-(text + visual prototypes, linear probe, MLP adapter) against our ResNet50+LSTM trained on
-the same few clips.
-\item \textbf{A real-video capstone}: the winners of all stages are chained into one
-pipeline and taught five unseen sports from a few YouTube clips, tested on YouTube videos
-they never saw.
+with an ordinary fine-tune start that saw the \emph{same} extra data (TODO).
+\item \textbf{A foundation model reference}: we include in our study a few-shot learning strategy leveraging a frozen CLIP encoder against our ResNet50+LSTM trained on the same few clips.
+\item \textbf{A real-video capstone}: the best strategy selected at each stage is inserted into a single
+pipeline, which is evaluated over five unseen sports from a few YouTube clips.
 \end{itemize}
 
 %------------------------------------------------------------------------------
@@ -284,20 +289,13 @@ clips; violet: meta-learning; green: classifier head; red dashed: freeze boundar
 
 %------------------------------------------------------------------------------
 \section{Related Work}
-\textbf{Continual learning.} Approaches fall into three families.
-\emph{Regularisation} methods add a penalty that discourages changing parameters
-important to old tasks: EWC~\cite{kirkpatrick2017ewc} weights the penalty by the Fisher
-information, and synaptic-intelligence variants use online importance
-estimates~\cite{zenke2017si}. \emph{Functional} methods keep the model's outputs stable:
-Learning without Forgetting (LwF)~\cite{li2017lwf} distils the old model's own
-predictions on new data. \emph{Rehearsal} methods store and replay a small set of past
-exemplars; iCaRL~\cite{rebuffi2017icarl} combines rehearsal with distillation. We evaluate
-a representative of each family on video, where the cost of storing exemplars is a
-first-order concern. \textbf{Knowledge distillation.} A compact student can be trained to
-match a larger teacher's softened logits~\cite{hinton2015kd} or its intermediate
-features~\cite{romero2015fitnets}; we compare logit distillation against two feature
-objectives. \textbf{Meta and few-shot learning.} MAML~\cite{finn2017maml} learns an
-initialisation from which a few gradient steps adapt to a new task; first-order MAML drops
+\textbf{Continual learning (CL).} Traditional CL approaches mainly fall into three families.
+\emph{Regularisation methods} add a penalty to the standard loss function that discourages changing parameters recognized to be
+important to the old tasks: EWC~\cite{kirkpatrick2017ewc} weights the penalty by the Fisher information, while synaptic-intelligence variants use online importance estimates~\cite{zenke2017si}. 
+\emph{Functional methods} try to keep the model's outputs stable: for example, Learning without Forgetting (LwF)~\cite{li2017lwf} distils the old model's own predictions on new data. \emph{Rehearsal methods} store a portion of old samples and use them during training, along with new samples for new tasks. One can also combine different strategies: iCaRL~\cite{rebuffi2017icarl} combines rehearsal with distillation. 
+\textbf{Knowledge distillation (KD).} Traditional KD approaches try to inject into a compact model (student) the knowledge of larger one (teacher) by matching their softened logits~\cite{hinton2015kd} or their intermediate features~\cite{romero2015fitnets}. 
+\textbf{Meta and few-shot learning.} (TODO)
+MAML~\cite{finn2017maml} learns an initialisation from which a few gradient steps adapt to a new task; first-order MAML drops
 the second-order term for efficiency. Few-shot class-incremental learning
 (FSCIL)~\cite{tao2020fscil} adds new classes from few examples while retaining a large
 base set, and reports the harmonic mean of base and new accuracy so that neither side can
@@ -307,19 +305,18 @@ be ignored; we adopt that metric.
 \section{System, Notation, and Protocol}
 \label{sec:setup}
 
-\subsection{The shared recogniser}
-Every stage uses the same recogniser (Fig.~\ref{fig:arch}). A clip is $T{=}16$ RGB frames
-at $224\times224$, ImageNet-normalised. A CNN backbone $\phi$ is applied to each frame
-independently, producing frame features $\phi(x_1),\dots,\phi(x_T)$. An LSTM reads that
-sequence and its final hidden state $h_T\in\mathbb{R}^{256}$ is the clip feature. A linear
-head $W$ maps $h_T$ to class scores:
+\subsection{The shared architecture}
+A clip is composed of $T{=}16$ RGB frames
+at $224\times224$ resolution, ImageNet-normalised.
+Once the best recognizer is established, it is used for every stage of the study (Fig.~\ref{fig:arch}). This model is composed of a CNN-backbone for spatial feature extraction, a LSTM module for temporal dependencies learning, and a final classification head.
+The CNN-backbone $\phi$ is applied to each frame
+independently, producing a sequence of spatial features $\phi(x_1),\dots,\phi(x_T)$. This sequence is read by the LSTM module, which outputsreads its final hidden state $h_T\in\mathbb{R}^{256}$, representing the final clip feature map. A final linear
+head $W$ maps $h_T$ to class scores.
 \begin{equation}
 h_T = \mathrm{LSTM}\big(\phi(x_1),\dots,\phi(x_T)\big),\qquad z = W\,h_T .
 \end{equation}
-The head \emph{grows} as classes arrive: adding $k$ classes appends $k$ rows to $W$ and
-keeps the existing rows. The teacher uses ResNet50 as $\phi$ (2048-d per frame), the
-student MobileNetV3-Small (576-d); both use the same 256-d LSTM, so their clip features
-$h$ can be compared directly.
+The head \emph{grows} as the model is expanded to new classes. Adding $k$ classes appends $k$ rows to $W$ and
+keeps the existing rows. 
 
 \begin{figure}[t]
 \centering
@@ -355,19 +352,19 @@ freeze boundary (dashed) marks how deep training may reach in a stage.}
 \end{figure}
 
 \subsection{The moving freeze boundary}
-The stages differ in \emph{which} parameters they train. Stage~2 trains the whole
-recogniser. Stage~3 trains the whole recogniser again for each new task (every method in
-that study trains the same parameters), and the head grows. Stage~4 freezes the teacher
-and trains the whole student. Stage~5 freezes the lower student backbone and meta-trains
+At each stage a different portion of the model is trained.
+Stage~2 (best model selection) freezes all pre-trained backbones, fine-tuning the LSTM and the classifier head on our dataset.
+Stage~3 (continual learning) freezes again the backbone, fine-tuning the LSTM and the classifier head (expanded) on the new classes, while adopting strategies to avoid catastrophic forgetting. 
+Stage~4 (knowledge distillation) freezes the teacher model completely and trains the whole student to match teacher's performance. 
+Stage~5 (meta learning) freezes the lower student backbone and meta-trains
 only its last four blocks, the LSTM, and the head, so the old features are protected while
-the upper layers reshape. Within a stage every compared method trains the \emph{same}
-parameters, so only the mechanism under test differs.
+the upper layers reshape. 
+Within the same stage every tested methododology trains the \emph{same} portion of the model (through different strategies).
 
 \subsection{Datasets and budget}
-All experiments use UCF101 on one free Colab T4 GPU. The group-disjoint split assigns
-whole source groups to one split, 18/3/4 groups per class (train/val/test), keeping the
-usual $\approx$72/12/16\% proportions (Section~\ref{sec:data}). Table~\ref{tab:hparams}
-lists the budget of each stage; seeds are fixed and reset before every training run.
+All experiments use UCF101. Samples are divided into train/val/test with a proportion of $\approx$72/12/16\%, avoiding data leakage (i.e., frames from the very same clip can't appear both in train and val or train and test sets). Table~\ref{tab:hparams}
+lists the budget of each stage.
+To ensure reproducibility, seed is fixed before every training run.
 
 \begin{table}[t]
 \centering
@@ -402,8 +399,8 @@ Capstone          & replay 15/class ($10\!\to\!20\!\to\!30$); \\
 \end{tabular}
 \end{table}
 
-\subsection{How to read the numbers}
-\emph{Test accuracy} is the fraction correct on the unseen, group-disjoint test set.
+\subsection{Evaluation metrics (TODO)}
+We refer to \emph{test accuracy} as the fraction of correctly classified samples on the unseen, group-disjoint test set.
 \emph{Old} and \emph{New} split it into classes learned earlier and the newest task;
 \emph{Base} is retention on the original classes. When old classes outnumber new ones, a
 plain average mostly measures the old side and rewards a method that learns nothing new, so
@@ -418,11 +415,8 @@ which is high only when \emph{both} sides are high~\cite{tao2020fscil}.
 %------------------------------------------------------------------------------
 \section{Stage 1 --- Data Split and Leakage}
 \label{sec:data}
-\textbf{Why this comes first.} A UCF101 filename \texttt{v\_Class\_gXX\_cYY.avi} encodes a
-\emph{group} \texttt{gXX} (one source recording) and a \emph{clip} \texttt{cYY} (one segment
-of it). All clips of a group share the same actor, background and camera. If the split is
-made per clip, segments of the \emph{same} recording land in train and test, and the model
-can recognise the \emph{scene} instead of the \emph{action}. We therefore assign each whole
+UCF101 natively collects clips into groups. All clips of a group share the same actor, background and camera angle. If one splits data
+per clip, segments of the \emph{same} recording can land in train and test, and the model can easily recognise the \emph{scene context} instead of the \emph{action}. We therefore assign each whole
 group to a single split (panel S1 of Fig.~\ref{fig:pipeline}).
 
 \begin{table}[t]
@@ -440,21 +434,23 @@ Shipped (per clip)        & 500 & 400 & 80\% \\
 \end{tabular}
 \end{table}
 
-\textbf{Result and reading.} Table~\ref{tab:leak}: the shipped split puts 400 of 500
-groups in more than one split, so 80\% of the test recordings were partly seen in
-training; the group-disjoint split puts none. It keeps the usual 72/12/16\% proportions,
-so every later accuracy is lower than commonly reported on UCF101 only because the
-inflation is gone---and since the same leak would inflate every later stage, fixing it
-once at the source makes the whole study trustworthy.
+\textbf{Results and interpretation.} As shown in Table~\ref{tab:leak}, the shipped
+clip-level split places 400 of the 500 source groups (80\%) in multiple subsets, allowing
+closely related clips from the same recording to appear in both training and evaluation
+data. By contrast, the group-disjoint split eliminates this overlap while preserving the
+standard 72/12/16\% train/validation/test proportions. Consequently, the accuracies
+reported in subsequent stages may be lower than results obtained with the shipped split,
+but they are not inflated by source-group leakage. Applying this correction at the data
+partitioning stage therefore provides a consistent, leakage-free evaluation protocol for
+the entire study.
 
 %------------------------------------------------------------------------------
 \section{Stage 2 --- Backbone Selection}
 \label{sec:backbone}
-\textbf{Design.} The backbone $\phi$ is the only part that changes: each candidate is
-plugged into the same recogniser (clip $\to\phi\to$ LSTM $\to$ head, panel S2 of
-Fig.~\ref{fig:pipeline}) and trained with the same budget and seed. We expect a network
-with no prior knowledge (a CNN trained from scratch) to struggle on a few thousand clips,
-and ImageNet-pretrained networks to cluster high.
+In this section we evaluate five different backbone strategies in order to select the best one to perform action-recognition on UCF101.
+The tested backbones include: a simple CNN trained from scratch, ResNet18, DenseNet121, VGG19-BN, and ResNEt50. All backbones are initialized with weights pre-trained on ImageNet (except for the custom CNN).
+Each backbone $\phi$ is injected in the following pipeline: video clip $\to\phi\to$ LSTM $\to$ head,as shown in panel S2 of Fig.~\ref{fig:pipeline}.
+Each resulting architecture is fine-tuned over 10 UCF101 classes under the same training conditions: the backbone is frozen (except for the custom CNN), the LSTM+head modules are fine-tuned. The training budget is the same for all models.
 
 \begin{table}[t]
 \centering
@@ -474,35 +470,38 @@ VGG19-BN          & 92.0 & 20.8 & 115.7 \\
 \end{tabular}
 \end{table}
 
-\textbf{Result and why.} Table~\ref{tab:backbone}. The from-scratch CNN has the most
-parameters (103M, because its LSTM reads a large flattened feature map) yet the worst
-accuracy (52.8\%): capacity without useful priors does not help on little data. All four
-pretrained backbones exceed 90\%, because the hard part---good spatial features---is solved
-before the LSTM sees anything. \textbf{ResNet50 is selected}: it is the most accurate
-(93.9\%), its 2048-d feature gives the later stages the richest representation, and at
-55~ms per clip it is half as slow as VGG19-BN.
+\textbf{Results and selection rationale.} As shown in Table~\ref{tab:backbone}, the
+from-scratch CNN has the largest parameter count (103.1M) yet the lowest test accuracy
+(52.8\%). Its size is primarily due to the LSTM receiving a high-dimensional flattened
+feature map, illustrating that model capacity alone cannot compensate for the absence of
+pretrained spatial features in this limited-data regime. In contrast, all four pretrained
+backbones achieve more than 90\% accuracy. We select \textbf{ResNet50} because it obtains
+the highest accuracy (93.9\%), provides a 2048-dimensional feature representation for the
+subsequent stages, and requires 54.6~ms per clip, approximately half the latency of
+VGG19-BN (115.7~ms per clip).
 
 %------------------------------------------------------------------------------
 \section{Stage 3 --- Continual Learning}
 \label{sec:cl}
-\textbf{Design.} Starting from the 10-class teacher, the head grows and the model learns
-two new tasks, $10\!\to\!15\!\to\!20$ classes. The five methods of Fig.~\ref{fig:cl} train
-the same network with the same budget; they differ only in \emph{what protects the old
-classes}. Writing $\mathcal{L}_{\text{CE}}$ for cross-entropy on the batch:
+In this section we aim to extend the knowledge of the selected ResNet50+LSTM model, passing from 10 old classes to 20, increasing the count of 5 new classes every time.
+We tested five different methods, that approach the problem of protecting old knowledge in different ways, modifying the base cross-entropy loss of the task using unique strategies:
 \begin{itemize}
-\item \textbf{S3.0 Naive}: $\mathcal{L}=\mathcal{L}_{\text{CE}}(\text{new})$ --- nothing
-protects the past.
-\item \textbf{S3.1 EWC}~\cite{kirkpatrick2017ewc}: adds
-$\tfrac{\lambda}{2}\sum_i F_i(\theta_i-\theta_i^{\star})^2$, a penalty that keeps the
-weights $\theta$ important for old classes (Fisher $F_i$) near their old values
-$\theta^\star$.
-\item \textbf{S3.2 LwF}~\cite{li2017lwf}: adds
-$\lambda\,\mathrm{KD}\big(z_{1:C_{\text{old}}},\,z^{\star}_{1:C_{\text{old}}}\big)$, keeping
-the old-class scores of the new model close to those of a frozen copy of the old model,
-computed on the new clips.
-\item \textbf{S3.3 Replay}: stores 15 old clips per class and mixes them 1:1 into every
-new batch, $\mathcal{L}=\mathcal{L}_{\text{CE}}(\text{new}\cup\text{old})$.
-\item \textbf{S3.4 Replay+LwF}~\cite{rebuffi2017icarl}: both.
+\item \textbf{S3.0 Naive}: trains only on the new classes using
+$\mathcal{L}=\mathcal{L}_{\text{CE}}(\text{new})$, with no explicit mechanism for
+preserving knowledge of the old classes.
+\item \textbf{S3.1 EWC}~\cite{kirkpatrick2017ewc}: adds the penalty
+$\tfrac{\lambda}{2}\sum_i F_i(\theta_i-\theta_i^{\star})^2$. Here, $F_i$ estimates the
+importance of parameter $\theta_i$ to the previous model, and $\theta_i^{\star}$ is its
+previous value. The penalty discourages large changes to important parameters.
+\item \textbf{S3.2 LwF}~\cite{li2017lwf}: adds the distillation loss
+$\lambda\,\mathrm{KD}\big(z_{1:C_{\text{old}}},\,z^{\star}_{1:C_{\text{old}}}\big)$. On
+the new-class clips, this loss encourages the current model's predictions for the old
+classes to remain close to those produced by a frozen copy of the previous model.
+\item \textbf{S3.3 Replay}: stores 15 old clips per class and forms each training batch
+with equal numbers of new and replayed clips. The model is trained with
+$\mathcal{L}=\mathcal{L}_{\text{CE}}(\text{new}\cup\text{old})$.
+\item \textbf{S3.4 Replay+LwF}~\cite{rebuffi2017icarl}: combines replayed old-class clips
+with the LwF distillation loss.
 \end{itemize}
 
 % ============================ FIG. 3: CL METHODS ============================
@@ -624,59 +623,69 @@ S3.4 Replay+LwF  & 87.3 & 96.4 & 83.0 & 81.8 & 99.2 \\
 \end{tabular}
 \end{table}
 
-\textbf{Results.} Table~\ref{tab:cl} gives the final accuracies and
-Table~\ref{tab:cltime} shows \emph{when} each method forgets.
+Table~\ref{tab:cl} reports the final accuracy of each method, while
+Table~\ref{tab:cltime} shows how performance changes after each task.
 
-\textbf{Why each method behaves as it does.}
-\emph{S3.0 Naive} learns every new task almost perfectly (98.2\% on task~1, 94.9\% on
-task~2) but the base falls from 93.9\% to 22.6\% after one task and to 0.5\% after two:
-with only new labels in every batch, the shared weights are rewritten for the newest task.
-\emph{S3.2 LwF} forgets almost as much (base 26.4\% $\to$ 0.0\%) even though it protects the
-old scores. The reason is the setting: the original LwF~\cite{li2017lwf} gives every task
-its own head and is tested with the task known, whereas here one head covers all classes
-and the task is not known at test time. The distillation term only keeps the \emph{ranking
-among old classes}, while the cross-entropy on new clips keeps raising the new classes
-above all old ones; the old clips are then out-voted by the newest classes---in the
-confusion matrices almost every forgotten base clip is predicted as a \emph{new} class,
-not as another old one. \emph{S3.1 EWC} fails the other way: its penalty keeps the base
-(76.9\%) but also blocks the new task (36.8\% on task~2), a stability/plasticity lock.
-\emph{S3.3 Replay} is the only method that keeps every task high (base 89.2\%, task~1
-81.8\%, task~2 98.3\%): the stored clips come with their old labels, so every batch also
-tells the model what the old classes look like and puts them back in the competition.
-\emph{S3.4 Replay+LwF} is close (87.0\%) but slightly lower: the buffer already protects
-the old classes, and the extra distillation term only slows the new task.
-\textbf{Choice for the pipeline: replay} (panel S3 of Fig.~\ref{fig:pipeline}). On video,
-storing a few clips beats every data-free method.
+\textbf{Results and interpretation.}
+\emph{S3.0 Naive} learns each new task well (98.2\% on task~1 and 94.9\% on task~2), but
+the base-class accuracy falls from 93.9\% to 22.6\% after the first update and to 0.5\%
+after the second. Because training batches contain only new-class clips, the shared
+parameters are updated without any signal that preserves the old decision boundaries.
+\emph{S3.2 LwF} shows a similar pattern: its base accuracy decreases from 26.4\% after
+task~1 to 0.0\% after task~2. In the original LwF setting~\cite{li2017lwf}, tasks use
+separate output heads and the task identity is known at inference. Our setting is more
+demanding because a single growing head must distinguish all classes without knowing the
+task. Moreover, the distillation loss is computed only over the old-class outputs on new
+clips. It preserves their relative responses but does not directly train the model on old
+examples or calibrate old classes against the new ones. Consistent with this limitation,
+the confusion matrices show that most forgotten base clips are assigned to new classes.
+\emph{S3.1 EWC} provides greater stability, retaining 76.9\% accuracy on the base classes,
+but its task~2 accuracy reaches only 36.8\%. The parameter penalty therefore limits
+forgetting at the cost of reduced plasticity for learning the newest classes.
+\emph{S3.3 Replay} achieves the best final accuracy (89.8\%) and maintains strong
+performance across the base classes (89.2\%), task~1 (81.8\%), and task~2 (98.3\%). The
+stored clips provide direct supervision for old classes and keep them represented in each
+training batch. \emph{S3.4 Replay+LwF} also performs well, but its final accuracy is
+slightly lower (87.0\%). In this experiment, adding distillation to replay provides no
+additional benefit and reduces old-class retention relative to replay alone.
+\textbf{Choice for the pipeline: replay} (panel S3 of Fig.~\ref{fig:pipeline}). For this
+video stream, replaying a small number of stored clips is more effective than the tested
+data-free regularization methods.
 
 %------------------------------------------------------------------------------
 \section{Stage 4 --- Knowledge Distillation}
 \label{sec:kd}
-\textbf{Design.} The 25.9M-parameter teacher is too big for a small device, so we train a
-MobileNetV3-Small+LSTM student ($\approx$1.8M parameters, $14\times$ smaller). The five
-objectives of Fig.~\ref{fig:kd} share the ImageNet-pretrained student, data, budget and
-seed, and all use $\mathcal{L}=0.75\,\mathcal{L}_{\text{CE}}+0.25\,\mathcal{L}_{\text{transfer}}$:
+In this section we aim to condense the 25.9M-parameter teacher into a smaller device, to be deployed even under computational and architectural constraints.
+We chose as student MobileNetV3-Small+LSTM ($\approx$1.8M parameters, $14\times$ smaller). The five
+objectives in Fig.~\ref{fig:kd} use the same ImageNet-pretrained student initialization,
+training data, computational budget, and random seed. Except for proto-alignment, they use
+$\mathcal{L}=0.75\,\mathcal{L}_{\text{CE}}+0.25\,\mathcal{L}_{\text{transfer}}$:
 \begin{itemize}
-\item \textbf{S4.0 CE only}: $\mathcal{L}_{\text{transfer}}=0$ (no teacher, the baseline).
-\item \textbf{S4.1 KD}~\cite{hinton2015kd}: match the teacher's softened scores,
-$T^2\,\mathrm{KL}\big(\sigma(z_t/T)\,\|\,\sigma(z_s/T)\big)$, $T=2$.
-\item \textbf{S4.2 Cosine}: align the 256-d clip features by direction,
+\item \textbf{S4.0 CE only}: sets $\mathcal{L}_{\text{transfer}}=0$ and trains without a
+teacher, providing the baseline.
+\item \textbf{S4.1 KD}~\cite{hinton2015kd}: matches the softened output distributions of
+the teacher and student using
+$T^2\,\mathrm{KL}\big(\sigma(z_t/T)\,\|\,\sigma(z_s/T)\big)$, with $T=2$.
+\item \textbf{S4.2 Cosine}: aligns the directions of the 256-dimensional clip features,
 $1-\cos(h_s,h_t)$.
-\item \textbf{S4.3 MSE}~\cite{romero2015fitnets}: a learnable regressor $g$ maps $h_s$ onto
-the teacher's feature before an $\ell_2$ match, $\lVert g(h_s)-h_t\rVert_2^2$ ($g$ is
-dropped at inference).
-\item \textbf{S4.4 Proto-align} (new): before training, the teacher's clip features of every
-class are clustered with KMeans into 3 \emph{prototypes}; during training each student feature
-is pulled to the nearest prototype of its own class,
-$\min_j\lVert h_s-\mu_{y,j}\rVert_2^2$, on top of CE and KD:
+\item \textbf{S4.3 MSE}~\cite{romero2015fitnets}: uses a learnable regressor $g$ to map
+the student feature $h_s$ into the teacher's feature space, then minimizes
+$\lVert g(h_s)-h_t\rVert_2^2$. The regressor is removed at inference.
+\item \textbf{S4.4 Proto-align} (proposed): before training, the teacher features for each
+class are grouped by $k$-means into three \emph{prototypes}. During training, each student
+feature is pulled toward the nearest teacher prototype for its class using
+$\min_j\lVert h_s-\mu_{y,j}\rVert_2^2$. This term is added to CE and KD:
 $\mathcal{L}=0.75\,\mathcal{L}_{\text{CE}}+0.25\,\mathrm{KD}+0.5\,\mathcal{L}_{\text{proto}}$.
-The target is a class-level summary of the teacher (in the spirit of prototypical
-networks~\cite{snell2017proto}) rather than the teacher's feature of each single clip.
+Unlike clip-level feature matching, this objective transfers a class-level summary of the
+teacher's representation, following the general idea of prototypical
+networks~\cite{snell2017proto}.
 \end{itemize}
-Because a pretrained student already learns most of what it needs from the labels, we also
-repeat the study with a \emph{reduced training set}: 32 clips per class (640 clips, about one
-third of the full 1{,}917), with the same test set. The teacher is the same Stage-3 model,
-trained on the full set, so it knows more than the student sees---the situation in which
-distillation should help most. Fig.~\ref{fig:proto} shows proto-align in detail.
+Because the pretrained student can already learn strong features from class labels, we
+also repeat the study with a \emph{reduced training set} of 32 clips per class (640 clips,
+approximately one third of the full 1{,}917), while keeping the test set unchanged. The
+teacher is the same Stage-3 model trained on the full dataset; it therefore has access to
+more training examples than the student, a setting in which knowledge transfer is expected
+to be more useful. Fig.~\ref{fig:proto} illustrates proto-alignment in detail.
 
 % ============================ FIG. 4: KD OBJECTIVES ============================
 \begin{figure*}[t]
@@ -836,41 +845,42 @@ S4.3 Student, CE + MSE ($g$)     & 75.9 & 61.3 & 1.8 \\
 \end{tabular}
 \end{table}
 
-\textbf{Results and why.} Table~\ref{tab:kd}. The first lesson is \emph{compression}: a
-student $14\times$ smaller stays within 4.3 points of its teacher (82.7\% vs 87.0\%),
-because the teacher's decision function transfers. The second is the ranking of the
-objectives, which follows from what each one asks of the student. \emph{S4.0 CE only} is
-already strong (80.6\%): the student backbone is ImageNet-pretrained, so labels alone carry
-it far. \emph{S4.1 KD} does not help here (79.7\%): the softened teacher scores add little
-beyond the labels once the student is pretrained. \emph{S4.2 Cosine} is best (82.7\%, +2.1
-over CE): it asks only that the student's 256-d clip feature \emph{point in the same
-direction} as the teacher's, a gentle target that transfers the teacher's temporal summary
-without forcing its scale. \emph{S4.3 MSE} is worst (75.9\%): it asks the student to match
-direction \emph{and} magnitude across two very different backbones, a target that
-fights the label loss. The gap between the objectives is modest (single seed, 439 test
-clips), so the headline of this stage is compression, with cosine as the best transfer
-term. \textbf{Choice for the pipeline: cosine distillation} (panel S4 of
-Fig.~\ref{fig:pipeline}).
+\textbf{Results and interpretation.} Table~\ref{tab:kd} shows that the best full-data
+student is approximately $14\times$ smaller than the teacher and remains within 4.3
+percentage points of its accuracy (82.7\% versus 87.0\%). The CE-only baseline is already
+strong (80.6\%), partly because the student uses an ImageNet-pretrained backbone.
+\emph{S4.1 KD} reaches 79.7\% and therefore provides no improvement over CE alone in this
+setting. \emph{S4.2 Cosine} performs best, reaching 82.7\%, or 2.1 points above the
+baseline. This objective aligns the directions of the teacher and student clip features
+without requiring their magnitudes to match. \emph{S4.3 MSE} is the weakest full-data
+method (75.9\%). Matching both the direction and magnitude of features produced by
+different backbones may impose a more restrictive target on the student. Because these
+results use one seed and 439 test clips, small differences should be interpreted with
+caution. The main result of this stage is therefore the compression itself, with cosine
+distillation providing the best measured transfer objective. \textbf{Choice for the
+pipeline: cosine distillation} (panel S4 of Fig.~\ref{fig:pipeline}).
 
-\textbf{With few training clips: proto-align wins.} With 32 clips per class every student
-loses about 19 points (CE: 80.6\% $\to$ 61.5\%) and overfits: training accuracy reaches 97--99\%
-while test accuracy stays near 60\%. This is where the teacher---trained on the full set---
-should help, and the right half of Table~\ref{tab:kd} shows which kind of help works.
-\emph{Per-clip targets add little}: KD (62.0\%) and MSE (61.3\%) stay at the level of CE, and
-cosine (59.7\%) is even slightly below it. They copy what the teacher says about \emph{each}
-training clip; with only 32 clips per class these are 32 more targets to fit, not new
-information about the class. \emph{Proto-align is the clear winner at 67.9\%}, +6.4 points over
-CE and +5.9 over KD, well above the noise of a single run (one standard error is about 2.3
-points on 439 test clips); it also narrows the gap to the teacher from 25.3 to 18.9 points.
-Its target is different in kind: a \emph{class-level} summary of how the teacher sees each
-class, built from all its clips. Pulling every student feature to the nearest of three class
-prototypes makes the clips of a class gather around a few centres---exactly the regularisation
-an overfitting student needs---while three prototypes instead of one still leave room for
-different ways of performing the same action. In short, when data is scarce the teacher helps
-most by showing the student \emph{where each class lives} in feature space, not what each
-single clip looks like. With the full training set cosine remains the measured best and stays
-in the pipeline; \todo\ proto-align with the full training set---if it also beats cosine there,
-it should replace cosine in panel S4 of Fig.~\ref{fig:pipeline}.
+\textbf{Reduced-data setting.} When training is limited to 32 clips per class, all
+full-data methods lose substantial accuracy; for example, the CE baseline decreases from
+80.6\% to 61.5\%. Training accuracy still reaches 97--99\%, while test accuracy remains
+near 60\%, indicating overfitting. KD (62.0\%) and MSE (61.3\%) perform similarly to CE,
+whereas cosine reaches 59.7\%. These objectives transfer a separate teacher target for
+each available training clip and provide little improvement when the student sees only a
+small set of clips. In contrast, \emph{S4.4 Proto-align} achieves the highest accuracy at
+67.9\%: 6.4 points above CE and 5.9 points above KD. It also reduces the gap to the teacher
+from 25.3 to 18.9 points. This gain is larger than the approximate binomial standard error
+of 2.3 points on 439 test clips, although experiments with additional seeds are needed to
+measure training variability.
+
+Proto-alignment differs from the other objectives because it transfers a class-level
+summary built from the teacher's full set of features. Pulling each student feature toward
+the nearest of three class prototypes encourages samples from the same class to form
+compact groups, while multiple prototypes preserve variation in how an action can be
+performed. These results suggest that, when training data are scarce, class-level teacher
+targets are more useful than clip-level targets. Cosine remains the selected objective for
+the full-data pipeline because proto-alignment has not yet been evaluated in that setting.
+\todo\ Evaluate proto-alignment on the full training set; if it outperforms cosine, it
+should replace cosine in panel S4 of Fig.~\ref{fig:pipeline}.
 
 %------------------------------------------------------------------------------
 \section{Stage 5 --- Few-Shot Meta-Adaptation}
@@ -1038,35 +1048,34 @@ Fig.~\ref{fig:pipeline}).
 %------------------------------------------------------------------------------
 \section{Stage 6 --- Few-Shot Learning with a Frozen CLIP Encoder}
 \label{sec:clip}
-\textbf{The question.} Stage~5 teaches our own small student to learn fast. A different route
-is to borrow a \emph{foundation model} that already knows a very wide range of images and
-keep it frozen: CLIP~\cite{radford2021clip} (ViT-B/32) was trained on 400M image--text pairs.
-Can it learn our actions from a handful of clips, or even from their names alone? This study
+Through Stage~5 we developed a strategy to make our model able to adapt quickly to new tasks. We evaluated also a different approach, borrowing a \emph{foundation model} pre-trained over a vast amount of data and keeping it frozen, using it as a 0-shot feature extractor.
+We chose CLIP~\cite{radford2021clip} (ViT-B/32), a vision-language model already trained on 400M image--text pairs.
+Our goal is to test whether it can learn our actions from a handful of clips, or even from their names alone. This study
 is a reference for Stage~5; it is not part of the pipeline of Fig.~\ref{fig:pipeline}.
 
-\textbf{Design} (Fig.~\ref{fig:clip}). Every one of the 16 frames goes through the frozen CLIP
-image encoder; the 16 frame embeddings are averaged into one normalised 512-d clip feature
-$f$. The task is the 10 base classes, learned from $k\in\{1,2,4,8,16\}$ training clips per
-class and tested on the 212 clips of the group-disjoint test set (one clip is 0.47 points;
-chance is 10\%). The $k$ clips are the first $k$ of each class in group order, so for
-$k\le4$ they all come from one source recording, for $k=8$ from two and for $k=16$ from
-three or four. Four methods are compared:
+\textbf{Architectural design} (Fig.~\ref{fig:clip}). For every video clip, all 16 frames are passed through the frozen CLIP
+image encoder, to extract 16 embeddings. These are averaged to obtain one normalised 512-d clip feature map $f$. The task is to learn 10 base classes, across different few-shot scenarios: $k\in\{1,2,4,8,16\}$ training clips per
+class. The model is tested on the 212 clips of the group-disjoint test set.
+We compare four different methods:
 \begin{itemize}
-\item \textbf{S6.0 Baseline}: our ResNet50+LSTM with the ImageNet backbone frozen and the LSTM
-and head trained on the same $k$ clips (Adam $10^{-4}$, 10 epochs). It is not the Stage-2
-teacher: it sees only the $k$ clips.
-\item \textbf{S6.1 Hybrid prototypes}: each class name becomes the prompt ``a video of a person
-performing $\langle$class$\rangle$'', encoded by the CLIP text encoder into a text prototype
-$t_c$; it is mixed with the mean feature $m_c$ of the $k$ clips of the class,
-$p_c=0.4\,t_c+0.6\,m_c$ (normalised), and a clip gets the class with the highest
-$\cos(f,p_c)$. Nothing is trained.
-\item \textbf{S6.2 Linear probe}: logistic regression on $f$ ($C=0.01$), trained on the $k$
-clips per class.
-\item \textbf{S6.3 MLP adapter}: a small MLP (512$\to$256, batch norm, ReLU, dropout 0.3, then
-the classes) on $f$, trained on the $k$ clips per class (AdamW $10^{-3}$, weight decay
-$10^{-2}$, 50 epochs).
+\item \textbf{S6.0 Baseline}: our ResNet50+LSTM model. The ImageNet backbone is frozen,
+while the LSTM and classifier head are trained on the $k$ clips per class (Adam,
+$10^{-4}$, 10 epochs).
+\item \textbf{S6.1 Hybrid prototypes}: the prompt ``a video of a person performing
+$\langle$class$\rangle$'' is encoded by the frozen CLIP text encoder to obtain a text
+prototype $t_c$. It is combined with the mean CLIP feature $m_c$ of the $k$ training clips
+for class $c$ to form the normalised prototype
+$p_c=0.4\,t_c+0.6\,m_c$. Each test clip is assigned to the class with the highest cosine
+similarity $\cos(f,p_c)$. No parameters are trained; however, because the method uses the
+$k$ labelled clips, it is a few-shot method rather than a purely zero-shot classifier.
+\item \textbf{S6.2 Linear probe}: a logistic-regression classifier is trained on the
+frozen clip features $f$ from the $k$ clips per class, using $C=0.01$.
+\item \textbf{S6.3 MLP adapter}: a small MLP is trained on the frozen clip features $f$.
+It contains a 512$\to$256 linear layer, batch normalisation, ReLU, dropout of 0.3, and a
+classification layer (AdamW, $10^{-3}$, weight decay $10^{-2}$, 50 epochs).
 \end{itemize}
-S6.0 and S6.3 are run for every $k$; S6.1 and S6.2 only for $k=16$.
+S6.0 and S6.3 are evaluated for every value of $k$, while S6.1 and S6.2 are evaluated only
+for $k=16$.
 
 % ============================ FIG. 7: CLIP FEW-SHOT ============================
 \begin{figure*}[t]
@@ -1152,27 +1161,25 @@ S6.3 MLP adapter   & 0.13M & \textbf{75.0} & \textbf{73.1} & \textbf{74.1} & \te
 \end{tabular}
 \end{table}
 
-\textbf{Results} (Table~\ref{tab:clip}). \emph{With CLIP features one clip is enough to
-start.} From a single clip per class the MLP adapter reaches 75.0\%, against 17.9\% for our
-ResNet50+LSTM trained on the same clip. The baseline has to learn a 2.4M-parameter LSTM from
-10--40 clips: up to $k=4$ its validation loss stays above 2.0, close to a uniform guess
-($\ln 10\approx2.3$), and with 16 clips it reaches only 61.3\%, 25.5 points below the
-adapter. The two are not trained for the same number of steps (10 epochs against 50), so at
-small $k$ part of the gap is under-training; at $k=16$, where the baseline fits all its
-training clips, the gap comes from the features.
+\textbf{Results and interpretation.} Table~\ref{tab:clip} shows that frozen CLIP features
+are highly effective in the few-shot setting. With one training clip per class, the MLP
+adapter reaches 75.0\% accuracy, compared with 17.9\% for ResNet50+LSTM. The comparison is
+not fully controlled because the models are trained for different numbers of epochs, but
+the large gap indicates the value of CLIP's pretrained representation.
 
-\emph{More clips help only when they come from new recordings.} The adapter is flat from 1
-to 4 clips (75.0, 73.1, 74.1\%, a spread of 4 test clips): these clips all come from the
-same recording, so they add almost no new information. It rises once the clips come from
-new recordings: 79.2\% with 8 (two recordings) and 86.8\% with 16 (three or four).
+Increasing $k$ from 1 to 4 provides little benefit to the MLP adapter (73.1--75.0\%) because
+these clips come from the same recording and contain limited additional variation. Its
+accuracy rises to 79.2\% with 8 clips and 86.8\% with 16 clips, when examples from more
+recordings are included. This suggests that recording diversity is more useful than adding
+highly similar clips.
 
-\emph{With 16 clips the simplest classifiers win.} The hybrid prototypes, which train
-nothing, reach 90.1\% and the linear probe 89.6\%, both above the MLP adapter (86.8\%) and
-only about 4 points below the Stage-2 teacher trained end-to-end on all the training clips
-(93.9\%). On 160 clips the 0.13M-parameter MLP overfits more than a 5k-parameter probe or a
-class mean.
+At $k=16$, the simpler classifiers perform best: hybrid prototypes reach 90.1\% and the
+linear probe reaches 89.6\%, compared with 86.8\% for the MLP adapter. Both are also close
+to the 93.9\% accuracy of the Stage-2 model trained on the full dataset. These results show
+that strong frozen features require only a lightweight classifier; with 160 training
+clips, the additional capacity of the MLP does not improve generalisation.
 
-\textbf{MAML (Stage 5) or CLIP (Stage 6)?} The two answer the same need---learning a class
+\textbf{MAML (Stage 5) and CLIP (Stage 6) comparison (TODO)} The two answer the same need---learning a class
 from a few clips---in opposite ways, and each wins on different criteria:
 \begin{itemize}
 \item \emph{Prior knowledge.} CLIP brings what it learned from 400M web images and captions,
@@ -1198,30 +1205,32 @@ student.
 %------------------------------------------------------------------------------
 \section{The ULAL Pipeline on Real Video}
 \label{sec:ulal}
-\textbf{Building the pipeline from the winners.} The final notebook chains the selected
-method of every stage into one lifelong model, following Fig.~\ref{fig:pipeline} from top
-to bottom, now on a longer $10\!\to\!20\!\to\!30$ stream:
+\textbf{Final pipeline} 
+In this section we aim to assemble the final pipeline, selecting the best performing strategy for each stage (backbone selection, continual learning, knowledge distillation, few-shot meta learning adaptation).
+Fig.~\ref{fig:pipeline} illustrates such pipeline, which executes the following protocol, over a $10\!\to\!20\!\to\!30$ classes stream:
 \begin{enumerate}
-\item \textbf{S1 Data}: all clips come from the group-disjoint split.
-\item \textbf{S2 Teacher}: the ResNet50+LSTM teacher, trained on the 10 base classes.
-\item \textbf{S3 Replay}: the teacher's head grows to 20 and then 30 classes; every batch
-mixes new clips with stored old clips (15 per class).
+\item \textbf{S1 Data preparation}: all video clips are pre-processed and splitted into train/val/test avoiding data leakage.
+\item \textbf{S2 Teacher}: the ResNet50+LSTM teacher is trained on 10 base classes.
+\item \textbf{S3 CL with replay strategy}: the teacher's head grows to adapt sequentially to 20 and then 30 classes; every training batch
+mixes new clips with few stored old clips (15 per class) to prevent forgetting.
 \item \textbf{S4 Cosine distillation}: the frozen 30-class teacher is distilled into the
-MobileNet student with CE + cosine.
-\item \textbf{S5 MAML}: the student is meta-trained on 35 other sports---the 40 meta sports of Stage~5 minus the 5 that are among the 30 known classes---(5-way 5-shot, only
+MobileNet student with CE + cosine strategy.
+\item \textbf{S5 MAML} (TODO): the student is meta-trained on 35 other sports---the 40 meta sports of Stage~5 minus the 5 that are among the 30 known classes---(5-way 5-shot, only
 its last 4 blocks, LSTM and head); each meta clip comes from a different source video, so
 the query clips are always from other videos than the support clips. Its 30-class head is
 then re-fitted on 12 clips per class.
-\item \textbf{Real-video test}: 5 sports that no model has seen (golf swing, front crawl,
-hammer throw, handstand push-ups, handstand walking) are taken from YouTube, 4 videos
-each, cut into 10 clips per video: 2 videos to learn from and 2 kept only for testing (one
-front-crawl video could not be downloaded, so front crawl learns from a single video). Each model grows its head from
-30 to 35 classes and learns from the same 10 clips per sport, with replay (8 old clips per
-class), in 1, 2, 3 or 5 passes over the clips (13, 26, 39 or 65 updates): few passes mean
-that learning must be fast, the case MAML is built for. We adapt the MAML student and, as
-references, the teacher and the plain distilled student, with the same clips, seed and
-budget. We report the accuracy on the unseen test
-videos (new), the accuracy kept on the 30 UCF classes (old), and their harmonic mean.
+\item \textbf{Real-video test}: we collect YouTube videos of five sports that are unseen
+by all models: golf swing, front crawl, hammer throw, handstand push-ups, and handstand
+walking. For each sport, we use two videos for adaptation and reserve two separate videos
+for testing, with each video divided into 10 clips. One front-crawl video was unavailable,
+so that class is learned from a single source video. Each model expands its classifier
+from 30 to 35 classes and adapts on the same 10 clips per new sport, together with a replay
+buffer containing eight old clips per class. Adaptation uses 1, 2, 3, or 5 passes over the
+training clips, corresponding to 13, 26, 39, or 65 updates. The smaller budgets test the
+rapid adaptation for which MAML is designed. We compare the MAML student with the teacher
+and the plain distilled student under the same data, seed, and update budget. We report
+accuracy on the unseen YouTube test videos (new classes), retained accuracy on the 30 UCF
+classes (old classes), and the harmonic mean of the two.
 \end{enumerate}
 
 \begin{table}[t]
@@ -1268,49 +1277,51 @@ Epochs & New & Old & H & New & Old & H & New & Old & H \\
 \end{tabular}
 \end{table}
 
-\textbf{Results on UCF101.} Table~\ref{tab:ulal}. On the longer stream replay still keeps
-the model balanced: after two tasks of ten classes each the teacher scores 79.7\% on all
-30 classes, with old (78.8\%) and new classes (81.4\%) close together---no collapse
-towards the newest task. The distilled student keeps 67.2\% at $14\times$ fewer
-parameters; the gap to the teacher is larger than in Stage~4 (30 classes instead of 20,
-and 10 instead of 15 epochs). MAML meta-training costs the student 6.4 points on the known
-classes (60.8\%): moving the last blocks towards fast adaptation, and re-fitting the head on
-only 12 clips per class, trades some old-class accuracy for plasticity, as in Stage~5.
+\textbf{Results on UCF101.} Table~\ref{tab:ulal} shows that replay remains effective on
+the longer stream. After two increments of 10 classes, the teacher reaches 79.7\% accuracy
+over all 30 classes, with similar performance on the old (78.8\%) and new classes (81.4\%).
+The distilled student reaches 67.2\% with approximately $14\times$ fewer parameters. This
+gap is larger than in Stage~4, although the experiments are not directly comparable because
+the stream contains more classes and uses fewer training epochs. After meta-training and
+re-fitting the classifier on 12 clips per class, the MAML student reaches 60.8\%. Its
+6.4-point reduction relative to the distilled student reflects the trade-off between
+retaining performance on known classes and preparing the model for rapid adaptation.
 
-\textbf{Results on real video and why} (Table~\ref{tab:youtube}). \emph{Few updates: the
-MAML student is the faster of the two students.} After one pass (13 updates) the plain KD
-student has learned nothing of the new sports (0.00), while the MAML student already
-recognises 0.16 of the unseen test clips. After two passes (26 updates) it reaches 0.36
-against 0.23, as much as the $14\times$ larger teacher (0.37). This is the ability MAML was
-selected for in Stage~5: a starting point that moves towards a new class in a few steps.
+\textbf{Results on real video.} Table~\ref{tab:youtube} shows that the MAML student adapts
+faster than the plain distilled student under small update budgets. After one pass (13
+updates), their new-class accuracies are 0.16 and 0.00, respectively. After two passes (26
+updates), the MAML student reaches 0.36, compared with 0.23 for the plain student and 0.37
+for the much larger teacher. This result is consistent with the purpose of MAML: providing
+an initialization that can adapt in a small number of updates.
 
-\emph{More updates: the plain student catches up and passes.} At three passes the three
-models are within 0.07 of each other (0.42--0.49), less than one test video. At five passes
-the plain student is best both on the new sports (0.57) and on the balance (H 0.578), while
-the MAML student stays at 0.47. The same trend appeared in pilot runs and, as the number of
-clips grows, in Stage~5 (Table~\ref{tab:shots}, without protection): meta-learning buys
-speed, not a higher final accuracy.
+With more updates, the advantage decreases. After three passes, all models obtain
+new-class accuracies between 0.42 and 0.49. After five passes, the plain student performs
+best on both the new sports (0.57) and the harmonic mean ($H=0.578$), while the MAML student
+remains at 0.47 on the new sports. This pattern is consistent with Stage~5
+(Table~\ref{tab:shots}): meta-learning improves adaptation speed, but does not necessarily
+produce the highest accuracy after longer training.
 
-\emph{Old classes.} Replay keeps every model close to its starting level on the 30 UCF
-classes: the teacher stays at 0.74--0.78 (from 0.80), the KD student at 0.58--0.64 (from
-0.67), and the MAML student at 0.53--0.55 (from 0.61). The MAML student has the lowest old
-accuracy throughout because it starts lower (meta-training cost it 6.4 points,
-Table~\ref{tab:ulal}). Its balance is still better than the plain student's with one or two
-passes (H 0.247 and 0.433 against 0.000 and 0.339), equal at three and lower at five.
+\emph{Retention of old classes.} Replay limits forgetting for all three models. Across
+the four update budgets, old-class accuracy ranges from 0.744 to 0.776 for the teacher,
+0.583 to 0.644 for the distilled student, and 0.533 to 0.545 for the MAML student. The MAML
+student remains lower because its initial 30-class accuracy is also lower (0.608;
+Table~\ref{tab:ulal}). Nevertheless, its harmonic mean exceeds that of the plain student
+after one and two passes, is equal after three passes, and is lower after five.
 
-\emph{Teacher.} The large teacher keeps the old classes best and has the best balance up to
-three passes (H 0.591). At five passes its new-sport accuracy falls from 0.49 to 0.35 while
-its old accuracy holds. We read this as over-fitting to the two learning videos of each
-sport, but the drop is only slightly larger than one test video.
+\emph{Teacher.} The teacher retains the highest old-class accuracy and achieves the best
+harmonic mean through three passes ($H=0.591$). Its new-class accuracy then decreases from
+0.49 to 0.35 after five passes, while its old-class accuracy remains stable. This may
+indicate overfitting to the small adaptation set, but the limited test size prevents a
+firm conclusion.
 
-Three limits hold for any reading of this test. There are only 10 test videos (100 clips),
-so one video changes the new-sport accuracy by up to 0.10 and smaller differences are
-within noise. One front-crawl video could not be downloaded, so front crawl is learned from
-a single video. And some sports change setting between videos (the handstand push-up
-learning videos are filmed in a studio, the test videos in a gym).
+These results have three important limitations. First, the real-video test contains only
+10 videos (100 clips), so a single video can change new-class accuracy by as much as 0.10.
+Second, one front-crawl video was unavailable, leaving only one adaptation video for that
+class. Third, some classes exhibit a domain shift between adaptation and test videos; for
+example, the handstand push-up videos change from a studio to a gym setting.
 
 %------------------------------------------------------------------------------
-\section{Discussion and Limitations}
+\section{Discussion and Limitations (TODO)}
 Four themes recur across the pipeline. \emph{Measurement matters:} without the
 group-disjoint split every number would be inflated by scene memorisation, and without the
 harmonic mean the few-shot ranking would reward models that learn nothing new.
@@ -1332,7 +1343,7 @@ downloadable YouTube videos (one of the 20 could not be downloaded); a larger se
 and several seeds would make its differences at three and five passes conclusive.
 
 %------------------------------------------------------------------------------
-\section{Conclusion}
+\section{Conclusion (TODO)}
 ULAL is a compact, honest, real-video pipeline for lifelong action recognition on a single
 free GPU. A leakage-free split makes the numbers trustworthy; a ResNet50+LSTM is a strong
 teacher (93.9\%); rehearsal is the strongest continual learner (89.8\% against 26.0\% for
