@@ -153,8 +153,8 @@ distillation, meta-learning, few-shot learning, model compression.
 \section{Introduction}
 Deep video models are prone to forget old classes when fine-tuned on a set of new ones, as models' parameters for old knowledge get overwritten. This phenomenon is know as {catastrophic
 forgetting}~\cite{kirkpatrick2017ewc}. 
-Continual training (or lifelong training) aims to mitigate this issue, extending current knowledge to new classes while preserving what was already learned~\cite{delange2021survey}. 
-Videos make this remarbably harder than images: a clip is a large spatio-temporal tensor, therefore storing and replaying past data is expensive, and the temporal model on top of the
+Continual (or lifelong) learning aims to mitigate this issue, extending current knowledge to new classes while preserving what was already learned~\cite{delange2021survey}. 
+Videos make this remarbably harder than images: a clip is a large spatio-temporal tensor, and therefore storing and replaying past data is expensive, and the temporal model on top of the
 per-frame spatial feature extractor adds a second layer subjected to representation drift.
 
 A realistic deployment demands several capabilities at once. A model must (a) be
@@ -173,8 +173,8 @@ Our base method follows a \emph{moving freeze boundary} strategy: it is composed
 
 \textbf{Main Contributions.}
 \begin{itemize}
-\item \textbf{An fair measurement protocol.} We quantify the 80\% source-group leakage in UCF101's native train-test split and replace it with a group-disjoint split that avoids leakage.
-\item \textbf{A comprehnsive study for each stage}: six backbones (including a vision transformer) to select the best feature extractor, five continual-learning
+\item \textbf{A fair measurement protocol.} We quantify the 80\% source-group leakage in UCF101's native train-test split and replace it with a group-disjoint split that avoids leakage.
+\item \textbf{A comprehnsive study for each stage}: we evaluate six backbones (including a vision transformer) to select the best spatial feature extractor, five continual-learning
 strategies, four distillation objectives, and nine meta-adaptation arms.
 \item \textbf{A fine-tune control that isolates meta-learning}: we compare the MAML starting point with an ordinary
 fine-tuned starting point trained on the \emph{same} extra sports, so that the gain attributed to meta-learning is not
@@ -300,22 +300,23 @@ clips; violet: meta-learning; green: classifier head; red dashed: freeze boundar
 important to the old tasks: EWC~\cite{kirkpatrick2017ewc} weights the penalty by the Fisher information, while synaptic-intelligence variants use online importance estimates~\cite{zenke2017si}. 
 \emph{Functional methods} try to keep the model's outputs stable: for example, Learning without Forgetting (LwF)~\cite{li2017lwf} distils the old model's own predictions on new data. \emph{Rehearsal methods} store a portion of old samples and use them during training, along with new samples for new tasks. One can also combine different strategies: iCaRL~\cite{rebuffi2017icarl} combines rehearsal with distillation. 
 \textbf{Knowledge distillation (KD).} Traditional KD approaches try to inject into a compact model (student) the knowledge of larger one (teacher) by matching their softened logits~\cite{hinton2015kd} or their intermediate features~\cite{romero2015fitnets}. 
-\textbf{Meta and few-shot learning.} Few-shot learning aims to recognise new classes from only a handful of labelled
-examples. Metric-based methods such as prototypical networks~\cite{snell2017proto} classify a sample by its distance to
-class prototypes computed in an embedding space. Optimisation-based methods such as MAML~\cite{finn2017maml} instead learn
-an initialisation from which a few gradient steps adapt the model to a new task; first-order MAML drops the second-order
-term for efficiency. Few-shot class-incremental learning (FSCIL)~\cite{tao2020fscil} adds new classes from few examples
-while retaining a large base set, and reports the harmonic mean of base and new accuracy so that neither side can be
-ignored; we adopt that metric. Finally, large vision-language models such as CLIP~\cite{radford2021clip} provide
-general-purpose features that can be adapted to new classes with little or no training; we use one as a reference in
-Stage~6.
+\textbf{Meta and few-shot learning.} Few-shot learning aims to recognise new classes from only a few labelled
+examples. Metric-based approaches such as prototypical networks~\cite{snell2017proto} classify each sample according to
+its distance from class prototypes in an embedding space. Optimisation-based approaches such as
+MAML~\cite{finn2017maml} instead learn an initialisation that can be adapted to a new task with only a few gradient
+steps. First-order MAML improves efficiency by omitting second-order derivatives. Few-shot class-incremental learning
+(FSCIL)~\cite{tao2020fscil} extends this setting by requiring a model to learn new classes from few examples while
+retaining its base-class knowledge. We evaluate this balance using the harmonic mean of base- and new-class accuracy,
+which penalises poor performance on either group. Finally, large vision-language models such as
+CLIP~\cite{radford2021clip} provide general-purpose features that support new-class recognition with little or no
+additional training; we use CLIP as a reference in Stage~6.
 
 %------------------------------------------------------------------------------
 \section{System, Notation, and Protocol}
 \label{sec:setup}
 
 \subsection{The shared architecture}
-A clip is composed of $T{=}16$ RGB frames
+We process each video clip to obtain $T{=}16$ RGB frames
 at $224\times224$ resolution, ImageNet-normalised.
 Once the best recognizer is established, it is used for every stage of the study (Fig.~\ref{fig:arch}). This model is composed of a CNN-backbone for spatial feature extraction, a LSTM module for temporal dependencies learning, and a final classification head.
 The CNN-backbone $\phi$ is applied to each frame
@@ -324,8 +325,7 @@ head $W$ maps $h_T$ to class scores.
 \begin{equation}
 h_T = \mathrm{LSTM}\big(\phi(x_1),\dots,\phi(x_T)\big),\qquad z = W\,h_T .
 \end{equation}
-The head \emph{grows} as the model is expanded to new classes. Adding $k$ classes appends $k$ rows to $W$ and
-keeps the existing rows. 
+The head \emph{grows} as the model is expanded to new classes. Adding $k$ classes appends $k$ rows to $W$ while keeping the existing rows. 
 
 \begin{figure}[t]
 \centering
@@ -664,7 +664,7 @@ Table~\ref{tab:cl} reports the final accuracy of each method, while
 Table~\ref{tab:cltime} shows how performance changes after each task.
 
 \textbf{Results and interpretation.}
-\emph{S3.0 Naive} learns each new task well (98.2\% on task~1 and 94.9\% on task~2), but
+\emph{S3.0 Naive} achieves high accuracy on each new task (98.2\% on task~1 and 94.9\% on task~2), but
 the base-class accuracy falls from 93.9\% to 22.6\% after the first update and to 0.5\%
 after the second. Because training batches contain only new-class clips, the shared
 parameters are updated without any signal that preserves the old decision boundaries.
@@ -924,26 +924,27 @@ pipeline (panel S4 of Fig.~\ref{fig:pipeline}).
 \section{Stage 5 --- Few-Shot Meta-Adaptation}
 \label{sec:meta}
 \textbf{Design.} Given the 20-class student, how well can it learn \emph{five brand-new
-sports} from only a few clips? Every arm uses the same adaptation---the same 8 clips per
-new sport, 5 epochs, learning rate and seed, a head grown from 20 to 25 classes---so only
-two things vary (Fig.~\ref{fig:meta}): the \emph{starting point} and the \emph{protection}
-of the old classes. The three starting points are:
+sports} from only a few clips? Every experimental arm uses the same adaptation setup:
+8 clips per new sport, 5 epochs, the same learning rate and seed, and a classifier head
+expanded from 20 to 25 classes. Thus, only two factors vary (Fig.~\ref{fig:meta}): the
+\emph{starting point} and the method used to \emph{protect} the old classes. The three
+starting points are:
 \begin{itemize}
-\item \textbf{S5.0 Plain}: the distilled student as it is.
-\item \textbf{S5.1 Fine-tune}: the student after ordinary supervised training on 40 other
-sports. This is the control: it sees the same extra data as MAML.
-\item \textbf{S5.2 MAML}~\cite{finn2017maml}: the student after first-order MAML on the
-same 40 sports. Each episode draws 5 sports with 3 support and 3 query clips; the
-\emph{inner} loop adapts a copy on the support clips,
+\item \textbf{S5.0 Plain}: the distilled student without further preparation.
+\item \textbf{S5.1 Fine-tune}: the student after standard supervised training on 40 other
+sports. This serves as the control because it uses the same additional data as MAML.
+\item \textbf{S5.2 MAML}~\cite{finn2017maml}: the student after first-order MAML training
+on the same 40 sports. Each episode samples 5 sports, with 3 support clips and 3 query
+clips per sport. The \emph{inner} loop adapts a copy of the model on the support clips,
 $\theta'=\theta-\alpha\nabla_\theta\mathcal{L}^{\text{sup}}(\theta)$ (5 SGD steps), and the
-\emph{outer} loop moves the start by the loss of the adapted copy on the query clips,
+\emph{outer} loop updates the initialisation using the adapted model's loss on the query clips,
 $\theta\leftarrow\theta-\beta\nabla_{\theta'}\mathcal{L}^{\text{qry}}(\theta')$.
 \end{itemize}
-For S5.1 and S5.2 only the last four backbone blocks, the LSTM and the head are trained,
-and a fresh 20-class head is then re-fitted to the new features (a short linear probe on
-12 clips per class). Each start is adapted with no protection, with replay (8 old clips per
-class), or with replay+LwF, giving nine arms ranked by the harmonic mean of
-Eq.~\eqref{eq:harm}.
+For S5.1 and S5.2, only the final four backbone blocks, the LSTM, and the classifier head
+are trained. A new 20-class head is then fitted to the resulting features through a short
+linear-probing stage using 12 clips per class. Each starting point is adapted under three
+protection settings: none, replay (8 old clips per class), and replay+LwF. This produces
+nine experimental arms, which we rank by the harmonic mean in Eq.~\eqref{eq:harm}.
 
 % ============================ FIG. 5: META-ADAPTATION ============================
 \begin{figure*}[t]
@@ -1062,24 +1063,28 @@ S5.2 MAML      & replay & \textbf{0.16} & 0.19 & \textbf{0.44} & \textbf{0.55} \
 \end{table}
 
 \textbf{Results.} Table~\ref{tab:meta} ranks the nine arms; Table~\ref{tab:shots} shows how
-the new-sport accuracy grows with the number of clips. Before adaptation the student
-scores 75.9\% on the base classes; during meta-training the query accuracy rises from
-0.83 to 0.98 over 8 epochs, so the start is really being reshaped.
+accuracy on the new sports changes with the number of available clips. Before adaptation,
+the student achieves 75.9\% accuracy on the base classes. During meta-training, query
+accuracy rises from 0.83 to 0.98 over 8 epochs, indicating that the initialisation is being
+reshaped for rapid adaptation.
 
-\textbf{Why each arm behaves as it does.} Without protection every start learns the new
-sports but wipes the base (base 0.011--0.189): with only new clips, the whole network is
-rewritten, exactly as in naive continual learning. \emph{MAML alone} learns the new sports
-best (0.661), because its start is built to move quickly onto a new task---and with nothing
-holding it back it moves all the way. \emph{Replay} fixes the base in every case (0.576 to
-0.724) but slows new learning, most for the plain start (0.295). \emph{MAML+replay}
-combines a start that learns fast with stored clips that hold the old classes, and is the
-best balance (H 0.600). The key comparison is with the control: \emph{fine-tune+replay}
-saw the same 40 sports and reaches only 0.530, so the extra 0.07 comes from meta-learning,
-not from the extra data. The LwF variants are always slightly worse: with only a few new
-clips, keeping the old scores fixed also holds back the fresh new-class rows.
-Table~\ref{tab:shots} shows that MAML's advantage is a property of the \emph{start}: it is
-largest with 1 clip (0.26 against 0.00--0.03) and disappears by 10 clips (0.65 against
-0.66 for the plain start), when there are enough steps for any start to learn.
+\textbf{Results interpretation.} Without protection, all three starting points learn the
+new sports but largely forget the base classes (base accuracy 0.011--0.189). Training only
+on new clips rewrites the network, reproducing the catastrophic forgetting observed with
+naive continual learning. \emph{MAML alone} achieves the highest new-class accuracy
+(0.661) because its initialisation is designed for rapid adaptation and no constraint
+limits how far it can move. \emph{Replay} preserves base-class performance in every case
+(0.576--0.724), but slows new-class learning, particularly for the plain starting point
+(0.295). \emph{MAML+replay} combines a rapidly adaptable initialisation with stored clips
+that preserve the old classes, providing the best balance ($H=0.600$). The key comparison
+is with the control: \emph{fine-tune+replay} uses the same 40 sports but reaches only
+$H=0.530$. The 0.070 improvement therefore comes from meta-learning rather than access to
+additional data. The LwF variants perform slightly worse in every case: when only a few
+new clips are available, constraining the old-class outputs also restricts learning in the
+new classifier rows. Table~\ref{tab:shots} further shows that MAML's advantage lies in its
+\emph{initialisation}. The gain is largest with 1 clip (0.26 versus 0.00--0.03) and
+disappears by 10 clips (0.65 versus 0.66 for the plain starting point), when sufficient
+data and updates allow either model to adapt.
 \textbf{Choice for the pipeline: MAML meta-training, adapted with replay} (panel S5 of
 Fig.~\ref{fig:pipeline}).
 
