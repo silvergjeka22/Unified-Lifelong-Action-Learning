@@ -92,13 +92,30 @@ class CLIPMLPAdapter(nn.Module):
     def forward(self, x):
         return self.net(x)
 
+def display_fewshot_results(df_results, resnet_histories, mlp_histories, k_shots_list):
+    """
+    Displays summary table, loss curves (Train/Val), epoch accuracy curves (Train/Val), 
+    and final test accuracy over k-shots. Supports both dictionary and list history structures.
+    """
+    sns.set_theme(style="whitegrid")
+    active_k_shots = [k for k in k_shots_list if k > 0]
+    colors = sns.color_palette("viridis", len(active_k_shots))
 
-def display_fewshot_results(df_results, resnet_loss_curves, mlp_loss_curves, k_shots_list):
-    """
-    Displays a styled Pandas summary table and plots training loss curves 
-    for ResNet50+LSTM and CLIP+MLP Adapter across k-shots.
-    """
-    # --- 1. Formatted Results Table ---
+    # Helper function to unpack metrics whether history is a dict or a direct list
+    def unpack_history(hist):
+        if isinstance(hist, dict):
+            train_loss = hist.get('train_losses', hist.get('train_loss', []))
+            val_loss = hist.get('val_losses', hist.get('val_loss', []))
+            train_acc = hist.get('train_accs', hist.get('train_acc', []))
+            val_acc = hist.get('val_accs', hist.get('val_acc', []))
+            return train_loss, val_loss, train_acc, val_acc
+        elif isinstance(hist, list):
+            return hist, [], [], []
+        return [], [], [], []
+
+    # -------------------------------------------------------------------
+    # 1. Summary Performance Table
+    # -------------------------------------------------------------------
     df_display = df_results.copy()
     df_display.columns = ['k (Shot Size)', 'ResNet50 + LSTM Acc (%)', 'CLIP + MLP Adapter Acc (%)']
 
@@ -110,36 +127,99 @@ def display_fewshot_results(df_results, resnet_loss_curves, mlp_loss_curves, k_s
             {'selector': 'th', 'props': [('background-color', '#2b2b2b'), ('color', 'white'), ('text-align', 'center')]},
             {'selector': 'caption', 'props': [('caption-side', 'top'), ('font-size', '16px'), ('font-weight', 'bold')]}
         ])\
-        .set_caption("Few-Shot Evaluation Performance (k-shots)")
+        .set_caption("Few-Shot Evaluation Performance Summary")
 
     display(styled_df)
 
-    # --- 2. Learning Curves Visualization ---
-    sns.set_theme(style="whitegrid")
-    fig, axes = plt.subplots(1, 2, figsize=(14, 5), sharey=False)
+    # -------------------------------------------------------------------
+    # 2. ResNet50 + LSTM: Loss & Accuracy per Epoch
+    # -------------------------------------------------------------------
+    fig1, (ax_r_loss, ax_r_acc) = plt.subplots(1, 2, figsize=(14, 5))
 
-    active_k_shots = [k for k in k_shots_list if k > 0]
-    colors = sns.color_palette("viridis", len(active_k_shots))
-
-    # ResNet50 + LSTM Loss Plot
-    ax1 = axes[0]
     for idx, k in enumerate(active_k_shots):
-        if k in resnet_loss_curves and len(resnet_loss_curves[k]) > 0:
-            ax1.plot(range(1, len(resnet_loss_curves[k]) + 1), resnet_loss_curves[k], marker='o', label=f'k = {k}', color=colors[idx])
-    ax1.set_title("ResNet50 + LSTM Training Loss", fontsize=12, fontweight='bold')
-    ax1.set_xlabel("Epoch", fontsize=10)
-    ax1.set_ylabel("Cross Entropy Loss", fontsize=10)
-    ax1.legend(title="k-shots")
+        t_loss, v_loss, t_acc, v_acc = unpack_history(resnet_histories.get(k, {}))
+        epochs = range(1, len(t_loss) + 1)
+        if len(epochs) > 0:
+            # Loss
+            ax_r_loss.plot(epochs, t_loss, label=f'Train k={k}', color=colors[idx], linestyle='-')
+            if len(v_loss) > 0:
+                ax_r_loss.plot(epochs, v_loss, linestyle='--', color=colors[idx], alpha=0.7)
+            # Accuracy
+            if len(t_acc) > 0:
+                ax_r_acc.plot(epochs, [a * 100 if a <= 1.0 else a for a in t_acc], label=f'Train k={k}', color=colors[idx], linestyle='-')
+            if len(v_acc) > 0:
+                ax_r_acc.plot(epochs, [a * 100 if a <= 1.0 else a for a in v_acc], linestyle='--', color=colors[idx], alpha=0.7)
 
-    # CLIP + MLP Adapter Loss Plot
-    ax2 = axes[1]
+    ax_r_loss.set_title("ResNet50 + LSTM: Loss per Epoch\n(Solid=Train, Dashed=Val)", fontsize=11, fontweight='bold')
+    ax_r_loss.set_xlabel("Epoch")
+    ax_r_loss.set_ylabel("Cross Entropy Loss")
+    ax_r_loss.legend(title="k-shots", fontsize=8)
+
+    ax_r_acc.set_title("ResNet50 + LSTM: Accuracy per Epoch\n(Solid=Train, Dashed=Val)", fontsize=11, fontweight='bold')
+    ax_r_acc.set_xlabel("Epoch")
+    ax_r_acc.set_ylabel("Accuracy (%)")
+    ax_r_acc.legend(title="k-shots", fontsize=8)
+
+    plt.tight_layout()
+    plt.show()
+
+    # -------------------------------------------------------------------
+    # 3. CLIP + MLP Adapter: Loss & Accuracy per Epoch
+    # -------------------------------------------------------------------
+    fig2, (ax_m_loss, ax_m_acc) = plt.subplots(1, 2, figsize=(14, 5))
+
     for idx, k in enumerate(active_k_shots):
-        if k in mlp_loss_curves and len(mlp_loss_curves[k]) > 0:
-            ax2.plot(range(1, len(mlp_loss_curves[k]) + 1), mlp_loss_curves[k], label=f'k = {k}', color=colors[idx], linewidth=1.8)
-    ax2.set_title("CLIP + MLP Adapter Training Loss", fontsize=12, fontweight='bold')
-    ax2.set_xlabel("Epoch", fontsize=10)
-    ax2.set_ylabel("Cross Entropy Loss", fontsize=10)
-    ax2.legend(title="k-shots")
+        t_loss, v_loss, t_acc, v_acc = unpack_history(mlp_histories.get(k, {}))
+        epochs = range(1, len(t_loss) + 1)
+        if len(epochs) > 0:
+            # Loss
+            ax_m_loss.plot(epochs, t_loss, label=f'Train k={k}', color=colors[idx], linestyle='-')
+            if len(v_loss) > 0:
+                ax_m_loss.plot(epochs, v_loss, linestyle='--', color=colors[idx], alpha=0.7)
+            # Accuracy
+            if len(t_acc) > 0:
+                ax_m_acc.plot(epochs, [a * 100 if a <= 1.0 else a for a in t_acc], label=f'Train k={k}', color=colors[idx], linestyle='-')
+            if len(v_acc) > 0:
+                ax_m_acc.plot(epochs, [a * 100 if a <= 1.0 else a for a in v_acc], linestyle='--', color=colors[idx], alpha=0.7)
+
+    ax_m_loss.set_title("CLIP + MLP Adapter: Loss per Epoch\n(Solid=Train, Dashed=Val)", fontsize=11, fontweight='bold')
+    ax_m_loss.set_xlabel("Epoch")
+    ax_m_loss.set_ylabel("Cross Entropy Loss")
+    ax_m_loss.legend(title="k-shots", fontsize=8)
+
+    ax_m_acc.set_title("CLIP + MLP Adapter: Accuracy per Epoch\n(Solid=Train, Dashed=Val)", fontsize=11, fontweight='bold')
+    ax_m_acc.set_xlabel("Epoch")
+    ax_m_acc.set_ylabel("Accuracy (%)")
+    ax_m_acc.legend(title="k-shots", fontsize=8)
+
+    plt.tight_layout()
+    plt.show()
+
+    # -------------------------------------------------------------------
+    # 4. Final Test Accuracy vs k-shots (Linear & Log2 Scale)
+    # -------------------------------------------------------------------
+    fig3, (ax_k_lin, ax_k_log) = plt.subplots(1, 2, figsize=(14, 5))
+
+    # Linear scale
+    ax_k_lin.plot(df_results['k'], df_results['ResNet50+LSTM Test Acc (%)'], marker='o', linewidth=2, label='ResNet50 + LSTM', color='#1f77b4')
+    ax_k_lin.plot(df_results['k'], df_results['CLIP+MLP Adapter Test Acc (%)'], marker='s', linewidth=2, label='CLIP + MLP Adapter', color='#ff7f0e')
+    ax_k_lin.set_title("Final Test Accuracy vs. k-shots (Linear Scale)", fontsize=12, fontweight='bold')
+    ax_k_lin.set_xlabel("k (clips per class)")
+    ax_k_lin.set_ylabel("Test Accuracy (%)")
+    ax_k_lin.set_xticks(k_shots_list)
+    ax_k_lin.legend()
+
+    # Log2 scale for k > 0
+    df_nonzero = df_results[df_results['k'] > 0]
+    ax_k_log.plot(df_nonzero['k'], df_nonzero['ResNet50+LSTM Test Acc (%)'], marker='o', linewidth=2, label='ResNet50 + LSTM', color='#1f77b4')
+    ax_k_log.plot(df_nonzero['k'], df_nonzero['CLIP+MLP Adapter Test Acc (%)'], marker='s', linewidth=2, label='CLIP + MLP Adapter', color='#ff7f0e')
+    ax_k_log.set_xscale('log', base=2)
+    ax_k_log.set_title("Final Test Accuracy vs. k-shots (Log2 Scale)", fontsize=12, fontweight='bold')
+    ax_k_log.set_xlabel("k (clips per class - log2)")
+    ax_k_log.set_ylabel("Test Accuracy (%)")
+    ax_k_log.set_xticks(active_k_shots)
+    ax_k_log.set_xticklabels([str(k) for k in active_k_shots])
+    ax_k_log.legend()
 
     plt.tight_layout()
     plt.show()
