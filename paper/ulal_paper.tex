@@ -112,8 +112,10 @@ group-disjoint split that avoids leakage completely.
 we compare four ImageNet-pretrained CNNs (ResNet18, ResNet50, DenseNet121, and VGG19-BN) and a vision
 transformer (ViT-B/16), all of which are fine-tuned on the current dataset, against a light, custom CNN
 trained from scratch. All architectures are attached a LSTM module to capture temporal dependencies. Through this comparison,
-we select a ResNet50+LSTM model (93.9\% on the base classes). On the native split the same backbones score 4.3 to 36.7
-points higher, and the vision transformer reaches 99.4\%, showing how much leakage inflates the results.
+we select a ResNet50+LSTM model (93.9\% on the base classes): the vision transformer is marginally more accurate
+(94.3\%, one more correct test clip) but has $3.4\times$ more parameters and a $3.4\times$ longer inference time.
+On the native split the same backbones score 4.3 to 36.7 points higher, and the vision transformer reaches 99.4\%,
+showing how much leakage inflates the results.
 (iii) \emph{How do we prevent forgetting?} To prevent forgetting on a $10\!\to\!15\!\to\!20$ class stream, we tested several 
 continual learning strategies, including reharsal, EWC, and LwF. The best-performing method, rehearsal, obtaines an overall accuracy of 89.8\%,
 while naive fine-tuning on new classes collapses to 26.0\%. This demonstrates the effectiveness of continual learning approaches when extending knowledge of a
@@ -468,14 +470,14 @@ Fig.~\ref{fig:pipeline}; for the ViT, $\phi$ is the 768-d class token of every f
 Each resulting architecture is fine-tuned over 10 UCF101 classes under the same training conditions (Adam, learning rate
 $10^{-4}$, 5 epochs): the pretrained backbones keep their early layers frozen and fine-tune only their last block (the last
 two of the twelve encoder blocks for the ViT), together with the LSTM and the head; the custom CNN is trained entirely.
-The ViT was trained in an earlier version of the pipeline that used UCF101's shipped split. To compare it fairly,
-Table~\ref{tab:backbone} also reports every CNN, trained with the same budget, on that same split.
+Every backbone, including the ViT, was trained with the same budget both on UCF101's shipped split, in an earlier
+version of the pipeline, and on our group-disjoint split; Table~\ref{tab:backbone} reports both.
 
 \begin{table}[t]
 \centering
 \caption{Backbone bake-off on the 10 base classes: test accuracy (\%) on UCF101's shipped split
 (171 test clips, leaking) and on our group-disjoint split (212 test clips). Same budget for
-every backbone; ms/clip is the inference time per clip. --: not measured.}
+every backbone; ms/clip is the inference time per clip. Bold: best per column.}
 \label{tab:backbone}
 \renewcommand{\arraystretch}{1.1}
 \setlength{\tabcolsep}{3.5pt}
@@ -487,8 +489,8 @@ ScratchCNN        & 103.1 & 10.2  & 89.5 & 52.8 \\
 ResNet18          & 12.0  & 15.7  & 97.1 & 90.1 \\
 DenseNet121       & 8.3   & 53.1  & 98.8 & 92.0 \\
 VGG19-BN          & 20.8  & 115.7 & 96.5 & 92.0 \\
-ViT-B/16          & 87.4  & --    & \textbf{99.4} & -- \\
-\textbf{ResNet50 (selected)} & 25.9 & 54.6 & 98.2 & \textbf{93.9} \\
+ViT-B/16          & 87.4  & 184.2 & \textbf{99.4} & \textbf{94.3} \\
+\textbf{ResNet50 (selected)} & 25.9 & 54.6 & 98.2 & 93.9 \\
 \bottomrule
 \end{tabular}
 \end{table}
@@ -507,15 +509,18 @@ from-scratch CNN (89.5\% instead of 52.8\%): without pretrained features it memo
 context that the leaking test clips share with the training clips. A leaking split can therefore
 hide a weak model and reorder the strong ones, as anticipated in Stage~1.
 
-\emph{Vision transformer.} On the shipped split the ViT-B/16 is the most accurate backbone
-(99.4\%). However, it differs from ResNet50 by only 2 of the 171 test clips, it has
-$3.4\times$ more parameters (87.4M against 25.9M), and it has not yet been evaluated on the
-group-disjoint split, where its advantage would have to be measured again.
+\emph{Vision transformer.} The ViT-B/16 is the most accurate backbone on both splits: 99.4\% on
+the shipped split and 94.3\% on the group-disjoint split, where it is inflated by 5.1 points, in line
+with the CNNs. On the leakage-free split, however, its lead over ResNet50 amounts to a single test clip
+(200 against 199 of the 212 clips correctly classified), well within the variation expected from a
+single seed. Most of its errors involve similar jumping actions: 9 of its 12 mistakes are clips
+wrongly predicted as high jump, and pole vault is its weakest class (80\% recall).
 
-We select \textbf{ResNet50} because it obtains the highest accuracy on the leakage-free split
-(93.9\%), provides a 2048-dimensional feature representation for the
-subsequent stages, and requires 54.6~ms per clip, approximately half the latency of
-VGG19-BN (115.7~ms per clip).
+We select \textbf{ResNet50} because it matches the accuracy of the vision transformer (93.9\% against
+94.3\%) with $3.4\times$ fewer parameters (25.9M against 87.4M) and a $3.4\times$ lower inference time
+(54.6 against 184.2~ms per clip), and it provides a 2048-dimensional feature representation for the
+subsequent stages. Among the CNNs it is also the most accurate, and it requires approximately half the
+latency of VGG19-BN (115.7~ms per clip).
 
 %------------------------------------------------------------------------------
 \section{Stage 3 --- Continual Learning}
@@ -1385,7 +1390,7 @@ deployment scenario, without size constraints, than the one considered by ULAL.
 
 \textbf{Limitations.} All results are obtained with a single seed and on a single dataset, with short class
 streams (up to 30 classes). Rehearsal stores real clips, so its memory cost grows with the number of
-classes. The vision transformer has only been evaluated on the shipped split. The real-video test is small
+classes. The real-video test is small
 (5 sports, 10 test videos) and depends on downloadable YouTube videos (one of the 20 could not be
 downloaded); a larger set of videos and several seeds would be required to make the differences observed
 after three and five passes conclusive.
@@ -1394,7 +1399,8 @@ after three and five passes conclusive.
 \section{Conclusion}
 In this work we presented ULAL, a compact real-video pipeline for lifelong action recognition that runs on
 a single free GPU. A leakage-free, group-disjoint split makes the reported results trustworthy, and a
-ResNet50+LSTM provides a strong teacher (93.9\%). Among the continual-learning strategies, rehearsal is the
+ResNet50+LSTM provides a strong teacher (93.9\%), as accurate as a vision transformer $3.4\times$ its size.
+Among the continual-learning strategies, rehearsal is the
 most effective (89.8\%, against 26.0\% for naive fine-tuning). Cosine distillation produces a $14\times$
 smaller student that retains 82.7\% accuracy, while with scarce data the proposed prototype-alignment
 objective is the most effective way to use the teacher (+6.4 points over cross-entropy). Evaluated with a
@@ -1409,32 +1415,36 @@ it was chosen.
 
 %------------------------------------------------------------------------------
 \section*{Author Contributions}
-The work divides along the pipeline of Fig.~\ref{fig:pipeline}, and
-Table~\ref{tab:contrib} indexes which author led which part. Each author owns a contiguous
-span of the pipeline together with a share of the shared infrastructure (the recogniser,
-the training harness, and the plotting and metrics code), and the two comparison-heavy
-stages (continual learning and meta-adaptation) sit with different authors. All three
-authors jointly designed the study, reviewed each other's stages for fairness, and wrote
-the paper.
+The work divides along the pipeline of Fig.~\ref{fig:pipeline}; Table~\ref{tab:contrib}
+lists the parts of the study carried out by each author. All three authors contributed to
+writing the paper.
 
 \begin{table}[h]
 \centering
 \caption{Author contribution index, organised by pipeline stage.}
 \label{tab:contrib}
 \renewcommand{\arraystretch}{1.2}
-\begin{tabular}{p{0.30\linewidth}p{0.60\linewidth}}
+\begin{tabular}{p{0.26\linewidth}p{0.64\linewidth}}
 \toprule
 Contributor & Responsibilities \\
 \midrule
-Second B. Author &
-S1 data split and leakage audit; S2 backbone bake-off; the shared recogniser and training
-harness. \\
-Third C. Author &
-S3 continual learning (all five methods, forgetting timelines); S4 knowledge distillation
-(four objectives, compression analysis). \\
 First A. Author &
-S5 few-shot meta-adaptation (MAML, fine-tune control, harmonic metric); the ULAL capstone
-and real-video test; the evaluation protocol and metrics. \\
+S1: dataset study, data-leakage analysis and group-disjoint split.
+S2: the four pretrained CNN backbones.
+S3: naive and LwF; EWC/LwF hyperparameter study ($\lambda$, $T$).
+S4: CE-only and CE + MSE students.
+S5: the full meta-adaptation study.
+Real-video test: the full YouTube adaptation. \\
+Second B. Author &
+S1: the video preprocessing (frames to clips).
+S2: the custom CNN trained from scratch.
+S3: replay and replay + LwF.
+S4: the CE + KD and proto-align students, including the reduced-data study.
+S6: the whole few-shot study with CLIP. \\
+Third C. Author &
+S2: the ViT-B/16 backbone.
+S3: EWC.
+S4: the CE + cosine student. \\
 \bottomrule
 \end{tabular}
 \end{table}
