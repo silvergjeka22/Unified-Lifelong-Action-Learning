@@ -1,4 +1,4 @@
-This is pdfTeX, Version 3.141592653-2.6-1.40.22 (TeX Live 2021) (preloaded format=pdflatex 2022.3.19)  26 SEP 2026 16:04
+This is pdfTeX, Version 3.141592653-2.6-1.40.22 (TeX Live 2021) (preloaded format=pdflatex 2022.3.19)  26 SEP 2026 16:06
 entering extended mode
  restricted \write18 enabled.
  %&-line parsing enabled.
@@ -897,7 +897,7 @@ Package rerunfilecheck Info: File `ulal_paper.out' has not changed.
 Here is how much of TeX's memory you used:
  23329 strings out of 478994
  437093 string characters out of 5858184
- 887982 words of memory out of 5000000
+ 888003 words of memory out of 5000000
  40349 multiletter control sequences out of 15000+600000
  525081 words of font info for 152 fonts, out of 8000000 for 9000
  1141 hyphenation exceptions out of 8191
@@ -927,7 +927,7 @@ blic/amsfonts/symbols/msbm10.pfb></usr/local/texlive/2021/texmf-dist/fonts/type
 1/urw/times/utmb8a.pfb></usr/local/texlive/2021/texmf-dist/fonts/type1/urw/time
 s/utmbi8a.pfb></usr/local/texlive/2021/texmf-dist/fonts/type1/urw/times/utmr8a.
 pfb></usr/local/texlive/2021/texmf-dist/fonts/type1/urw/times/utmri8a.pfb>
-Output written on ulal_paper.pdf (11 pages, 360425 bytes).
+Output written on ulal_paper.pdf (11 pages, 360420 bytes).
 PDF statistics:
  381 PDF objects out of 1000 (max. 8388607)
  317 compressed objects within 4 object streams
