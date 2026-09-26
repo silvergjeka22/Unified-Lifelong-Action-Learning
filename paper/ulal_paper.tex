@@ -1392,10 +1392,8 @@ student and therefore suits deployments without size constraints, whereas the MA
 
 \textbf{Limitations.} All results are obtained with a single seed and on a single dataset, with short class
 streams (up to 30 classes). Rehearsal stores real clips, so its memory cost grows with the number of
-classes. The real-video test is small
-(5 sports, 10 test videos) and depends on downloadable YouTube videos (one of the 20 could not be
-downloaded); a larger set of videos and several seeds would be required to make the differences observed
-after three and five passes conclusive.
+classes. The real-video test is small (Section~\ref{sec:ulal}), so more videos and seeds would be needed to
+make the differences observed after three and five passes conclusive.
 
 %------------------------------------------------------------------------------
 \section{Conclusion}
@@ -1417,7 +1415,7 @@ it was chosen.
 
 %------------------------------------------------------------------------------
 \section*{Author Contributions}
-Table~\ref{tab:contrib} shows the contributions of each author to the pipeline implementation. It refers purely to the implementation. All author equally contributed to the writing of the report.
+Table~\ref{tab:contrib} lists each author's contributions to the implementation; all authors contributed equally to writing the report.
 
 \begin{table}[h]
 \centering
@@ -1431,10 +1429,10 @@ Contributor & Responsibilities \\
 Silver Gjeka &
 S1: dataset study, data-leakage analysis and group-disjoint split.
 S2: four pretrained CNN backbones.
-S3: naive and LwF; EWC/LwF hyperparameter study ($\lambda$, $T$).
-S4: CE-only and CE + MSE KD.
-S5: whole meta-learning study.
-Real-video test: YouTube clips and adaptation of the three models. \\
+S3: naive and LwF; EWC/LwF hyperparameter study ($\lambda$,$T$).
+S4: CE-only and CE+MSE KD.
+S5: whole meta-learning study: plain, fine-tune, MAML; +replay/LwF; shots sweep.
+Real-video test: YouTube clips and model adaptation. \\
 Giacomo Lucato &
 S1: data preprocessing and clip creations.
 S2: custom CNN trained from scratch.
