@@ -3,7 +3,7 @@ import torch.nn as nn
 import torch.nn.functional as F
 from torchvision import models
 from torchvision.models import (
-    ResNet18_Weights, ResNet50_Weights, DenseNet121_Weights, VGG19_BN_Weights,
+    ResNet18_Weights, ResNet50_Weights, DenseNet121_Weights, VGG19_BN_Weights, ViT_B_16_Weights,
 )
 
 from src.config.config import SELECTED_CLASSES, DROPOUT_P, HIDDEN_SIZE
@@ -123,6 +123,29 @@ class VGG19BNLSTM(nn.Module):
     def forward(self, x):
         B, T, C, H, W = x.shape
         feats  = self.features_net(x.view(B * T, C, H, W)).mean(dim=[2, 3]).view(B, T, 512)
+        out, _ = self.lstm(feats)
+        return self.fc(out[:, -1, :])
+
+
+class ViTLSTM(nn.Module):
+    """ViT-B/16 (last 2 of 12 encoder blocks unfrozen) + 2-layer LSTM."""
+
+    def __init__(self, num_classes=NUM_CLASSES, hidden_size=HIDDEN_SIZE):
+        super().__init__()
+        vit = models.vit_b_16(weights=ViT_B_16_Weights.IMAGENET1K_V1)
+        vit.heads = nn.Identity()                  # keep the 768-d class token
+        for p in vit.parameters():
+            p.requires_grad = False
+        for block in vit.encoder.layers[-2:]:
+            for p in block.parameters():
+                p.requires_grad = True
+        self.backbone = vit
+        self.lstm     = nn.LSTM(768, hidden_size, num_layers=2, batch_first=True)
+        self.fc       = nn.Linear(hidden_size, num_classes)
+
+    def forward(self, x):
+        B, T, C, H, W = x.shape
+        feats  = self.backbone(x.view(B * T, C, H, W)).view(B, T, 768)
         out, _ = self.lstm(feats)
         return self.fc(out[:, -1, :])
 
