@@ -1,4 +1,4 @@
-This is pdfTeX, Version 3.141592653-2.6-1.40.22 (TeX Live 2021) (preloaded format=pdflatex 2022.3.19)  25 SEP 2026 23:56
+This is pdfTeX, Version 3.141592653-2.6-1.40.22 (TeX Live 2021) (preloaded format=pdflatex 2022.3.19)  26 SEP 2026 15:52
 entering extended mode
  restricted \write18 enabled.
  %&-line parsing enabled.
@@ -812,19 +812,19 @@ LaTeX Info: Redefining \nameref on input line 80.
 \@outlinefile=\write4
 \openout4 = `ulal_paper.out'.
 
-LaTeX Font Info:    Trying to load font information for U+msa on input line 117
+LaTeX Font Info:    Trying to load font information for U+msa on input line 116
 .
 
 (/usr/local/texlive/2021/texmf-dist/tex/latex/amsfonts/umsa.fd
 File: umsa.fd 2013/01/14 v3.01 AMS symbols A
 )
-LaTeX Font Info:    Trying to load font information for U+msb on input line 117
+LaTeX Font Info:    Trying to load font information for U+msb on input line 116
 .
 
 (/usr/local/texlive/2021/texmf-dist/tex/latex/amsfonts/umsb.fd
 File: umsb.fd 2013/01/14 v3.01 AMS symbols B
 )
-Underfull \hbox (badness 3769) in paragraph at lines 99--145
+Underfull \hbox (badness 3769) in paragraph at lines 99--147
 []\T1/ptm/b/it/9 Abstract\T1/ptm/b/n/9 ---We present \T1/ptm/b/it/9 Uni-fied Li
 fe-long Ac-tion Learn-ing
  []
@@ -836,44 +836,48 @@ Underfull \vbox (badness 10000) has occurred while \output is active []
 
 
 ]
-Underfull \hbox (badness 1783) in paragraph at lines 298--312
+Underfull \hbox (badness 1783) in paragraph at lines 300--315
 []\T1/ptm/b/n/10 Continual learn-ing (CL). \T1/ptm/m/n/10 Tra-di-tional CL ap-p
 roaches
  []
 
 [2] [3]
-Underfull \hbox (badness 1424) in paragraph at lines 503--509
+Underfull \hbox (badness 1424) in paragraph at lines 505--511
 \T1/ptm/m/n/10 split the same mod-els score 4.3 to 36.7 points higher
  []
 
 
-Underfull \hbox (badness 10000) in paragraph at lines 533--537
+Underfull \hbox (badness 10000) in paragraph at lines 538--542
 []\T1/ptm/b/n/10 S3.2 LwF \T1/ptm/m/n/10 [[]]: adds the dis-til-la-tion loss
  []
 
 
-Underfull \hbox (badness 4254) in paragraph at lines 533--537
+Underfull \hbox (badness 4254) in paragraph at lines 538--542
 \OML/cmm/m/it/10 ^^U [][]z[];  z[][]$\T1/ptm/m/n/10 . On the new-class clips, t
 his
  []
 
 [4]
-Underfull \hbox (badness 10000) in paragraph at lines 703--706
+Underfull \hbox (badness 10000) in paragraph at lines 708--711
 []\T1/ptm/b/n/10 S4.1 KD \T1/ptm/m/n/10 [[]]: matches the soft-ened out-put
  []
 
 
-Underfull \hbox (badness 10000) in paragraph at lines 703--706
+Underfull \hbox (badness 10000) in paragraph at lines 708--711
 \T1/ptm/m/n/10 dis-tri-bu-tions of the teacher and stu-dent us-ing
  []
 
-[5] [6] [7] [8]
+[5]
+Underfull \vbox (badness 4832) has occurred while \output is active []
+
+
 Underfull \vbox (badness 10000) has occurred while \output is active []
 
- [9]
-[10]
-
-LaTeX Warning: `h' float specifier changed to `ht'.
+ [6]
+[7] [8] [9] [10]
+Underfull \hbox (badness 2617) in paragraph at lines 1432--1438
+[]|\T1/ptm/m/n/8 S1: dataset study, data-leakage anal-y-sis and
+ []
 
 
 ** Conference Paper **
@@ -893,11 +897,11 @@ Package rerunfilecheck Info: File `ulal_paper.out' has not changed.
 Here is how much of TeX's memory you used:
  23329 strings out of 478994
  437093 string characters out of 5858184
- 879898 words of memory out of 5000000
+ 887892 words of memory out of 5000000
  40349 multiletter control sequences out of 15000+600000
  525081 words of font info for 152 fonts, out of 8000000 for 9000
  1141 hyphenation exceptions out of 8191
- 113i,10n,116p,811b,902s stack positions out of 5000i,500n,10000p,200000b,80000s
+ 113i,11n,116p,811b,902s stack positions out of 5000i,500n,10000p,200000b,80000s
 {/usr/local/texlive/2021/texmf-dist/fonts/enc/dvips/base/8r.enc}</usr/local/t
 exlive/2021/texmf-dist/fonts/type1/public/amsfonts/cm/cmex10.pfb></usr/local/te
 xlive/2021/texmf-dist/fonts/type1/public/amsfonts/cmextra/cmex8.pfb></usr/local
@@ -923,7 +927,7 @@ blic/amsfonts/symbols/msbm10.pfb></usr/local/texlive/2021/texmf-dist/fonts/type
 1/urw/times/utmb8a.pfb></usr/local/texlive/2021/texmf-dist/fonts/type1/urw/time
 s/utmbi8a.pfb></usr/local/texlive/2021/texmf-dist/fonts/type1/urw/times/utmr8a.
 pfb></usr/local/texlive/2021/texmf-dist/fonts/type1/urw/times/utmri8a.pfb>
-Output written on ulal_paper.pdf (11 pages, 358807 bytes).
+Output written on ulal_paper.pdf (11 pages, 360266 bytes).
 PDF statistics:
  381 PDF objects out of 1000 (max. 8388607)
  317 compressed objects within 4 object streams
