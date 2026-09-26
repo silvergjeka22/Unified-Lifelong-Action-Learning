@@ -45,18 +45,18 @@
 \@writefile{lot}{\contentsline {table}{\numberline {I}{\ignorespaces Budget per stage (shared by every method compared in that stage).}}{3}{table.1}\protected@file@percent }
 \newlabel{tab:hparams}{{I}{3}{Budget per stage (shared by every method compared in that stage)}{table.1}{}}
 \newlabel{eq:harm}{{2}{3}{Evaluation metrics}{equation.3.2}{}}
-\@writefile{toc}{\contentsline {section}{\numberline {IV}Stage 1 --- Data Split and Leakage}{3}{section.4}\protected@file@percent }
-\newlabel{sec:data}{{IV}{3}{Stage 1 --- Data Split and Leakage}{section.4}{}}
 \citation{kirkpatrick2017ewc}
-\citation{li2017lwf}
 \@writefile{lot}{\contentsline {table}{\numberline {II}{\ignorespaces Source groups shared between splits (20 studied classes, 2{,}679 videos).}}{4}{table.2}\protected@file@percent }
 \newlabel{tab:leak}{{II}{4}{Source groups shared between splits (20 studied classes, 2{,}679 videos)}{table.2}{}}
+\@writefile{toc}{\contentsline {section}{\numberline {IV}Stage 1 --- Data Split and Leakage}{4}{section.4}\protected@file@percent }
+\newlabel{sec:data}{{IV}{4}{Stage 1 --- Data Split and Leakage}{section.4}{}}
 \@writefile{toc}{\contentsline {section}{\numberline {V}Stage 2 --- Backbone Selection}{4}{section.5}\protected@file@percent }
 \newlabel{sec:backbone}{{V}{4}{Stage 2 --- Backbone Selection}{section.5}{}}
 \@writefile{lot}{\contentsline {table}{\numberline {III}{\ignorespaces Backbone bake-off on the 10 base classes: test accuracy (\%) on UCF101's shipped split (171 test clips, leaking) and on our group-disjoint split (212 test clips). Same budget for every backbone; ms/clip is the inference time per clip. Bold: best per column.}}{4}{table.3}\protected@file@percent }
 \newlabel{tab:backbone}{{III}{4}{Backbone bake-off on the 10 base classes: test accuracy (\%) on UCF101's shipped split (171 test clips, leaking) and on our group-disjoint split (212 test clips). Same budget for every backbone; ms/clip is the inference time per clip. Bold: best per column}{table.3}{}}
 \@writefile{toc}{\contentsline {section}{\numberline {VI}Stage 3 --- Continual Learning}{4}{section.6}\protected@file@percent }
 \newlabel{sec:cl}{{VI}{4}{Stage 3 --- Continual Learning}{section.6}{}}
+\citation{li2017lwf}
 \citation{rebuffi2017icarl}
 \citation{li2017lwf}
 \citation{hinton2015kd}
@@ -88,10 +88,10 @@
 \newlabel{fig:meta}{{6}{8}{\textbf {Stage 5: three starting points and one shared adaptation}, top to bottom. The plain student (S5.0), the student after normal training on 40 other sports (S5.1, the control), and the student after MAML on the same sports (S5.2, violet: inner/outer loop) are each adapted in the same way: 8 clips of 5 new sports, a head grown from 20 to 25 classes, with optional replay (orange) and optional LwF (dashed). Red dashed: only the last 4 blocks, LSTM and head are trained before adaptation}{figure.6}{}}
 \@writefile{toc}{\contentsline {section}{\numberline {IX}Stage 6 --- Few-Shot Learning with a Frozen CLIP Encoder}{8}{section.9}\protected@file@percent }
 \newlabel{sec:clip}{{IX}{8}{Stage 6 --- Few-Shot Learning with a Frozen CLIP Encoder}{section.9}{}}
-\@writefile{lot}{\contentsline {table}{\numberline {IX}{\ignorespaces Stage 6: test accuracy (\%) on the 10 base classes (212 test clips, chance 10\%) with $k$ training clips per class. ``Trained'' counts the trainable parameters; the CLIP image encoder ($\approx $88M) is frozen. --: not run.}}{8}{table.9}\protected@file@percent }
-\newlabel{tab:clip}{{IX}{8}{Stage 6: test accuracy (\%) on the 10 base classes (212 test clips, chance 10\%) with $k$ training clips per class. ``Trained'' counts the trainable parameters; the CLIP image encoder ($\approx $88M) is frozen. --: not run}{table.9}{}}
 \@writefile{lof}{\contentsline {figure}{\numberline {7}{\ignorespaces \textbf  {Stage 6: few-shot learning with a frozen CLIP encoder}, top to bottom. Left: our ResNet50+LSTM, its LSTM and head trained on the same $k$ clips. Right: the frozen CLIP image encoder (dashed) turns every clip into one 512-d feature $f$ (average of its 16 frames), and three classifiers use it: text + visual prototypes (S6.1; $t_c$ from the class name, $m_c$ the mean feature of the $k$ clips of class $c$), a linear probe (S6.2), and a small MLP adapter (S6.3). Blue: trained on the $k$ clips. Bottom: test accuracy (\%), from 1 to 16 clips per class where the whole sweep was run.}}{9}{figure.7}\protected@file@percent }
 \newlabel{fig:clip}{{7}{9}{\textbf {Stage 6: few-shot learning with a frozen CLIP encoder}, top to bottom. Left: our ResNet50+LSTM, its LSTM and head trained on the same $k$ clips. Right: the frozen CLIP image encoder (dashed) turns every clip into one 512-d feature $f$ (average of its 16 frames), and three classifiers use it: text + visual prototypes (S6.1; $t_c$ from the class name, $m_c$ the mean feature of the $k$ clips of class $c$), a linear probe (S6.2), and a small MLP adapter (S6.3). Blue: trained on the $k$ clips. Bottom: test accuracy (\%), from 1 to 16 clips per class where the whole sweep was run}{figure.7}{}}
+\@writefile{lot}{\contentsline {table}{\numberline {IX}{\ignorespaces Stage 6: test accuracy (\%) on the 10 base classes (212 test clips, chance 10\%) with $k$ training clips per class. ``Trained'' counts the trainable parameters; the CLIP image encoder ($\approx $88M) is frozen. --: not run.}}{9}{table.9}\protected@file@percent }
+\newlabel{tab:clip}{{IX}{9}{Stage 6: test accuracy (\%) on the 10 base classes (212 test clips, chance 10\%) with $k$ training clips per class. ``Trained'' counts the trainable parameters; the CLIP image encoder ($\approx $88M) is frozen. --: not run}{table.9}{}}
 \@writefile{toc}{\contentsline {section}{\numberline {X}The ULAL Pipeline on Real Video}{9}{section.10}\protected@file@percent }
 \newlabel{sec:ulal}{{X}{9}{The ULAL Pipeline on Real Video}{section.10}{}}
 \@writefile{lot}{\contentsline {table}{\numberline {X}{\ignorespaces The pipeline on UCF101 (group-disjoint test).}}{10}{table.10}\protected@file@percent }
