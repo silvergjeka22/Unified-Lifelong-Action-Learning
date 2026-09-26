@@ -1417,9 +1417,7 @@ it was chosen.
 
 %------------------------------------------------------------------------------
 \section*{Author Contributions}
-The work divides along the pipeline of Fig.~\ref{fig:pipeline}; Table~\ref{tab:contrib}
-lists the parts of the study carried out by each author. All three authors contributed to
-writing the paper.
+Table~\ref{tab:contrib} shows the contributions of each author to the pipeline implementation. It refers purely to the implementation. All author equally contributed to the writing of the report.
 
 \begin{table}[h]
 \centering
@@ -1432,21 +1430,21 @@ Contributor & Responsibilities \\
 \midrule
 Silver Gjeka &
 S1: dataset study, data-leakage analysis and group-disjoint split.
-S2: the four pretrained CNN backbones.
-S3: naive and LwF; EWC/LwF hyperparameter study ($\lambda$, $T$).
-S4: CE-only and CE + MSE students.
-S5: the full meta-adaptation study.
-Real-video test: the full YouTube adaptation. \\
+S2: four pretrained CNN backbones.
+S3: naive and LwF CL strategies; EWC/LwF hyperparameter study ($\lambda$, $T$).
+S4: CE-only and CE + MSE KD strategies.
+S5: full meta-adaptation study.
+Real-video test: full YouTube adaptation. \\
 Giacomo Lucato &
-S1: the video preprocessing (frames to clips).
-S2: the custom CNN trained from scratch.
-S3: replay and replay + LwF.
-S4: the CE + KD and proto-align students, including the reduced-data study.
-S6: the whole few-shot study with CLIP. \\
+S1: data preprocessing and clip creations.
+S2: custom CNN trained from scratch.
+S3: replay buffer and replay + LwF CL strategies.
+S4: CE + KD and proto-align KD strategies; reduced dataset KD study.
+S6: whole few-shot study with CLIP: hybrid prototypes, linear probe, CLIP+MLP vs ResNet50+LSTM analysis. \\
 Sevastian Guzun &
-S2: the ViT-B/16 backbone.
-S3: EWC.
-S4: the CE + cosine student. \\
+S2: ViT-B/16 backbone.
+S3: EWC CL strategy.
+S4: CE + cosine student KD strategy. \\
 \bottomrule
 \end{tabular}
 \end{table}
