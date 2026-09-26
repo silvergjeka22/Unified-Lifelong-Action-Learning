@@ -97,7 +97,7 @@ Unified-Lifelong-Action-Learning/
 |       |   `-- dataset_study.ipynb       leakage of the shipped split, group-disjoint split
 |       |-- 2_choose_model/
 |       |   |-- backbone_transfer.ipynb   compares 5 backbones, saves the ResNet50 teacher
-|       |   `-- Fine_tune_ViT.ipynb       ViT-B/16 + LSTM (earlier pipeline, shipped split; runs from main)
+|       |   `-- Fine_tune_ViT.ipynb       ViT-B/16 + LSTM on the same split, compared with the CNNs
 |       |-- 3_continual_learning/
 |       |   |-- naive.ipynb               plain fine-tuning (the forgetting reference)
 |       |   |-- ewc.ipynb                 EWC: penalty on important weights
@@ -121,7 +121,7 @@ Unified-Lifelong-Action-Learning/
 |   |   |-- dataset.py                    UCF101Clips dataset, per-class subsets
 |   |   `-- study.py                      DatasetStudy: class counts and balance
 |   |-- models/
-|   |   |-- backbones.py                  ScratchCNN, ResNet18, ResNet50, DenseNet121, VGG19-BN (+ LSTM),
+|   |   |-- backbones.py                  ScratchCNN, ResNet18, ResNet50, DenseNet121, VGG19-BN, ViT-B/16 (+ LSTM),
 |   |   |                                 expand_classifier (grow the head)
 |   |   `-- student.py                    MobileNetV3-Small + LSTM student
 |   |-- training/
@@ -171,7 +171,8 @@ computer, so **push your changes before you run**.
 Some notebooks load a model saved by an earlier one, so run them in this order the first time:
 
 1. `study/1_dataset` shows the data problem and the group split. It needs nothing.
-2. `study/2_choose_model` compares five backbones and **saves the teacher** (`ResNet50_10C.pth`).
+2. `study/2_choose_model/backbone_transfer` compares five backbones and **saves the teacher** (`ResNet50_10C.pth`).
+   `Fine_tune_ViT` then trains a vision transformer in the same way and compares it with them.
 3. `study/3_continual_learning` compares five methods; each one loads the teacher from step 2.
    `replay_lwf` also **saves its model** (`replay_lwf.pt`) for the next step.
 4. `study/4_distillation` loads `replay_lwf.pt` and **saves the student** (`student.pt`).
