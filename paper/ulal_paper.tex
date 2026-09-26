@@ -131,11 +131,13 @@ To teach the distilled student five new sports from only eight clips each, we co
 (the plain student, a student fine-tuned on 40 other sports, and a student meta-trained with MAML on the same
 sports), each adapted with no protection, with replay, or with replay and LwF. Scored with the harmonic mean of
 new- and old-class accuracy, MAML combined with replay is the best-balanced strategy (0.600), ahead of the
-fine-tuned control with replay (0.530), which saw the same extra data.
-(vi) \emph{How can we exploit frozen foundation models?} Vision-language models such as CLIP have been shown to be extremely effective
-under few-shot regimes. We compare our ResNet50+LSTM against a frozen CLIP encoder with a small MLP adapter. We evaluate the comparison under 1, 2, 4, 8, and 16 
-samples per class during training. During 1-shot learning, the CLIP+MLP architecture easily achieves an accuracy of 75.0\%, 
-against 17.9\% for our ResNet50+LSTM, showing the power of these foundation models. 
+fine-tuned control with replay (0.530), which saw the same extra data; with one clip per new sport, MAML already
+reaches 0.26 new-class accuracy, against at most 0.03 for the other starts.
+(vi) \emph{How can we exploit frozen foundation models?} Vision-language models such as CLIP have been shown to be effective
+under few-shot regimes. As a reference for Stage~5, we compare our ResNet50+LSTM against a frozen CLIP encoder with a small
+MLP adapter, using 1, 2, 4, 8, and 16 training samples per class. With one sample per class, the CLIP+MLP architecture
+achieves an accuracy of 75.0\%, against 17.9\% for our ResNet50+LSTM. However, the CLIP encoder is $50\times$ larger than
+the distilled student and solves a different task, so these results are not directly comparable with Stage~5.
 To test the generalisation abilities of our approach, a final capstone combines the best strategy of each stage into a
 single pipeline and evaluates it on real YouTube videos of five unseen sports, using 10 clips per class for training.
 Under small update budgets the meta-trained student adapts faster than the plain distilled student: after 13 updates
@@ -1098,7 +1100,7 @@ Fig.~\ref{fig:pipeline}).
 \label{sec:clip}
 Through Stage~5 we developed a strategy to make our model able to adapt quickly to new tasks. We evaluated also a different approach, borrowing a \emph{foundation model} pre-trained over a vast amount of data and keeping it frozen, using it as a 0-shot feature extractor.
 We chose CLIP~\cite{radford2021clip} (ViT-B/32), a vision-language model already trained on 400M image--text pairs.
-Our goal is to test whether it can learn our actions from a handful of clips, or even from their names alone. This study
+Our goal is to test whether it can learn our actions from a handful of clips. This study
 is a reference for Stage~5; it is not part of the pipeline of Fig.~\ref{fig:pipeline}.
 
 \textbf{Architectural design} (Fig.~\ref{fig:clip}). For every video clip, all 16 frames are passed through the frozen CLIP
@@ -1210,7 +1212,7 @@ S6.3 MLP adapter   & 0.13M & \textbf{75.0} & \textbf{73.1} & \textbf{74.1} & \te
 \end{table}
 
 \textbf{Results and interpretation.} Table~\ref{tab:clip} shows that frozen CLIP features
-are highly effective in the few-shot setting. With one training clip per class, the MLP
+are effective in the few-shot setting. With one training clip per class, the MLP
 adapter reaches 75.0\% accuracy, compared with 17.9\% for ResNet50+LSTM. The comparison is
 not fully controlled because the models are trained for different numbers of epochs, but
 the large gap indicates the value of CLIP's pretrained representation.
@@ -1383,10 +1385,10 @@ classes. Third, \emph{each technique is useful in a specific regime}: the main b
 compression, and with scarce data the teacher helps most through class-level prototypes rather than
 per-clip targets; meta-learning is most useful when new classes must be learned from very few clips and in
 very few updates, while with more clips or more updates the plain student catches up, both in Stage~5 and on
-real video. Fourth, \emph{prior knowledge is the strongest few-shot tool, but it comes at the cost of model
-size}: frozen CLIP features learn the base classes from a single clip (75.0\%), where our recogniser needs
-many more, but the CLIP encoder is $50\times$ larger than the student and therefore targets a different
-deployment scenario, without size constraints, than the one considered by ULAL.
+real video. Fourth, \emph{prior knowledge and fast adaptation answer different constraints}: frozen CLIP
+features learn the base classes from a single clip (75.0\%), but the CLIP encoder is $50\times$ larger than the
+student and therefore suits deployments without size constraints, whereas the MAML student keeps the
+1.8M-parameter budget targeted by ULAL and learns new classes within a few updates.
 
 \textbf{Limitations.} All results are obtained with a single seed and on a single dataset, with short class
 streams (up to 30 classes). Rehearsal stores real clips, so its memory cost grows with the number of
@@ -1406,7 +1408,7 @@ smaller student that retains 82.7\% accuracy, while with scarce data the propose
 objective is the most effective way to use the teacher (+6.4 points over cross-entropy). Evaluated with a
 harmonic metric and a matched fine-tune control, MAML combined with replay is the best-balanced few-shot
 adapter ($H=0.600$). As a reference, a frozen CLIP encoder learns the base classes from a single clip
-(75.0\%, and 90.1\% with 16 clips and no training), making it the best choice when model size is not a
+(75.0\%, and 90.1\% with 16 clips and no training), which makes it attractive when model size is not a
 constraint. When the selected methods are combined into a single pipeline and tested on unseen YouTube
 videos, the meta-trained student is the faster of the two students: after 26 updates it matches the
 $14\times$ larger teacher on the new sports (0.36 against 0.37) and outperforms the plain student (0.23),
