@@ -136,7 +136,7 @@ reaches 0.26 new-class accuracy, against at most 0.03 for the other starts.
 (vi) \emph{How can we exploit frozen foundation models?} Vision-language models such as CLIP have been shown to be effective
 under few-shot regimes. As a reference for Stage~5, we compare our ResNet50+LSTM against a frozen CLIP encoder with a small
 MLP adapter, using 1, 2, 4, 8, and 16 training samples per class. With one sample per class, the CLIP+MLP architecture
-achieves an accuracy of 75.0\%, against 17.9\% for our ResNet50+LSTM. However, the CLIP encoder is $50\times$ larger than
+achieves an accuracy of 75.5\%, against 17.9\% for our ResNet50+LSTM. However, the CLIP encoder is $50\times$ larger than
 the distilled student and solves a different task, so these results are not directly comparable with Stage~5.
 To test the generalisation abilities of our approach, a final capstone combines the best strategy of each stage into a
 single pipeline and evaluates it on real YouTube videos of five unseen sports, using 10 clips per class for training.
@@ -1177,7 +1177,7 @@ for $k=16$.
 \node[c net, minimum width=22mm] (m1) at (150,-24.5) {MLP 512$\to$256\\BN, ReLU, dropout};
 \node[c head] (m2) at (150,-33) {head};
 \node[c note] at (150,-39.5) {trained on $k$ clips};
-\node[c res]  at (150,-51) {\textbf{75.0} $\to$ 86.8};
+\node[c res]  at (150,-51) {\textbf{75.5} $\to$ 88.2};
 \node[c pick] at (150,-55) {best at $k=1$--$8$};
 \draw[c arr] (167,-12.5) |- (m1.east); \draw[c arr] (m1)--(m2);
 \end{tikzpicture}}
@@ -1206,25 +1206,25 @@ Method & Trained & $k{=}1$ & 2 & 4 & 8 & 16 \\
 S6.0 ResNet50+LSTM & 2.4M  & 17.9 & 15.1 & 36.3 & 50.9 & 61.3 \\
 S6.1 Hybrid proto. & 0     & --   & --   & --   & --   & \textbf{90.1} \\
 S6.2 Linear probe  & 5k    & --   & --   & --   & --   & 89.6 \\
-S6.3 MLP adapter   & 0.13M & \textbf{75.0} & \textbf{73.1} & \textbf{74.1} & \textbf{79.2} & 86.8 \\
+S6.3 MLP adapter   & 0.13M & \textbf{75.5} & \textbf{72.6} & \textbf{73.6} & \textbf{78.8} & 88.2 \\
 \bottomrule
 \end{tabular}
 \end{table}
 
 \textbf{Results and interpretation.} Table~\ref{tab:clip} shows that frozen CLIP features
 are effective in the few-shot setting. With one training clip per class, the MLP
-adapter reaches 75.0\% accuracy, compared with 17.9\% for ResNet50+LSTM. The comparison is
+adapter reaches 75.5\% accuracy, compared with 17.9\% for ResNet50+LSTM. The comparison is
 not fully controlled because the models are trained for different numbers of epochs, but
 the large gap indicates the value of CLIP's pretrained representation.
 
-Increasing $k$ from 1 to 4 provides little benefit to the MLP adapter (73.1--75.0\%) because
+Increasing $k$ from 1 to 4 provides little benefit to the MLP adapter (72.6--75.5\%) because
 these clips come from the same recording and contain limited additional variation. Its
-accuracy rises to 79.2\% with 8 clips and 86.8\% with 16 clips, when examples from more
+accuracy rises to 78.8\% with 8 clips and 88.2\% with 16 clips, when examples from more
 recordings are included. This suggests that recording diversity is more useful than adding
 highly similar clips.
 
 At $k=16$, the simpler classifiers perform best: hybrid prototypes reach 90.1\% and the
-linear probe reaches 89.6\%, compared with 86.8\% for the MLP adapter. Both are also close
+linear probe reaches 89.6\%, compared with 88.2\% for the MLP adapter. Both are also close
 to the 93.9\% accuracy of the Stage-2 model trained on the full dataset. These results show
 that strong frozen features require only a lightweight classifier; with 160 training
 clips, the additional capacity of the MLP does not improve generalisation.
@@ -1234,7 +1234,7 @@ problem learning a new class from a few clips but in opposite ways, and each is 
 different criteria:
 \begin{itemize}
 \item \emph{Prior knowledge.} CLIP relies on representations learned from 400M web image--text pairs,
-which explains why a single clip per class already yields 75.0\% accuracy. MAML, in contrast, only knows
+which explains why a single clip per class already yields 75.5\% accuracy. MAML, in contrast, only knows
 the UCF101 sports on which it was meta-trained, and still has to update the network to learn a new class.
 \item \emph{Forgetting.} With frozen CLIP features, adding a class only requires adding a prototype or a
 row of a small classifier; the old classes are left untouched, so nothing is forgotten and no replay
@@ -1386,7 +1386,7 @@ compression, and with scarce data the teacher helps most through class-level pro
 per-clip targets; meta-learning is most useful when new classes must be learned from very few clips and in
 very few updates, while with more clips or more updates the plain student catches up, both in Stage~5 and on
 real video. Fourth, \emph{prior knowledge and fast adaptation answer different constraints}: frozen CLIP
-features learn the base classes from a single clip (75.0\%), but the CLIP encoder is $50\times$ larger than the
+features learn the base classes from a single clip (75.5\%), but the CLIP encoder is $50\times$ larger than the
 student and therefore suits deployments without size constraints, whereas the MAML student keeps the
 1.8M-parameter budget targeted by ULAL and learns new classes within a few updates.
 
@@ -1408,7 +1408,7 @@ smaller student that retains 82.7\% accuracy, while with scarce data the propose
 objective is the most effective way to use the teacher (+6.4 points over cross-entropy). Evaluated with a
 harmonic metric and a matched fine-tune control, MAML combined with replay is the best-balanced few-shot
 adapter ($H=0.600$). As a reference, a frozen CLIP encoder learns the base classes from a single clip
-(75.0\%, and 90.1\% with 16 clips and no training), which makes it attractive when model size is not a
+(75.5\%, and 90.1\% with 16 clips and no training), which makes it attractive when model size is not a
 constraint. When the selected methods are combined into a single pipeline and tested on unseen YouTube
 videos, the meta-trained student is the faster of the two students: after 26 updates it matches the
 $14\times$ larger teacher on the new sports (0.36 against 0.37) and outperforms the plain student (0.23),
